@@ -7,9 +7,19 @@ import { authStore } from '../stores/auth';
 
 const { Title, Text } = Typography;
 
-export default function Login() {
+interface LoginProps {
+  theme: 'light' | 'dark';
+}
+
+export default function Login({ theme }: LoginProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  
+  const isDark = theme === 'dark';
+  const bgColor = isDark ? '#0f172a' : '#f5f5f5';
+  const cardBg = isDark ? '#1e293b' : '#ffffff';
+  const textColor = isDark ? '#f1f5f9' : '#030213';
+  const secondaryColor = isDark ? '#94a3b8' : '#717182';
 
   const onFinish = async (values: { username: string; password: string; remember: boolean }) => {
     setLoading(true);
@@ -34,18 +44,20 @@ export default function Login() {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      background: '#f5f5f5',
+      background: bgColor,
+      transition: 'background 0.3s',
     }}>
       <div style={{
         width: 360,
         padding: '40px',
-        background: '#fff',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        background: cardBg,
+        borderRadius: '10px',
+        boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.1)',
+        transition: 'all 0.3s',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <Title level={3} style={{ margin: 0 }}>登录</Title>
-          <Text type="secondary">ABC 管理系统</Text>
+          <Title level={3} style={{ margin: 0, color: textColor }}>登录</Title>
+          <Text type="secondary" style={{ color: secondaryColor }}>ABC 管理系统</Text>
         </div>
 
         <Form
@@ -87,13 +99,17 @@ export default function Login() {
               htmlType="submit" 
               loading={loading}
               block
+              style={{ 
+                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                border: 'none',
+              }}
             >
               登录
             </Button>
           </Form.Item>
         </Form>
 
-        <div style={{ textAlign: 'center', color: '#999', fontSize: '12px' }}>
+        <div style={{ textAlign: 'center', color: secondaryColor, fontSize: '12px' }}>
           默认账号: admin / admin123
         </div>
       </div>

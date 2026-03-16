@@ -8,6 +8,8 @@ import {
   TeamOutlined,
   SettingOutlined,
   LogoutOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from '@ant-design/icons';
 import { authStore } from '../stores/auth';
 
@@ -18,13 +20,20 @@ interface MainLayoutProps {
   setTheme: (theme: 'light' | 'dark') => void;
 }
 
-export default function MainLayout({ }: MainLayoutProps) {
+export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
   
   const [user, setUser] = useState(authStore.getState().user);
+
+  const isDark = themeMode === 'dark';
+  const bgColor = isDark ? '#0f172a' : '#f5f5f5';
+  const siderBg = isDark ? '#1e293b' : token.colorBgContainer;
+  const headerBg = isDark ? '#1e293b' : token.colorBgContainer;
+  const textColor = isDark ? '#f1f5f9' : token.colorText;
+  const primaryColor = isDark ? '#3b82f6' : '#1e40af';
 
   useEffect(() => {
     const unsubscribe = authStore.subscribe(() => {
@@ -60,6 +69,10 @@ export default function MainLayout({ }: MainLayoutProps) {
     navigate('/login');
   };
 
+  const toggleTheme = () => {
+    setTheme(isDark ? 'light' : 'dark');
+  };
+
   const userMenuItems = [
     {
       key: 'logout',
@@ -78,20 +91,21 @@ export default function MainLayout({ }: MainLayoutProps) {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: bgColor }}>
       <Sider 
         trigger={null} 
         collapsible 
         collapsed={collapsed}
         width={200}
-        style={{ background: token.colorBgContainer }}
+        style={{ background: siderBg }}
       >
         <div style={{
           height: 60,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderBottom: `1px solid ${token.colorBorder}`,
+          borderBottom: `1px solid ${isDark ? '#334155' : token.colorBorder}`,
+          color: textColor,
         }}>
           {!collapsed && <strong>ABC 管理系统</strong>}
           {collapsed && <strong>ABC</strong>}
@@ -102,7 +116,10 @@ export default function MainLayout({ }: MainLayoutProps) {
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => handleMenuClick(key)}
-          style={{ borderRight: 0 }}
+          style={{ 
+            borderRight: 0,
+            background: 'transparent',
+          }}
         />
         
         <div style={{
@@ -111,7 +128,7 @@ export default function MainLayout({ }: MainLayoutProps) {
           left: 0,
           right: 0,
           textAlign: 'center',
-          color: token.colorTextSecondary,
+          color: isDark ? '#64748b' : '#999',
           fontSize: '12px',
         }}>
           v1.0.0
@@ -121,24 +138,30 @@ export default function MainLayout({ }: MainLayoutProps) {
       <Layout>
         <Header style={{ 
           padding: '0 16px', 
-          background: token.colorBgContainer,
+          background: headerBg,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: `1px solid ${token.colorBorder}`,
+          borderBottom: `1px solid ${isDark ? '#334155' : token.colorBorder}`,
         }}>
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
-            style={{ fontSize: '16px' }}
+            style={{ fontSize: '16px', color: textColor }}
           />
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>{user?.name || user?.username}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Button
+              type="text"
+              icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggleTheme}
+              style={{ color: primaryColor }}
+            />
+            <span style={{ color: textColor }}>{user?.name || user?.username}</span>
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <Avatar 
-                style={{ cursor: 'pointer', background: token.colorPrimary }} 
+                style={{ cursor: 'pointer', background: primaryColor }} 
                 icon={<UserOutlined />}
               />
             </Dropdown>
@@ -148,12 +171,12 @@ export default function MainLayout({ }: MainLayoutProps) {
         <Content style={{ 
           margin: '16px', 
           padding: '24px', 
-          background: token.colorBgContainer,
-          borderRadius: token.borderRadiusLG,
+          background: isDark ? '#1e293b' : token.colorBgContainer,
+          borderRadius: '10px',
           minHeight: 280,
         }}>
           <div style={{ marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>{getPageTitle()}</h2>
+            <h2 style={{ margin: 0, color: textColor }}>{getPageTitle()}</h2>
           </div>
           <Outlet />
         </Content>

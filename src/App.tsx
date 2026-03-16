@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, theme } from 'antd';
 import Login from './pages/Login';
 import Welcome from './pages/Welcome';
 import MainLayout from './pages/MainLayout';
@@ -26,26 +26,56 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// AI-Box theme colors
+const lightTokens = {
+  colorPrimary: '#1e40af', // Deep blue
+  colorSuccess: '#22c55e',
+  colorWarning: '#f59e0b',
+  colorError: '#dc2626',
+  colorInfo: '#1e40af',
+  colorBgBase: '#ffffff',
+  colorTextBase: '#030213',
+  borderRadius: 10,
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+};
+
+const darkTokens = {
+  colorPrimary: '#3b82f6', // Brighter blue for dark mode
+  colorSuccess: '#22c55e',
+  colorWarning: '#f59e0b',
+  colorError: '#ef4444',
+  colorInfo: '#3b82f6',
+  colorBgBase: '#0f172a', // Dark blue-gray
+  colorTextBase: '#f1f5f9',
+  borderRadius: 10,
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+};
+
+const lightAlgorithm = theme.defaultAlgorithm;
+const darkAlgorithm = theme.darkAlgorithm;
+
 function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+
+  const tokens = themeMode === 'dark' ? darkTokens : lightTokens;
+  const algorithm = themeMode === 'dark' ? darkAlgorithm : lightAlgorithm;
 
   return (
     <ConfigProvider
       theme={{
-        token: {
-          colorPrimary: '#1677FF',
-        },
+        token: tokens,
+        algorithm,
       }}
     >
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Welcome />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Welcome theme={themeMode} />} />
+          <Route path="/login" element={<Login theme={themeMode} />} />
           <Route
             path="/app"
             element={
               <ProtectedRoute>
-                <MainLayout theme={theme} setTheme={setTheme} />
+                <MainLayout theme={themeMode} setTheme={setThemeMode} />
               </ProtectedRoute>
             }
           >

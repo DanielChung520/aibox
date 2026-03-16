@@ -4,7 +4,6 @@ mod db;
 mod models;
 
 use api::create_router;
-use axum::Router;
 use std::net::SocketAddr;
 
 #[tauri::command]
@@ -31,7 +30,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|_app| {
-            // Start async API server
             tauri::async_runtime::spawn(async move {
                 start_api_server().await;
             });

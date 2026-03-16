@@ -3,7 +3,7 @@ use crate::db::{get_store, Role, SystemParam, User};
 use crate::models::*;
 use axum::{
     extract::Path,
-    http::{header::AUTHORIZATION, HeaderMap, HeaderValue, StatusCode},
+    http::{header::AUTHORIZATION, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,

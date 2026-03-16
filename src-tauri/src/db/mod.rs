@@ -1,6 +1,3 @@
-// Simplified in-memory storage for MVP
-// Will connect to ArangoDB in production
-
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -49,7 +46,6 @@ pub struct SystemParam {
 pub fn init() {
     let store = Arc::new(Mutex::new(Store::default()));
     
-    // Initialize default data
     {
         let mut s = store.lock().unwrap();
         
@@ -65,7 +61,7 @@ pub fn init() {
         s.users.insert("admin".to_string(), User {
             _key: "admin".to_string(),
             username: "admin".to_string(),
-            password_hash: "$2b$10$1234567890123456789012".to_string(), // admin123
+            password_hash: "$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi".to_string(),
             name: "管理员".to_string(),
             role_key: "admin".to_string(),
             status: "enabled".to_string(),

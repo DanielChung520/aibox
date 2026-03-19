@@ -1,23 +1,34 @@
+/**
+ * @file        系統參數頁面
+ * @description 系統參數配置，包含基本資訊、主題、窗口、備份等參數管理
+ * @lastUpdate  2026-03-19 10:35:00
+ * @author      Daniel Chung
+ * @version     1.0.0
+ */
+
 import { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Switch, InputNumber, message, Tabs, Space } from 'antd';
-import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
+import { App, Card, Form, Input, Button, Switch, InputNumber, Tabs, Space, Upload, Image, type TabsProps } from 'antd';
+import { SaveOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { paramsApi, SystemParam } from '../services/api';
+import SystemParamsModels from './SystemParamsModels';
 
 interface ParamFormValues {
   [key: string]: any;
 }
 
 export default function SystemParams() {
+  const { message } = App.useApp();
   const [params, setParams] = useState<SystemParam[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [logoBase64, setLogoBase64] = useState<string>('');
   const [form] = Form.useForm();
 
   const fetchParams = async () => {
     try {
       const response = await paramsApi.list();
       setParams(response.data.data || []);
-      
-      // Set form values
+
       const values: ParamFormValues = {};
       response.data.data?.forEach((param: SystemParam) => {
         let value: any = param.param_value;
@@ -29,7 +40,13 @@ export default function SystemParams() {
         values[param.param_key] = value;
       });
       form.setFieldsValue(values);
-    } catch (error) {
+
+      // Load logo if exists
+      const logoParam = response.data.data?.find((p: SystemParam) => p.param_key === 'app.logo');
+      if (logoParam?.param_value) {
+        setLogoBase64(logoParam.param_value);
+      }
+    } catch {
       message.error('获取参数失败');
     }
   };
@@ -42,31 +59,53 @@ export default function SystemParams() {
     try {
       const values = await form.validateFields();
       setSaving(true);
-      
-      const paramsToSave = category 
+
+      const paramsToSave = category
         ? params.filter(p => p.category === category)
         : params;
-      
+
       for (const param of paramsToSave) {
         let paramValue = values[param.param_key];
-        
-        // Convert to string based on type
+
         if (param.param_type === 'boolean') {
           paramValue = paramValue ? 'true' : 'false';
         } else if (param.param_type === 'number') {
           paramValue = String(paramValue);
         }
-        
+
         await paramsApi.update(param.param_key, paramValue);
       }
-      
+
       message.success('保存成功');
       fetchParams();
-    } catch (error) {
+    } catch {
       message.error('保存失败');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    try {
+      setUploading(true);
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      await paramsApi.update('app.logo', base64);
+      setLogoBase64(base64);
+      message.success('Logo 上传成功');
+      fetchParams();
+    } catch {
+      message.error('Logo 上传失败');
+    } finally {
+      setUploading(false);
+    }
+    return false;
   };
 
   const groupedParams = params.reduce((acc, param) => {
@@ -101,49 +140,132 @@ export default function SystemParams() {
     }
   };
 
-  const tabItems = Object.entries(groupedParams).map(([category, categoryParams]) => ({
-    key: category,
-    label: categoryLabels[category] || category,
-    children: (
-      <Card>
-        <Form
-          form={form}
-          layout="vertical"
-          style={{ maxWidth: 600 }}
-        >
-          {categoryParams.map(param => (
-            <Form.Item
-              key={param.param_key}
-              name={param.param_key}
-              label={param.param_key.split('.')[1] || param.param_key}
-              tooltip={param.require_restart ? '需要重启生效' : undefined}
-            >
-              {renderParamInput(param)}
+  const buildCategoryTab = (category: string, categoryParams: SystemParam[]) => {
+    if (category === 'basic') {
+      return {
+        key: category,
+        label: categoryLabels[category] || category,
+        children: (
+          <Card>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontWeight: 'bold', marginBottom: 12 }}>应用 Logo</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                {logoBase64 ? (
+                  <Image
+                    src={logoBase64}
+                    alt="Logo"
+                    width={80}
+                    height={80}
+                    style={{ objectFit: 'contain', border: '1px solid #d9d9d9', borderRadius: 8 }}
+                    fallback="/vite.svg"
+                  />
+                ) : (
+                  <div style={{ width: 80, height: 80, border: '1px dashed #d9d9d9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <UploadOutlined style={{ fontSize: 24, color: '#999' }} />
+                  </div>
+                )}
+                <div>
+                  <Upload
+                    accept="image/*"
+                    showUploadList={false}
+                    beforeUpload={handleLogoUpload}
+                    disabled={uploading}
+                  >
+                    <Button loading={uploading} icon={<UploadOutlined />}>
+                      上传 Logo
+                    </Button>
+                  </Upload>
+                  <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+                    推荐尺寸: 128x128，支持 PNG/JPG/SVG
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Form form={form} layout="vertical" style={{ maxWidth: 600 }}>
+              {categoryParams.map(param => (
+                <Form.Item
+                  key={param.param_key}
+                  name={param.param_key}
+                  label={param.param_key.split('.')[1] || param.param_key}
+                  tooltip={param.require_restart ? '需要重启生效' : undefined}
+                >
+                  {renderParamInput(param)}
+                </Form.Item>
+              ))}
+              <Form.Item>
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={() => handleSave(category)}
+                    loading={saving}
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={() => form.resetFields()}
+                  >
+                    重置
+                  </Button>
+                </Space>
+              </Form.Item>
+            </Form>
+          </Card>
+        ),
+      };
+    }
+
+    return {
+      key: category,
+      label: categoryLabels[category] || category,
+      children: (
+        <Card>
+          <Form form={form} layout="vertical" style={{ maxWidth: 600 }}>
+            {categoryParams.map(param => (
+              <Form.Item
+                key={param.param_key}
+                name={param.param_key}
+                label={param.param_key.split('.')[1] || param.param_key}
+                tooltip={param.require_restart ? '需要重启生效' : undefined}
+              >
+                {renderParamInput(param)}
+              </Form.Item>
+            ))}
+            <Form.Item>
+              <Space>
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={() => handleSave(category)}
+                  loading={saving}
+                >
+                  保存
+                </Button>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => form.resetFields()}
+                >
+                  重置
+                </Button>
+              </Space>
             </Form.Item>
-          ))}
-          
-          <Form.Item>
-            <Space>
-              <Button 
-                type="primary" 
-                icon={<SaveOutlined />} 
-                onClick={() => handleSave(category)}
-                loading={saving}
-              >
-                保存
-              </Button>
-              <Button 
-                icon={<ReloadOutlined />}
-                onClick={() => form.resetFields()}
-              >
-                重置
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
+          </Form>
+        </Card>
+      ),
+    };
+  };
+
+  const tabItems: TabsProps['items'] = [
+    {
+      key: 'models',
+      label: '模型',
+      children: <SystemParamsModels />,
+    },
+    ...Object.entries(groupedParams).map(([category, categoryParams]) =>
+      buildCategoryTab(category, categoryParams)
     ),
-  }));
+  ];
 
   return (
     <div>

@@ -1,9 +1,18 @@
-import { useState } from 'react';
+/**
+ * @file        登錄頁面
+ * @description 用戶登錄頁面
+ * @lastUpdate  2026-03-19 21:10:20
+ * @author      Daniel Chung
+ * @version     1.0.0
+ */
+
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Checkbox, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authApi } from '../services/api';
 import { authStore } from '../stores/auth';
+import { paramsApi } from '../services/api';
 
 const { Title, Text } = Typography;
 
@@ -14,6 +23,15 @@ interface LoginProps {
 export default function Login({ theme }: LoginProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [appLogo, setAppLogo] = useState('');
+
+  useEffect(() => {
+    paramsApi.list().then((res: any) => {
+      const params = res.data.data || [];
+      const logo = params.find((p: any) => p.param_key === 'app.logo');
+      if (logo?.param_value) setAppLogo(logo.param_value);
+    }).catch(() => {});
+  }, []);
   
   const isDark = theme === 'dark';
   const bgColor = isDark ? '#0f172a' : '#f5f5f5';
@@ -56,6 +74,19 @@ export default function Login({ theme }: LoginProps) {
         transition: 'all 0.3s',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          {appLogo && (
+            <img
+              src={appLogo}
+              alt="logo"
+              style={{
+                width: 80,
+                height: 80,
+                objectFit: 'contain',
+                marginBottom: 16,
+                borderRadius: 8,
+              }}
+            />
+          )}
           <Title level={3} style={{ margin: 0, color: textColor }}>登录</Title>
           <Text type="secondary" style={{ color: secondaryColor }}>ABC 管理系统</Text>
         </div>

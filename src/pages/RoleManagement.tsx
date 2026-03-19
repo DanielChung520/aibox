@@ -1,9 +1,20 @@
+/**
+ * @file        角色管理頁面
+ * @description 角色 CRUD 操作，包含角色列表、新增、編輯、刪除、權限分配
+ * @lastUpdate  2026-03-17 23:27:55
+ * @author      Daniel Chung
+ * @version     1.0.0
+ * @history
+ * - 2026-03-17 23:27:55 | Daniel Chung | 1.0.0 | 初始版本
+ */
+
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message, Popconfirm } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Popconfirm, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { roleApi, Role } from '../services/api';
 
 export default function RoleManagement() {
+  const { message } = App.useApp();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -140,6 +151,7 @@ export default function RoleManagement() {
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
         width={500}
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

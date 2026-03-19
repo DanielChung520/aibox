@@ -1,7 +1,38 @@
-import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Tag } from 'antd';
+/**
+ * @file        用戶管理頁面
+ * @description 用戶 CRUD 操作，包含用戶列表、新增、編輯、刪除、密碼重置
+ * @lastUpdate  2026-03-17 23:27:55
+ * @author      Daniel Chung
+ * @version     1.0.0
+ * @history
+ * - 2026-03-17 23:27:55 | Daniel Chung | 1.0.0 | 初始版本
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Switch } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
 import { userApi, roleApi, User, Role } from '../services/api';
+
+function StatusSwitch({ userKey, status, onStatusChange }: { userKey: string; status: string; onStatusChange: (key: string, newStatus: string) => void }) {
+  const handleChange = async (checked: boolean) => {
+    const newStatus = checked ? 'enabled' : 'disabled';
+    try {
+      await userApi.update(userKey, { status: newStatus });
+      message.success(`用户已${checked ? '启用' : '禁用'}`);
+      onStatusChange(userKey, newStatus);
+    } catch (err) {
+      message.error('操作失败');
+    }
+  };
+  return (
+    <Switch
+      checked={status === 'enabled'}
+      checkedChildren="启用"
+      unCheckedChildren="禁用"
+      onChange={handleChange}
+    />
+  );
+}
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -13,7 +44,7 @@ export default function UserManagement() {
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await userApi.list();
@@ -23,7 +54,13 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const handleStatusChange = useCallback((key: string, newStatus: string) => {
+    setUsers(prevUsers => prevUsers.map(user => 
+      user._key === key ? { ...user, status: newStatus } : user
+    ));
+  }, []);
 
   const fetchRoles = async () => {
     try {
@@ -50,7 +87,7 @@ export default function UserManagement() {
     form.setFieldsValue({
       username: record.username,
       name: record.name,
-      role_key: record.role_key,
+      role_keys: record.role_keys,
       status: record.status,
     });
     setModalVisible(true);
@@ -117,21 +154,21 @@ export default function UserManagement() {
     },
     {
       title: '角色',
-      dataIndex: 'role_key',
-      key: 'role_key',
-      render: (roleKey: string) => {
-        const role = roles.find(r => r._key === roleKey);
-        return role?.name || roleKey;
+      dataIndex: 'role_keys',
+      key: 'role_keys',
+      render: (roleKeys: string[]) => {
+        return roleKeys.map(key => {
+          const role = roles.find(r => r._key === key);
+          return role?.name || key;
+        }).join(', ');
       },
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => (
-        <Tag color={status === 'enabled' ? 'green' : 'red'}>
-          {status === 'enabled' ? '启用' : '禁用'}
-        </Tag>
+      render: (status: string, record: User) => (
+        <StatusSwitch userKey={record._key} status={status} onStatusChange={handleStatusChange} />
       ),
     },
     {
@@ -198,6 +235,7 @@ export default function UserManagement() {
         onOk={handleSubmit}
         onCancel={() => setModalVisible(false)}
         width={500}
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item
@@ -230,11 +268,11 @@ export default function UserManagement() {
           </Form.Item>
           
           <Form.Item
-            name="role_key"
+            name="role_keys"
             label="角色"
             rules={[{ required: true, message: '请选择角色' }]}
           >
-            <Select>
+            <Select mode="multiple" placeholder="请选择角色">
               {roles.map(role => (
                 <Select.Option key={role._key} value={role._key}>
                   {role.name}
@@ -257,6 +295,7 @@ export default function UserManagement() {
         open={passwordModalVisible}
         onOk={handlePasswordSubmit}
         onCancel={() => setPasswordModalVisible(false)}
+        destroyOnHidden
       >
         <Form form={passwordForm} layout="vertical">
           <Form.Item

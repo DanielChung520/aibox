@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { paramsApi } from '../services/api';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 export default function Home() {
   const [appLogo, setAppLogo] = useState('');
+  const contentTokens = useContentTokens();
 
   useEffect(() => {
     paramsApi.list().then((res: any) => {
@@ -33,7 +35,7 @@ export default function Home() {
         <div style={{
           width: 400,
           height: 400,
-          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+          background: `linear-gradient(135deg, ${contentTokens.colorPrimary} 0%, ${contentTokens.colorInfo} 100%)`,
           borderRadius: 24,
           display: 'flex',
           alignItems: 'center',

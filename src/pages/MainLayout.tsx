@@ -1,7 +1,7 @@
 /**
  * @file        主佈局元件
  * @description 應用主佈局，包含側邊欄導航、Header、使用者資訊下拉選單
- * @lastUpdate  2026-03-19 21:10:20
+ * @lastUpdate  2026-03-22 19:23:12
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -22,15 +22,11 @@ import {
 import { authStore } from '../stores/auth';
 import { authApi, functionApi, paramsApi, Function } from '../services/api';
 import { iconMap } from '../utils/icons';
+import { useThemeMode, useShellTokens, useContentTokens, useEffectiveTheme } from '../contexts/AppThemeProvider';
 
 const { Header, Sider, Content } = Layout;
 
-interface MainLayoutProps {
-  theme: 'light' | 'dark';
-  setTheme: (theme: 'light' | 'dark') => void;
-}
-
-export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutProps) {
+export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,12 +35,17 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
   const [functions, setFunctions] = useState<Function[]>([]);
   const [appLogo, setAppLogo] = useState('');
 
-  const isDark = themeMode === 'dark';
-  const siderBg = '#1e293b';
-  const headerBg = '#1e293b';
-  const textColor = '#f1f5f9';
-  const primaryColor = '#3b82f6';
-  const contentBg = isDark ? '#1e293b' : '#ffffff';
+  const shellTokens = useShellTokens();
+  const contentTokens = useContentTokens();
+  const [, setThemeMode] = useThemeMode();
+  const effectiveTheme = useEffectiveTheme();
+
+  const isDark = effectiveTheme === 'dark';
+  const siderBg = shellTokens.siderBg;
+  const headerBg = shellTokens.headerBg;
+  const textColor = shellTokens.logoColor;
+  const primaryColor = contentTokens.colorPrimary;
+  const contentBg = contentTokens.colorBgBase;
 
   useEffect(() => {
     const unsubscribe = authStore.subscribe(() => {
@@ -128,7 +129,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
   };
 
   const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
+    setThemeMode(isDark ? 'light' : 'dark');
   };
 
   const userMenuItems = [
@@ -151,7 +152,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#0f172a' }}>
+    <Layout style={{ minHeight: '100vh', background: shellTokens.headerBg }}>
       <Sider 
         trigger={null} 
         collapsible 
@@ -164,7 +165,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderBottom: '1px solid #334155',
+          borderBottom: `1px solid ${shellTokens.siderBorder}`,
           color: textColor,
         }}>
           {appLogo && appLogo.length > 0 ? (
@@ -208,7 +209,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
           left: 0,
           right: 0,
           textAlign: 'center',
-          color: isDark ? '#64748b' : '#999',
+          color: contentTokens.textSecondary,
           fontSize: '12px',
         }}>
           v1.0.0
@@ -222,7 +223,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid #334155',
+          borderBottom: `1px solid ${shellTokens.siderBorder}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Button
@@ -256,7 +257,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
         <Content style={{
           margin: '16px',
           padding: '24px',
-          background: contentBg,
+          background: isDark ? contentBg : `${contentBg}cc`,
           borderRadius: '10px',
           minHeight: 280,
         }}>

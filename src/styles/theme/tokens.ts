@@ -1,7 +1,12 @@
 /**
  * @file        設計令牌
  * @description 全域設計令牌，定義亮色/暗色主題的顏色、陰影、字體等
+ * @lastUpdate  2026-03-22 19:56:42
+ * @author      Daniel Chung
+ * @version     1.1.0
  */
+
+import type { ShellTokens, ContentTokens } from '../../services/api';
 
 export const lightColors = {
   primary: '#1e40af',
@@ -9,7 +14,7 @@ export const lightColors = {
   warning: '#f59e0b',
   error: '#dc2626',
   info: '#1e40af',
-  bgBase: '#ffffff',
+  bgBase: '#696d6f',
   textBase: '#030213',
   tableExpandedRowBg: '#f0f4ff',
   tableHeaderBg: '#f0f4ff',
@@ -17,9 +22,9 @@ export const lightColors = {
   headerBg: '#ffffff',
   headerShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
   siderShadow: '2px 0 8px rgba(0, 0, 0, 0.06)',
-  cardShadow: '0 4px 16px rgba(30, 64, 175, 0.12)',
-  cardShadowHover: '0 8px 32px rgba(30, 64, 175, 0.20)',
-  cardShadowSecondary: '0 8px 32px rgba(30, 64, 175, 0.20)',
+  cardShadow: '0 6px 24px rgba(30, 64, 175, 0.25)',
+  cardShadowHover: '0 12px 40px rgba(30, 64, 175, 0.35)',
+  cardShadowSecondary: '0 12px 40px rgba(30, 64, 175, 0.35)',
   siderBorder: '#e2e8f0',
   chatInputBg: '#f1f5f9',
   chatUserBubble: '#dbeafe',
@@ -48,9 +53,9 @@ export const darkColors = {
   headerBg: '#0c1425',
   headerShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
   siderShadow: '2px 0 8px rgba(0, 0, 0, 0.3)',
-  cardShadow: '0 4px 16px rgba(100, 80, 220, 0.25)',
-  cardShadowHover: '0 8px 32px rgba(100, 80, 220, 0.40)',
-  cardShadowSecondary: '0 8px 32px rgba(100, 80, 220, 0.40)',
+  cardShadow: '0 6px 24px rgba(100, 80, 220, 0.35)',
+  cardShadowHover: '0 12px 40px rgba(100, 80, 220, 0.50)',
+  cardShadowSecondary: '0 12px 40px rgba(100, 80, 220, 0.50)',
   siderBorder: '#334155',
   chatInputBg: '#1e293b',
   chatUserBubble: '#1e3a8a',
@@ -65,7 +70,23 @@ export const darkColors = {
   btnText: '#ffffff',
 };
 
-export const lightTokens = {
+export const DEFAULT_SHELL_TOKENS: ShellTokens = {
+  siderBg: '#1e293b',
+  headerBg: '#0f172a',
+  menuItemColor: '#94a3b8',
+  menuItemHoverBg: '#334155',
+  menuItemSelectedBg: '#3b82f6',
+  menuItemSelectedColor: '#ffffff',
+  logoColor: '#ffffff',
+  siderBorder: '#334155',
+  headerShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
+  siderShadow: '2px 0 8px rgba(0, 0, 0, 0.3)',
+};
+
+const DEFAULT_FONT_FAMILY =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+export const DEFAULT_CONTENT_LIGHT_TOKENS: ContentTokens = {
   colorPrimary: lightColors.primary,
   colorSuccess: lightColors.success,
   colorWarning: lightColors.warning,
@@ -74,13 +95,27 @@ export const lightTokens = {
   colorBgBase: lightColors.bgBase,
   colorTextBase: lightColors.textBase,
   borderRadius: 10,
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  fontFamily: DEFAULT_FONT_FAMILY,
   boxShadow: lightColors.cardShadow,
   boxShadowSecondary: lightColors.cardShadowSecondary,
+  tableExpandedRowBg: lightColors.tableExpandedRowBg,
+  tableHeaderBg: lightColors.tableHeaderBg,
+  chatInputBg: lightColors.chatInputBg,
+  chatUserBubble: lightColors.chatUserBubble,
+  chatAssistantBubble: lightColors.chatAssistantBubble,
+  textSecondary: lightColors.textSecondary,
+  iconDefault: lightColors.iconDefault,
+  iconHover: lightColors.iconHover,
+  btnClear: lightColors.btnClear,
+  btnClearHover: lightColors.btnClearHover,
+  btnSend: lightColors.btnSend,
+  btnSendHover: lightColors.btnSendHover,
+  btnText: lightColors.btnText,
+  cardShadow: lightColors.cardShadow,
+  cardShadowHover: lightColors.cardShadowHover,
 };
 
-export const darkTokens = {
+export const DEFAULT_CONTENT_DARK_TOKENS: ContentTokens = {
   colorPrimary: darkColors.primary,
   colorSuccess: darkColors.success,
   colorWarning: darkColors.warning,
@@ -89,11 +124,22 @@ export const darkTokens = {
   colorBgBase: darkColors.bgBase,
   colorTextBase: darkColors.textBase,
   borderRadius: 10,
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  fontFamily: DEFAULT_FONT_FAMILY,
   boxShadow: darkColors.cardShadow,
   boxShadowSecondary: darkColors.cardShadowSecondary,
+  tableExpandedRowBg: darkColors.tableExpandedRowBg,
+  tableHeaderBg: darkColors.tableHeaderBg,
+  chatInputBg: darkColors.chatInputBg,
+  chatUserBubble: darkColors.chatUserBubble,
+  chatAssistantBubble: darkColors.chatAssistantBubble,
+  textSecondary: darkColors.textSecondary,
+  iconDefault: darkColors.iconDefault,
+  iconHover: darkColors.iconHover,
+  btnClear: darkColors.btnClear,
+  btnClearHover: darkColors.btnClearHover,
+  btnSend: darkColors.btnSend,
+  btnSendHover: darkColors.btnSendHover,
+  btnText: darkColors.btnText,
+  cardShadow: darkColors.cardShadow,
+  cardShadowHover: darkColors.cardShadowHover,
 };
-
-export type ThemeColors = typeof lightColors;
-export type ThemeTokens = typeof lightTokens;

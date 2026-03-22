@@ -1,29 +1,32 @@
 /**
  * @file        Data Agent Intents 管理頁面
  * @description 查看、管理 DA 的意圖歷史記錄與模板
- * @lastUpdate  2026-03-22 17:20:31
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  */
 
 import { useState, useEffect } from 'react';
 import { 
   Card, Table, Button, Tag, Space, Typography, 
-  Descriptions, Badge, Select, Input, Drawer, Tabs, App, Statistic, Row, Col 
+  Descriptions, Badge, Select, Input, Drawer, Tabs, App, Statistic, Row, Col, theme, Modal, Form
 } from 'antd';
 import { 
   EyeOutlined, DeleteOutlined, ReloadOutlined, 
   CheckCircleOutlined, CloseCircleOutlined,
-  DatabaseOutlined, ThunderboltOutlined, HistoryOutlined
+  DatabaseOutlined, ThunderboltOutlined,
+  EditOutlined, PlusOutlined, CloudSyncOutlined
 } from '@ant-design/icons';
-import { dataAgentApi, IntentRecord } from '../../services/dataAgentApi';
+import { dataAgentApi, IntentRecord, IntentCatalogEntry, OllamaModel } from '../../services/dataAgentApi';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
+const { TextArea } = Input;
 
 type IntentType = 'aggregate' | 'filter' | 'join' | 'time_series' | 'ranking' | 'comparison';
 
 export default function IntentsPage() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [intents, setIntents] = useState<IntentRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIntent, setSelectedIntent] = useState<IntentRecord | null>(null);
@@ -32,6 +35,26 @@ export default function IntentsPage() {
   const [filterCacheHit, setFilterCacheHit] = useState<boolean | 'ALL'>('ALL');
   const [searchText, setSearchText] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
+
+  // CRUD Modal State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingIntent, setEditingIntent] = useState<IntentCatalogEntry | null>(null);
+  const [form] = Form.useForm();
+
+  // Qdrant Sync & LLM Selector State
+  const [models, setModels] = useState<OllamaModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('bge-m3:latest');
+  const [syncing, setSyncing] = useState(false);
+
+  const fetchModels = async () => {
+    try {
+      const res = await fetch('http://localhost:8006/models');
+      const data = await res.json();
+      setModels(data.models || []);
+    } catch {
+      // silently fail, models optional
+    }
+  };
 
   const loadIntents = async (page = 1, pageSize = 20, search?: string) => {
     setLoading(true);
@@ -57,6 +80,7 @@ export default function IntentsPage() {
 
   useEffect(() => {
     loadIntents();
+    fetchModels();
   }, []);
 
   const handleDelete = async (intentId: string) => {
@@ -86,6 +110,68 @@ export default function IntentsPage() {
       loadIntents(pagination.current, pagination.pageSize);
     } catch (error) {
       message.error('操作失敗');
+    }
+  };
+
+  const handleSyncQdrant = async () => {
+    setSyncing(true);
+    try {
+      const res = await dataAgentApi.syncToQdrant({ model: selectedModel });
+      message.success(`同步成功，共同步 ${res.data.data.synced} 個意圖`);
+      loadIntents(pagination.current, pagination.pageSize);
+    } catch (error) {
+      message.error('同步失敗');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingIntent(null);
+    form.resetFields();
+    setModalVisible(true);
+  };
+
+  const openEditModal = async (intentId: string) => {
+    try {
+      const res = await dataAgentApi.getIntent(intentId);
+      const intentData = res.data.data.intent_json as any;
+      setEditingIntent(intentData);
+      
+      form.setFieldsValue({
+        ...intentData,
+        nl_examples: intentData.nl_examples ? intentData.nl_examples.join('\n') : ''
+      });
+      setModalVisible(true);
+    } catch (error) {
+      message.error('獲取意圖詳細資料失敗');
+    }
+  };
+
+  const handleModalSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      
+      const payload: IntentCatalogEntry = {
+        ...values,
+        nl_examples: values.nl_examples ? values.nl_examples.split('\n').filter((l: string) => l.trim()) : [],
+        is_template: true
+      };
+
+      if (editingIntent && editingIntent.intent_id) {
+        await dataAgentApi.updateIntent(editingIntent.intent_id, payload);
+        message.success('更新意圖成功');
+      } else {
+        await dataAgentApi.createIntent(payload);
+        message.success('新增意圖成功');
+      }
+      
+      setModalVisible(false);
+      loadIntents(pagination.current, pagination.pageSize);
+    } catch (error) {
+      // Form validation errors or API errors
+      if ((error as any).errorFields) return;
+      message.error('儲存失敗');
     }
   };
 
@@ -135,15 +221,15 @@ export default function IntentsPage() {
         />
       )
     },
-    { 
-      title: 'Cache', 
-      dataIndex: 'cache_hit', 
-      key: 'cache_hit',
-      width: 80,
-      render: (hit: boolean) => hit ? 
-        <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
-        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
-    },
+     { 
+       title: 'Cache', 
+       dataIndex: 'cache_hit', 
+       key: 'cache_hit',
+       width: 80,
+       render: (hit: boolean) => hit ? 
+         <CheckCircleOutlined style={{ color: token.colorSuccess }} /> : 
+         <CloseCircleOutlined style={{ color: token.colorError }} />
+     },
     { 
       title: 'Duration', 
       dataIndex: 'duration_ms', 
@@ -172,6 +258,12 @@ export default function IntentsPage() {
               setSelectedIntent(record);
               setDrawerVisible(true);
             }}
+          />
+          <Button 
+            type="link" 
+            icon={<EditOutlined />} 
+            title="編輯意圖"
+            onClick={() => openEditModal(record.intent_id)}
           />
           <Button 
             type="link" 
@@ -207,10 +299,6 @@ export default function IntentsPage() {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        <HistoryOutlined /> Data Agent Intents 管理
-      </Title>
-
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={4}>
           <Statistic 
@@ -219,22 +307,22 @@ export default function IntentsPage() {
             prefix={<DatabaseOutlined />} 
           />
         </Col>
-        <Col span={4}>
-          <Statistic 
-            title="快取命中" 
-            value={intents.filter(i => i.cache_hit).length} 
-            styles={{ content: { color: '#52c41a' } }}
-            suffix={`/ ${intents.length}`}
-          />
-        </Col>
-        <Col span={4}>
-          <Statistic 
-            title="平均 Confidence" 
-            value={(intents.reduce((acc, i) => acc + i.confidence, 0) / (intents.length || 1) * 100).toFixed(1)} 
-            suffix="%"
-            styles={{ content: { color: '#1890ff' } }}
-          />
-        </Col>
+         <Col span={4}>
+           <Statistic 
+             title="快取命中" 
+             value={intents.filter(i => i.cache_hit).length} 
+             styles={{ content: { color: token.colorSuccess } }}
+             suffix={`/ ${intents.length}`}
+           />
+         </Col>
+         <Col span={4}>
+           <Statistic 
+             title="平均 Confidence" 
+             value={(intents.reduce((acc, i) => acc + i.confidence, 0) / (intents.length || 1) * 100).toFixed(1)} 
+             suffix="%"
+             styles={{ content: { color: token.colorInfo } }}
+           />
+         </Col>
       </Row>
 
       <Space style={{ marginBottom: 16 }} wrap>
@@ -272,6 +360,38 @@ export default function IntentsPage() {
           <Option value={true}>命中</Option>
           <Option value={false}>未命中</Option>
         </Select>
+
+        <Select
+          value={selectedModel}
+          onChange={setSelectedModel}
+          style={{ width: 200 }}
+          placeholder="選擇 LLM 模型"
+        >
+          {models.length > 0 ? (
+            models.map(model => (
+              <Option key={model.name} value={model.name}>{model.name}</Option>
+            ))
+          ) : (
+            <Option value="bge-m3:latest">bge-m3:latest</Option>
+          )}
+        </Select>
+
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />} 
+          onClick={openCreateModal}
+        >
+          新增意圖
+        </Button>
+
+        <Button 
+          icon={<CloudSyncOutlined />} 
+          onClick={handleSyncQdrant}
+          loading={syncing}
+        >
+          同步到 Qdrant
+        </Button>
+
         <Button icon={<ReloadOutlined />} onClick={() => loadIntents()}>重新整理</Button>
       </Space>
 
@@ -338,38 +458,38 @@ export default function IntentsPage() {
                   </Descriptions>
                 )
               },
-              {
-                key: 'intent',
-                label: 'Intent JSON',
-                children: (
-                  <Card size="small">
-                    <pre style={{ 
-                      background: '#f5f5f5', 
-                      padding: 12, 
-                      borderRadius: 4,
-                      overflow: 'auto',
-                      maxHeight: 400,
-                      fontSize: 12
-                    }}>
-                      {JSON.stringify(selectedIntent.intent_json, null, 2)}
-                    </pre>
-                  </Card>
-                )
-              },
-              {
-                key: 'sql',
-                label: 'Generated SQL',
-                children: (
-                  <Card size="small">
-                    <pre style={{ 
-                      background: '#e6f7ff', 
-                      padding: 12, 
-                      borderRadius: 4,
-                      overflow: 'auto',
-                      fontSize: 12
-                    }}>
-                      {selectedIntent.sql_generated}
-                    </pre>
+               {
+                 key: 'intent',
+                 label: 'Intent JSON',
+                 children: (
+                   <Card size="small">
+                     <pre style={{ 
+                       background: token.colorFillTertiary, 
+                       padding: 12, 
+                       borderRadius: 4,
+                       overflow: 'auto',
+                       maxHeight: 400,
+                       fontSize: 12
+                     }}>
+                       {JSON.stringify(selectedIntent.intent_json, null, 2)}
+                     </pre>
+                   </Card>
+                 )
+               },
+               {
+                 key: 'sql',
+                 label: 'Generated SQL',
+                 children: (
+                   <Card size="small">
+                     <pre style={{ 
+                       background: token.colorInfoBg, 
+                       padding: 12, 
+                       borderRadius: 4,
+                       overflow: 'auto',
+                       fontSize: 12
+                     }}>
+                       {selectedIntent.sql_generated}
+                     </pre>
                     {selectedIntent.sql_generated && (
                       <Button 
                         type="link" 
@@ -412,6 +532,115 @@ export default function IntentsPage() {
           />
         )}
       </Drawer>
+
+       <Modal
+         title={editingIntent ? '編輯意圖' : '新增意圖'}
+         open={modalVisible}
+         onOk={handleModalSubmit}
+         onCancel={() => setModalVisible(false)}
+         width={800}
+         okText="儲存"
+         cancelText="取消"
+         forceRender
+       >
+         <Form
+           form={form}
+           layout="vertical"
+         >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="intent_id"
+                label="Intent ID"
+                rules={[{ required: true, message: '請輸入 Intent ID' }]}
+              >
+                <Input disabled={!!editingIntent} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="bpa_domain_intent"
+                label="BPA Domain Intent"
+                rules={[{ required: true, message: '請輸入 BPA Domain Intent' }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="intent_type"
+                label="DA Intent Type"
+                rules={[{ required: true, message: '請選擇 Intent Type' }]}
+              >
+                <Select>
+                  {intentTypeOptions.map(type => (
+                    <Option key={type} value={type}>{type}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="group"
+                label="Group"
+                rules={[{ required: true, message: '請選擇 Group' }]}
+              >
+                <Select>
+                  {['A', 'B', 'C', 'D', 'E', 'F'].map(g => (
+                    <Option key={g} value={g}>{g}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[{ required: true, message: '請輸入 Description' }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="tables"
+                label="Tables"
+              >
+                <Select mode="tags" placeholder="請輸入 Table 名稱並按 Enter" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="core_fields"
+                label="Core Fields"
+              >
+                <Select mode="tags" placeholder="請輸入 Field 名稱並按 Enter" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="nl_examples"
+            label="NL Examples (每行一個)"
+            rules={[{ required: true, message: '請輸入至少一個 NL Example' }]}
+          >
+            <TextArea rows={4} placeholder="請輸入自然語言範例，每行一個" />
+          </Form.Item>
+
+          <Form.Item
+            name="sql_template"
+            label="SQL Template"
+            rules={[{ required: true, message: '請輸入 SQL Template' }]}
+          >
+            <TextArea rows={6} style={{ fontFamily: 'monospace' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

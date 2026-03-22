@@ -1,7 +1,7 @@
 /**
  * @file        Agent 卡片組件
  * @description 顯示 Agent 信息卡片，支持收藏、編輯、刪除和對話操作
- * @lastUpdate  2026-03-18 05:30:00
+ * @lastUpdate  2026-03-22 19:23:12
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -17,6 +17,7 @@ import {
   MessageOutlined 
 } from '@ant-design/icons';
 import { iconMap } from '../utils/icons';
+import { useEffectiveTheme, useContentTokens } from '../contexts/AppThemeProvider';
 
 interface Agent {
   id: string;
@@ -53,20 +54,18 @@ export default function AgentCard({
   isFavorite: initialIsFavorite = false 
 }: AgentCardProps) {
   const { token } = theme.useToken();
+  const effectiveTheme = useEffectiveTheme();
+  const contentTokens = useContentTokens();
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
 
-  const isDarkMode = token.colorBgContainer && token.colorBgContainer !== '#ffffff';
-  const hoverShadow = isDarkMode 
-    ? '0 8px 24px rgba(167, 139, 250, 0.5)' 
-    : token.boxShadowSecondary;
-  const normalShadow = isDarkMode 
-    ? '0 2px 8px rgba(167, 139, 250, 0.2)' 
-    : token.boxShadow;
+  const isDarkMode = effectiveTheme === 'dark';
+  const hoverShadow = contentTokens.cardShadowHover || token.boxShadowSecondary;
+  const normalShadow = contentTokens.cardShadow || token.boxShadow;
   const iconBgColor = isDarkMode ? 'rgba(167, 139, 250, 0.2)' : '#e6f7ff';
   const iconColor = isDarkMode ? '#a78bfa' : '#1890ff';
-  const descColor = isDarkMode ? '#d4d4d4' : '#666';
-  const metaColor = isDarkMode ? '#a3a3a3' : '#999';
+  const descColor = contentTokens.textSecondary;
+  const metaColor = contentTokens.textSecondary;
 
   const statusInfo = statusColors[agent.status] || { color: 'default', text: '未知' };
   const IconComponent = agent.icon ? iconMap[agent.icon] : null;

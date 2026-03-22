@@ -145,15 +145,16 @@ export default function RoleManagement() {
         pagination={{ pageSize: 10 }}
       />
 
-      <Modal
-        title={editingRole ? '编辑角色' : '新增角色'}
-        open={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
-        width={500}
-        destroyOnHidden
-      >
-        <Form form={form} layout="vertical">
+       <Modal
+         title={editingRole ? '编辑角色' : '新增角色'}
+         open={modalVisible}
+         onOk={handleSubmit}
+         onCancel={() => setModalVisible(false)}
+         width={500}
+         destroyOnHidden
+         forceRender
+       >
+         <Form form={form} layout="vertical">
           <Form.Item
             name="name"
             label="角色名称"

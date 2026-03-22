@@ -1,82 +1,123 @@
-import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { lightColors, darkColors } from '../styles/theme/tokens';
+/**
+ * @file        統一主題供應器
+ * @description DB 驅動的主題系統，分離 Shell（固定深色）與 Content（可切換）兩層
+ * @lastUpdate  2026-03-22 19:11:57
+ * @author      Daniel Chung
+ * @version     2.0.0
+ */
 
-type ThemeMode = 'light' | 'dark' | 'system';
-type EffectiveTheme = 'light' | 'dark';
+import { createContext, useState, useEffect, useContext, useCallback, ReactNode } from 'react';
+import { themeTemplateApi, ShellTokens, ContentTokens, ThemeTemplate } from '../services/api';
+import {
+  DEFAULT_SHELL_TOKENS,
+  DEFAULT_CONTENT_LIGHT_TOKENS,
+  DEFAULT_CONTENT_DARK_TOKENS,
+  lightColors,
+  darkColors,
+} from '../styles/theme/tokens';
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type EffectiveTheme = 'light' | 'dark';
 
 interface ThemeContextValue {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
   effectiveTheme: EffectiveTheme;
-  colors: typeof lightColors;
+  shellTokens: ShellTokens;
+  contentTokens: ContentTokens;
+  reloadTemplates: () => Promise<void>;
 }
 
-export const ThemeContext = createContext<ThemeContextValue>({
+const defaultCtx: ThemeContextValue = {
   themeMode: 'system',
   setThemeMode: () => {},
   effectiveTheme: 'dark',
-  colors: lightColors,
-});
+  shellTokens: DEFAULT_SHELL_TOKENS,
+  contentTokens: DEFAULT_CONTENT_DARK_TOKENS,
+  reloadTemplates: async () => {},
+};
 
-function getEffective(mode: ThemeMode): EffectiveTheme {
+export const ThemeContext = createContext<ThemeContextValue>(defaultCtx);
+
+function resolveEffective(mode: ThemeMode): EffectiveTheme {
   if (mode === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   return mode;
 }
 
+function pickContentTokens(
+  templates: ThemeTemplate[],
+  effective: EffectiveTheme,
+): ContentTokens {
+  const key = effective === 'dark' ? 'content.dark' : 'content.light';
+  const found = templates.find(t => t._key === key && t.template_type === 'content');
+  if (found) return found.tokens as ContentTokens;
+  return effective === 'dark' ? DEFAULT_CONTENT_DARK_TOKENS : DEFAULT_CONTENT_LIGHT_TOKENS;
+}
+
+function pickShellTokens(templates: ThemeTemplate[]): ShellTokens {
+  const found = templates.find(t => t._key === 'shell.default' && t.template_type === 'shell');
+  if (found) return found.tokens as ShellTokens;
+  return DEFAULT_SHELL_TOKENS;
+}
+
 export function AppThemeProvider({ children }: { children: ReactNode }) {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+  const [themeMode, setThemeModeRaw] = useState<ThemeMode>(() => {
     const stored = localStorage.getItem('theme-mode');
     return (stored as ThemeMode) || 'system';
   });
-  const [effectiveTheme, setEffectiveTheme] = useState<EffectiveTheme>(() => getEffective(themeMode));
-  const colors = effectiveTheme === 'dark' ? darkColors : lightColors;
+  const [effectiveTheme, setEffectiveTheme] = useState<EffectiveTheme>(() =>
+    resolveEffective(themeMode),
+  );
+  const [templates, setTemplates] = useState<ThemeTemplate[]>([]);
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      const res = await themeTemplateApi.list();
+      setTemplates(res.data.data || []);
+    } catch {
+      setTemplates([]);
+    }
+  }, []);
 
   useEffect(() => {
-    setEffectiveTheme(getEffective(themeMode));
-    localStorage.setItem('theme-mode', themeMode);
+    loadTemplates();
+  }, [loadTemplates]);
+
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeRaw(mode);
+    localStorage.setItem('theme-mode', mode);
+  }, []);
+
+  useEffect(() => {
+    setEffectiveTheme(resolveEffective(themeMode));
   }, [themeMode]);
 
   useEffect(() => {
     if (themeMode !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => setEffectiveTheme(e.matches ? 'dark' : 'light');
+    const handler = (e: MediaQueryListEvent) =>
+      setEffectiveTheme(e.matches ? 'dark' : 'light');
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [themeMode]);
 
+  const shellTokens = pickShellTokens(templates);
+  const contentTokens = pickContentTokens(templates, effectiveTheme);
+
   return (
-    <ThemeContext.Provider value={{ themeMode, setThemeMode, effectiveTheme, colors }}>
-      <div
-        data-theme={effectiveTheme}
-        style={{
-          minHeight: '100vh',
-          backgroundColor: colors.bgBase,
-          color: colors.textBase,
-          '--color-primary': colors.primary,
-          '--color-success': colors.success,
-          '--color-warning': colors.warning,
-          '--color-error': colors.error,
-          '--color-bg-base': colors.bgBase,
-          '--color-text-base': colors.textBase,
-          '--color-sider-bg': colors.siderBg,
-          '--color-header-bg': colors.headerBg,
-          '--shadow-header': colors.headerShadow,
-          '--shadow-sider': colors.siderShadow,
-          '--shadow-card': colors.cardShadow,
-          '--shadow-card-hover': colors.cardShadowHover,
-          '--shadow-card-secondary': colors.cardShadowSecondary,
-          '--color-table-expanded-row-bg': colors.tableExpandedRowBg,
-          '--expanded-row-bg': colors.tableExpandedRowBg,
-          '--color-table-header-bg': colors.tableHeaderBg,
-          '--color-chat-input-bg': colors.chatInputBg,
-          '--color-chat-user-bubble': colors.chatUserBubble,
-          '--color-chat-assistant-bubble': colors.chatAssistantBubble,
-        } as React.CSSProperties}
-      >
-        {children}
-      </div>
+    <ThemeContext.Provider
+      value={{
+        themeMode,
+        setThemeMode,
+        effectiveTheme,
+        shellTokens,
+        contentTokens,
+        reloadTemplates: loadTemplates,
+      }}
+    >
+      {children}
     </ThemeContext.Provider>
   );
 }
@@ -90,6 +131,19 @@ export function useThemeMode(): [ThemeMode, (mode: ThemeMode) => void] {
   return [ctx.themeMode, ctx.setThemeMode];
 }
 
+export function useShellTokens(): ShellTokens {
+  return useContext(ThemeContext).shellTokens;
+}
+
+export function useContentTokens(): ContentTokens {
+  return useContext(ThemeContext).contentTokens;
+}
+
+export function useReloadTemplates(): () => Promise<void> {
+  return useContext(ThemeContext).reloadTemplates;
+}
+
 export function useColors(): typeof lightColors {
-  return useContext(ThemeContext).colors;
+  const { effectiveTheme } = useContext(ThemeContext);
+  return effectiveTheme === 'dark' ? darkColors : lightColors;
 }

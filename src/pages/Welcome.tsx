@@ -1,7 +1,7 @@
 /**
  * @file        歡迎頁面
  * @description 應用啟動後的歡迎頁，展示 logo、應用名稱，並自動跳轉至登錄頁
- * @lastUpdate  2026-03-17 23:27:55
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  * @history
@@ -12,19 +12,17 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Typography } from 'antd';
 import { paramsApi } from '../services/api';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 const { Title, Text } = Typography;
 
-interface WelcomeProps {
-  theme: 'light' | 'dark';
-}
-
-export default function Welcome({ }: WelcomeProps) {
+export default function Welcome() {
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(3);
   const [appName] = useState('管理系统');
   const [appLogo, setAppLogo] = useState<string>('');
   const navigatedRef = useRef(false);
+  const contentTokens = useContentTokens();
 
   useEffect(() => {
     paramsApi.list().then((res: any) => {
@@ -62,7 +60,7 @@ export default function Welcome({ }: WelcomeProps) {
       flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+      background: `linear-gradient(135deg, ${contentTokens.colorBgBase} 0%, ${contentTokens.colorPrimary}33 50%, ${contentTokens.colorBgBase} 100%)`,
     }}>
       <div style={{
         textAlign: 'center',
@@ -91,7 +89,7 @@ export default function Welcome({ }: WelcomeProps) {
           <div style={{
             width: 128,
             height: 128,
-            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+            background: `linear-gradient(135deg, ${contentTokens.colorPrimary} 0%, ${contentTokens.colorInfo} 100%)`,
             borderRadius: '16px',
             margin: '0 auto 24px',
             display: 'flex',
@@ -106,11 +104,11 @@ export default function Welcome({ }: WelcomeProps) {
           </div>
         )}
         
-        <Title level={2} style={{ margin: 0, color: '#f1f5f9' }}>
+        <Title level={2} style={{ margin: 0, color: contentTokens.colorTextBase }}>
           {appName}
         </Title>
         
-        <Text type="secondary" style={{ color: '#94a3b8' }}>版本 1.0.0</Text>
+        <Text type="secondary" style={{ color: contentTokens.textSecondary }}>版本 1.0.0</Text>
         
         <div style={{ marginTop: '32px' }}>
           <Button 
@@ -121,7 +119,7 @@ export default function Welcome({ }: WelcomeProps) {
               navigate('/login');
             }}
             style={{ 
-              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+              background: `linear-gradient(135deg, ${contentTokens.colorPrimary} 0%, ${contentTokens.colorInfo} 100%)`,
               border: 'none',
             }}
           >
@@ -129,13 +127,13 @@ export default function Welcome({ }: WelcomeProps) {
           </Button>
         </div>
         
-        <div style={{ marginTop: '24px', color: '#94a3b8', fontSize: '12px' }}>
-          <Text type="secondary" style={{ color: '#94a3b8' }}>
+        <div style={{ marginTop: '24px', color: contentTokens.textSecondary, fontSize: '12px' }}>
+          <Text type="secondary" style={{ color: contentTokens.textSecondary }}>
             {countdown} 秒后自动跳转...
           </Text>
         </div>
         
-        <div style={{ marginTop: '48px', color: '#94a3b8', fontSize: '12px' }}>
+        <div style={{ marginTop: '48px', color: contentTokens.textSecondary, fontSize: '12px' }}>
           © 2026 版权所有
         </div>
       </div>

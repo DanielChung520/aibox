@@ -1,16 +1,17 @@
 /**
  * @file        系統參數頁面
  * @description 系統參數配置，包含基本資訊、主題、窗口、備份等參數管理
- * @lastUpdate  2026-03-19 10:35:00
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  */
 
 import { useState, useEffect } from 'react';
-import { App, Card, Form, Input, Button, Switch, InputNumber, Tabs, Space, Upload, Image, type TabsProps } from 'antd';
+import { App, Card, Form, Input, Button, Switch, InputNumber, Tabs, Space, Upload, Image, theme, type TabsProps } from 'antd';
 import { SaveOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { paramsApi, SystemParam } from '../services/api';
 import SystemParamsModels from './SystemParamsModels';
+import ThemeTemplateManagement from './ThemeTemplateManagement';
 
 interface ParamFormValues {
   [key: string]: any;
@@ -18,6 +19,7 @@ interface ParamFormValues {
 
 export default function SystemParams() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [params, setParams] = useState<SystemParam[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -156,12 +158,12 @@ export default function SystemParams() {
                     alt="Logo"
                     width={80}
                     height={80}
-                    style={{ objectFit: 'contain', border: '1px solid #d9d9d9', borderRadius: 8 }}
+                    style={{ objectFit: 'contain', border: `1px solid ${token.colorBorder}`, borderRadius: 8 }}
                     fallback="/vite.svg"
                   />
                 ) : (
-                  <div style={{ width: 80, height: 80, border: '1px dashed #d9d9d9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <UploadOutlined style={{ fontSize: 24, color: '#999' }} />
+                  <div style={{ width: 80, height: 80, border: `1px dashed ${token.colorBorder}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <UploadOutlined style={{ fontSize: 24, color: token.colorTextQuaternary }} />
                   </div>
                 )}
                 <div>
@@ -261,6 +263,11 @@ export default function SystemParams() {
       key: 'models',
       label: '模型',
       children: <SystemParamsModels />,
+    },
+    {
+      key: 'theme-templates',
+      label: '樣板維護',
+      children: <ThemeTemplateManagement />,
     },
     ...Object.entries(groupedParams).map(([category, categoryParams]) =>
       buildCategoryTab(category, categoryParams)

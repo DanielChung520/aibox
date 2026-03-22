@@ -1,10 +1,11 @@
 /**
  * @file        API 服務層
  * @description Axios 實例配置、API 請求封裝、所有業務 API 接口定義
- * @lastUpdate  2026-03-17 23:27:55
+ * @lastUpdate  2026-03-22 19:11:57
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.1.0
  * @history
+ * - 2026-03-22 19:11:57 | Daniel Chung | 1.1.0 | 新增 ThemeTemplate 介面定義
  * - 2026-03-17 23:27:55 | Daniel Chung | 1.0.0 | 初始版本
  */
 
@@ -215,6 +216,68 @@ export const modelProviderApi = {
   update: (key: string, data: Partial<ModelProvider>) => api.put(`/api/v1/model-providers/${key}`, data),
   delete: (key: string) => api.delete(`/api/v1/model-providers/${key}`),
   sync: (key: string) => api.post(`/api/v1/model-providers/${key}/sync`),
+};
+
+export interface ShellTokens {
+  siderBg: string;
+  headerBg: string;
+  menuItemColor: string;
+  menuItemHoverBg: string;
+  menuItemSelectedBg: string;
+  menuItemSelectedColor: string;
+  logoColor: string;
+  siderBorder: string;
+  headerShadow: string;
+  siderShadow: string;
+}
+
+export interface ContentTokens {
+  colorPrimary: string;
+  colorSuccess: string;
+  colorWarning: string;
+  colorError: string;
+  colorInfo: string;
+  colorBgBase: string;
+  colorTextBase: string;
+  borderRadius: number;
+  fontFamily: string;
+  boxShadow: string;
+  boxShadowSecondary: string;
+  tableExpandedRowBg: string;
+  tableHeaderBg: string;
+  chatInputBg: string;
+  chatUserBubble: string;
+  chatAssistantBubble: string;
+  textSecondary: string;
+  iconDefault: string;
+  iconHover: string;
+  btnClear: string;
+  btnClearHover: string;
+  btnSend: string;
+  btnSendHover: string;
+  btnText: string;
+  cardShadow: string;
+  cardShadowHover: string;
+}
+
+export interface ThemeTemplate {
+  _key: string;
+  name: string;
+  description: string;
+  template_type: 'shell' | 'content';
+  tokens: ShellTokens | ContentTokens;
+  is_default: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const themeTemplateApi = {
+  list: () => api.get<{ code: number; data: ThemeTemplate[] }>('/api/v1/theme-templates'),
+  get: (key: string) => api.get<{ code: number; data: ThemeTemplate }>(`/api/v1/theme-templates/${key}`),
+  create: (data: Partial<ThemeTemplate>) => api.post('/api/v1/theme-templates', data),
+  update: (key: string, data: Partial<ThemeTemplate>) => api.put(`/api/v1/theme-templates/${key}`, data),
+  delete: (key: string) => api.delete(`/api/v1/theme-templates/${key}`),
 };
 
 export default api;

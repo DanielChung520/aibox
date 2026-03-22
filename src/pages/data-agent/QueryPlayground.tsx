@@ -1,7 +1,7 @@
 /**
  * @file        Data Agent Query Playground
  * @description 用於測試和執行自然語言查詢的互動式介面
- * @lastUpdate  2026-03-22 17:20:31
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  */
 
@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { 
   Card, Input, Button, Select, Table, Tag, Space, 
   Typography, Spin, Alert, Divider, Row, Col, 
-  Badge, Collapse, Empty, Statistic, App, Tabs, Descriptions
+  Badge, Collapse, Empty, Statistic, App, Tabs, Descriptions, theme
 } from 'antd';
 import { 
   PlayCircleOutlined, CopyOutlined, ClearOutlined, 
@@ -29,6 +29,7 @@ interface QueryResult {
 
 export default function QueryPlayground() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [tables, setTables] = useState<TableInfo[]>([]);
@@ -315,26 +316,26 @@ export default function QueryPlayground() {
                       </span>
                     ),
                     children: (
-                      <div>
-                        <Button 
-                          type="link" 
-                          icon={<CopyOutlined />} 
-                          onClick={handleCopySql}
-                          style={{ marginBottom: 8, padding: 0 }}
-                        >
-                          {sqlCopied ? '已複製!' : '複製 SQL'}
-                        </Button>
-                        <pre style={{ 
-                          background: '#f5f5f5', 
-                          padding: 16, 
-                          borderRadius: 6,
-                          overflow: 'auto',
-                          maxHeight: 300,
-                          fontSize: 12
-                        }}>
-                          {queryResponse?.data?.sql || '-'}
-                        </pre>
-                      </div>
+                       <div>
+                         <Button 
+                           type="link" 
+                           icon={<CopyOutlined />} 
+                           onClick={handleCopySql}
+                           style={{ marginBottom: 8, padding: 0 }}
+                         >
+                           {sqlCopied ? '已複製!' : '複製 SQL'}
+                         </Button>
+                         <pre style={{ 
+                           background: token.colorFillTertiary, 
+                           padding: 16, 
+                           borderRadius: 6,
+                           overflow: 'auto',
+                           maxHeight: 300,
+                           fontSize: 12
+                         }}>
+                           {queryResponse?.data?.sql || '-'}
+                         </pre>
+                       </div>
                     )
                   },
                   {
@@ -345,17 +346,17 @@ export default function QueryPlayground() {
                       </span>
                     ),
                     children: (
-                      <pre style={{ 
-                        background: '#f5f5f5', 
-                        padding: 16, 
-                        borderRadius: 6,
-                        overflow: 'auto',
-                        maxHeight: 300,
-                        fontSize: 12
-                      }}>
-                        {JSON.stringify(queryResponse?.intent, null, 2)}
-                      </pre>
-                    )
+                       <pre style={{ 
+                         background: token.colorFillTertiary, 
+                         padding: 16, 
+                         borderRadius: 6,
+                         overflow: 'auto',
+                         maxHeight: 300,
+                         fontSize: 12
+                       }}>
+                         {JSON.stringify(queryResponse?.intent, null, 2)}
+                       </pre>
+                     )
                   },
                   {
                     key: 'debug',

@@ -13,6 +13,8 @@ use chrono::Utc;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+pub mod themes;
+
 static DB: OnceCell<Database<ReqwestClient>> = OnceCell::new();
 
 pub async fn init() -> Result<(), String> {
@@ -65,7 +67,7 @@ async fn ensure_collections(db: &Database<ReqwestClient>) -> Result<(), String> 
         .map(|c| c.name)
         .collect();
 
-    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers"] {
+    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers", "theme_templates"] {
         if !existing.contains(&name.to_string()) {
             db.create_collection(name)
                 .await
@@ -91,6 +93,7 @@ async fn seed_defaults(db: &Database<ReqwestClient>) -> Result<(), String> {
     seed_params(db).await?;
     seed_functions(db).await?;
     seed_model_providers(db).await?;
+    themes::seed_theme_templates(db).await?;
     ensure_agent_defaults(db).await?;
     Ok(())
 }
@@ -184,8 +187,6 @@ async fn seed_params(db: &Database<ReqwestClient>) -> Result<(), String> {
         ("app.logo", "", "string", true, "basic"),
         ("app.version", "1.0.0", "string", false, "basic"),
         ("app.copyright", "© 2026", "string", true, "basic"),
-        ("theme.mode", "light", "string", false, "theme"),
-        ("theme.primaryColor", "#1677FF", "string", false, "theme"),
         ("window.width", "1200", "number", true, "window"),
         ("window.height", "800", "number", true, "window"),
         ("window.minWidth", "800", "number", true, "window"),

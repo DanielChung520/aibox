@@ -1,14 +1,14 @@
 /**
  * @file        Data Agent Schema 管理頁面
  * @description 管理 DA 的資料表結構、欄位定義與表關聯
- * @lastUpdate  2026-03-22 17:20:31
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  */
 
 import { useState, useEffect } from 'react';
 import { 
   Card, Table, Button, Modal, Form, Input, Select, Tabs, 
-  Tag, Space, App, Popconfirm, Typography, Row, Col, Statistic 
+  Tag, Space, App, Popconfirm, Typography, Row, Col, Statistic, theme
 } from 'antd';
 import { 
   PlusOutlined, EditOutlined, DeleteOutlined, 
@@ -24,6 +24,7 @@ type ModuleType = 'MM' | 'SD' | 'FI' | 'PP' | 'QM' | 'OTHER';
 
 export default function SchemaPage() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [activeTab, setActiveTab] = useState('tables');
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [fields, setFields] = useState<FieldInfo[]>([]);
@@ -340,27 +341,27 @@ export default function SchemaPage() {
                 prefix={<DatabaseOutlined />} 
               />
             </Col>
-            <Col span={4}>
-              <Statistic 
-                title="MM 模組" 
-                value={tables.filter(t => t.module === 'MM').length} 
-                styles={{ content: { color: '#1890ff' } }}
-              />
-            </Col>
-            <Col span={4}>
-              <Statistic 
-                title="SD 模組" 
-                value={tables.filter(t => t.module === 'SD').length} 
-                styles={{ content: { color: '#52c41a' } }}
-              />
-            </Col>
-            <Col span={4}>
-              <Statistic 
-                title="FI 模組" 
-                value={tables.filter(t => t.module === 'FI').length} 
-                styles={{ content: { color: '#faad14' } }}
-              />
-            </Col>
+             <Col span={4}>
+               <Statistic 
+                 title="MM 模組" 
+                 value={tables.filter(t => t.module === 'MM').length} 
+                 styles={{ content: { color: token.colorInfo } }}
+               />
+             </Col>
+             <Col span={4}>
+               <Statistic 
+                 title="SD 模組" 
+                 value={tables.filter(t => t.module === 'SD').length} 
+                 styles={{ content: { color: token.colorSuccess } }}
+               />
+             </Col>
+             <Col span={4}>
+               <Statistic 
+                 title="FI 模組" 
+                 value={tables.filter(t => t.module === 'FI').length} 
+                 styles={{ content: { color: token.colorWarning } }}
+               />
+             </Col>
           </Row>
           
           <Space style={{ marginBottom: 16 }}>
@@ -504,19 +505,20 @@ export default function SchemaPage() {
         items={tableItems}
       />
 
-      {/* 資料表 Modal */}
-      <Modal
-        title={editingTable?.table_id ? '編輯資料表' : '新增資料表'}
-        open={tableModalVisible}
-        onOk={handleSaveTable}
-        onCancel={() => {
-          setTableModalVisible(false);
-          form.resetFields();
-          setEditingTable(null);
-        }}
-        width={600}
-      >
-        <Form form={form} layout="vertical">
+       {/* 資料表 Modal */}
+       <Modal
+         title={editingTable?.table_id ? '編輯資料表' : '新增資料表'}
+         open={tableModalVisible}
+         onOk={handleSaveTable}
+         onCancel={() => {
+           setTableModalVisible(false);
+           form.resetFields();
+           setEditingTable(null);
+         }}
+         width={600}
+         forceRender
+       >
+         <Form form={form} layout="vertical">
           <Form.Item name="table_id" label="Table ID" rules={[{ required: true }]}>
             <Input disabled={!!editingTable?.table_id} placeholder="如: MM_EKKO" />
           </Form.Item>
@@ -555,19 +557,20 @@ export default function SchemaPage() {
         </Form>
       </Modal>
 
-      {/* 欄位 Modal */}
-      <Modal
-        title={editingField?.field_id ? '編輯欄位' : '新增欄位'}
-        open={fieldModalVisible}
-        onOk={handleSaveField}
-        onCancel={() => {
-          setFieldModalVisible(false);
-          fieldForm.resetFields();
-          setEditingField(null);
-        }}
-        width={600}
-      >
-        <Form form={fieldForm} layout="vertical">
+       {/* 欄位 Modal */}
+       <Modal
+         title={editingField?.field_id ? '編輯欄位' : '新增欄位'}
+         open={fieldModalVisible}
+         onOk={handleSaveField}
+         onCancel={() => {
+           setFieldModalVisible(false);
+           fieldForm.resetFields();
+           setEditingField(null);
+         }}
+         width={600}
+         forceRender
+       >
+         <Form form={fieldForm} layout="vertical">
           <Form.Item name="field_id" label="Field ID" rules={[{ required: true }]}>
             <Input disabled={!!editingField?.field_id} placeholder="如: EBELN" />
           </Form.Item>
@@ -610,19 +613,20 @@ export default function SchemaPage() {
         </Form>
       </Modal>
 
-      {/* 關聯 Modal */}
-      <Modal
-        title={editingRelation?.relation_id ? '編輯關聯' : '新增關聯'}
-        open={relationModalVisible}
-        onOk={handleSaveRelation}
-        onCancel={() => {
-          setRelationModalVisible(false);
-          relationForm.resetFields();
-          setEditingRelation(null);
-        }}
-        width={600}
-      >
-        <Form form={relationForm} layout="vertical">
+       {/* 關聯 Modal */}
+       <Modal
+         title={editingRelation?.relation_id ? '編輯關聯' : '新增關聯'}
+         open={relationModalVisible}
+         onOk={handleSaveRelation}
+         onCancel={() => {
+           setRelationModalVisible(false);
+           relationForm.resetFields();
+           setEditingRelation(null);
+         }}
+         width={600}
+         forceRender
+       >
+         <Form form={relationForm} layout="vertical">
           <Form.Item name="relation_id" label="Relation ID" rules={[{ required: true }]}>
             <Input disabled={!!editingRelation?.relation_id} placeholder="如: REL_MM_EKKO_EKPO" />
           </Form.Item>

@@ -232,14 +232,15 @@ export default function UserManagement() {
       />
 
       <Modal
-        title={editingUser ? '编辑用户' : '新增用户'}
-        open={modalVisible}
-        onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
-        width={500}
-        destroyOnHidden
-      >
-        <Form form={form} layout="vertical">
+         title={editingUser ? '编辑用户' : '新增用户'}
+         open={modalVisible}
+         onOk={handleSubmit}
+         onCancel={() => setModalVisible(false)}
+         width={500}
+         destroyOnHidden
+         forceRender
+       >
+         <Form form={form} layout="vertical">
           <Form.Item
             name="username"
             label="用户名"
@@ -292,14 +293,15 @@ export default function UserManagement() {
         </Form>
       </Modal>
 
-      <Modal
-        title="重置密码"
-        open={passwordModalVisible}
-        onOk={handlePasswordSubmit}
-        onCancel={() => setPasswordModalVisible(false)}
-        destroyOnHidden
-      >
-        <Form form={passwordForm} layout="vertical">
+       <Modal
+         title="重置密码"
+         open={passwordModalVisible}
+         onOk={handlePasswordSubmit}
+         onCancel={() => setPasswordModalVisible(false)}
+         destroyOnHidden
+         forceRender
+       >
+         <Form form={passwordForm} layout="vertical">
           <Form.Item
             name="password"
             label="新密码"

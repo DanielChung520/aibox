@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SettingOutlined, DragOutlin
 import { functionApi, roleApi, Function, Role, FunctionRoleAuth } from '../services/api';
 import { iconMap } from '../utils/icons';
 import IconPicker from '../components/IconPicker';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 import {
   DndContext,
   closestCenter,
@@ -63,6 +64,7 @@ export default function FunctionManagement() {
   const [authData, setAuthData] = useState<FunctionRoleAuth | null>(null);
   const [iconPickerVisible, setIconPickerVisible] = useState(false);
   const { message } = App.useApp();
+  const contentTokens = useContentTokens();
   const [form] = Form.useForm();
   const [authForm] = Form.useForm();
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
@@ -223,7 +225,7 @@ export default function FunctionManagement() {
       key: 'drag',
       width: 32,
       render: (_: any) => (
-        <DragOutlined style={{ color: '#94a3b8', cursor: 'grab', fontSize: 14 }} />
+        <DragOutlined style={{ color: contentTokens.textSecondary, cursor: 'grab', fontSize: 14 }} />
       ),
     },
     {
@@ -289,7 +291,7 @@ export default function FunctionManagement() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0 }}>功能維護 <small style={{ color: '#94a3b8', fontWeight: 'normal' }}>（雙擊群組展開/收攏 · 拖曳調整順序）</small></h2>
+        <h2 style={{ margin: 0 }}>功能維護 <small style={{ color: contentTokens.textSecondary, fontWeight: 'normal' }}>（雙擊群組展開/收攏 · 拖曳調整順序）</small></h2>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddGroup}>
           新增功能組
         </Button>
@@ -324,7 +326,7 @@ export default function FunctionManagement() {
                     rowKey="_key"
                     pagination={false}
                     size="small"
-                    style={{ background: 'var(--expanded-row-bg, #f0f4ff)' }}
+                    style={{ background: contentTokens.tableExpandedRowBg }}
                   />
                 );
               },
@@ -360,6 +362,7 @@ export default function FunctionManagement() {
         onCancel={() => setModalVisible(false)}
         onOk={handleSubmit}
         width={600}
+        forceRender
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="名稱" rules={[{ required: true }]}>
@@ -417,6 +420,7 @@ export default function FunctionManagement() {
         onCancel={() => setAuthModalVisible(false)}
         onOk={handleAuthSubmit}
         width={500}
+        forceRender
       >
         <Form form={authForm} layout="vertical">
           {authData?.inherited_role_keys && authData.inherited_role_keys.length > 0 && (

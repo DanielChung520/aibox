@@ -1,7 +1,7 @@
 /**
  * @file        開發中頁面
  * @description 顯示「功能開發中」提示的通用頁面
- * @lastUpdate  2026-03-17 23:27:55
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  * @history
@@ -9,10 +9,12 @@
  */
 
 import { Typography } from 'antd';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 const { Title } = Typography;
 
 export default function UnderDevelopment() {
+  const contentTokens = useContentTokens();
   return (
     <div style={{ 
       display: 'flex', 
@@ -21,7 +23,7 @@ export default function UnderDevelopment() {
       height: '100%',
       flexDirection: 'column'
     }}>
-      <Title level={2} style={{ color: '#f59e0b' }}>🚧 开发中</Title>
+      <Title level={2} style={{ color: contentTokens.colorWarning }}>🚧 开发中</Title>
       <Title level={4} type="secondary">此功能正在开发中，敬请期待...</Title>
     </div>
   );

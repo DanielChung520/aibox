@@ -1,14 +1,15 @@
 /**
  * @file        應用入口
  * @description 路由配置、ConfigProvider、主題供應
- * @lastUpdate  2026-03-19 21:10:20
+ * @lastUpdate  2026-03-22 19:23:12
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     2.0.0
  */
 
 import { useState, useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntApp, theme } from 'antd';
+import { AppThemeProvider, useEffectiveTheme, useContentTokens } from './contexts/AppThemeProvider';
 import Login from './pages/Login';
 import Welcome from './pages/Welcome';
 import MainLayout from './pages/MainLayout';
@@ -45,87 +46,84 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-// AI-Box theme colors
-const lightTokens = {
-  colorPrimary: '#1e40af', // Deep blue
-  colorSuccess: '#22c55e',
-  colorWarning: '#f59e0b',
-  colorError: '#dc2626',
-  colorInfo: '#1e40af',
-  colorBgBase: '#ffffff',
-  colorTextBase: '#030213',
-  borderRadius: 10,
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-};
+function AppContent() {
+  const effectiveTheme = useEffectiveTheme();
+  const contentTokens = useContentTokens();
 
-const darkTokens = {
-  colorPrimary: '#3b82f6', // Brighter blue for dark mode
-  colorSuccess: '#22c55e',
-  colorWarning: '#f59e0b',
-  colorError: '#ef4444',
-  colorInfo: '#3b82f6',
-  colorBgBase: '#0f172a', // Dark blue-gray
-  colorTextBase: '#f1f5f9',
-  borderRadius: 10,
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-};
-
-const lightAlgorithm = theme.defaultAlgorithm;
-const darkAlgorithm = theme.darkAlgorithm;
-
-function App() {
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
-
-  const tokens = themeMode === 'dark' ? darkTokens : lightTokens;
-  const algorithm = themeMode === 'dark' ? darkAlgorithm : lightAlgorithm;
+  const algorithm = effectiveTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm;
 
   return (
     <ConfigProvider
       theme={{
-        token: tokens,
+        token: {
+          colorPrimary: contentTokens.colorPrimary,
+          colorSuccess: contentTokens.colorSuccess,
+          colorWarning: contentTokens.colorWarning,
+          colorError: contentTokens.colorError,
+          colorInfo: contentTokens.colorInfo,
+          colorBgBase: contentTokens.colorBgBase,
+          colorTextBase: contentTokens.colorTextBase,
+          borderRadius: contentTokens.borderRadius,
+          fontFamily: contentTokens.fontFamily,
+          boxShadow: contentTokens.boxShadow,
+          boxShadowSecondary: contentTokens.boxShadowSecondary,
+        },
         algorithm,
         components: {
+          Layout: {
+            bodyBg: contentTokens.colorBgBase,
+          },
+          Card: {
+            boxShadow: contentTokens.cardShadow,
+          },
           Table: {
-            rowExpandedBg: themeMode === 'dark' ? '#0a1120' : '#f0f4ff',
-            headerBg: themeMode === 'dark' ? '#1a2235' : '#f0f4ff',
+            rowExpandedBg: contentTokens.tableExpandedRowBg,
+            headerBg: contentTokens.tableHeaderBg,
           },
         },
       }}
     >
       <BrowserRouter>
         <AntApp>
-        <Routes>
-          <Route path="/" element={<Welcome theme={themeMode} />} />
-          <Route path="/login" element={<Login theme={themeMode} />} />
-          <Route
-            path="/app"
-            element={
-              <ProtectedRoute>
-                <MainLayout theme={themeMode} setTheme={setThemeMode} />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/app/home" replace />} />
-            <Route path="home" element={<Home />} />
-            <Route path="users" element={<UserManagement />} />
-            <Route path="roles" element={<RoleManagement />} />
-            <Route path="params" element={<SystemParams />} />
-            <Route path="functions" element={<FunctionManagement />} />
-            <Route path="browse-agent" element={<BrowseAgent />} />
-            <Route path="browse-tools" element={<BrowseTools />} />
-            <Route path="task-session/chat" element={<TaskSessionChat />} />
-            <Route path="task-session/history" element={<TaskSessionHistory />} />
-            <Route path="task-session/scheduled" element={<TaskSessionScheduled />} />
-            <Route path="under-development" element={<UnderDevelopment />} />
-            {/* Data Agent Routes */}
-            <Route path="data-agent/schema" element={<SchemaPage />} />
-            <Route path="data-agent/intents" element={<IntentsPage />} />
-            <Route path="data-agent/playground" element={<QueryPlayground />} />
-          </Route>
-        </Routes>
-      </AntApp>
+          <Routes>
+            <Route path="/" element={<Welcome />} />
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/app"
+              element={
+                <ProtectedRoute>
+                  <MainLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="/app/home" replace />} />
+              <Route path="home" element={<Home />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="roles" element={<RoleManagement />} />
+              <Route path="params" element={<SystemParams />} />
+              <Route path="functions" element={<FunctionManagement />} />
+              <Route path="browse-agent" element={<BrowseAgent />} />
+              <Route path="browse-tools" element={<BrowseTools />} />
+              <Route path="task-session/chat" element={<TaskSessionChat />} />
+              <Route path="task-session/history" element={<TaskSessionHistory />} />
+              <Route path="task-session/scheduled" element={<TaskSessionScheduled />} />
+              <Route path="under-development" element={<UnderDevelopment />} />
+              <Route path="data-agent/schema" element={<SchemaPage />} />
+              <Route path="data-agent/intents" element={<IntentsPage />} />
+              <Route path="data-agent/playground" element={<QueryPlayground />} />
+            </Route>
+          </Routes>
+        </AntApp>
       </BrowserRouter>
     </ConfigProvider>
+  );
+}
+
+function App() {
+  return (
+    <AppThemeProvider>
+      <AppContent />
+    </AppThemeProvider>
   );
 }
 

@@ -1,7 +1,7 @@
 /**
  * @file        SystemParamsModels.tsx
  * @description 模型 Provider 與模型管理頁面
- * @lastUpdate  2026-03-19 10:30:09
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -31,11 +31,13 @@ import {
   GlobalOutlined,
 } from '@ant-design/icons';
 import { modelProviderApi, ModelProvider, LLMModel } from '../services/api';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 const { Title } = Typography;
 
 export default function SystemParamsModels() {
   const { message } = App.useApp();
+  const contentTokens = useContentTokens();
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -192,7 +194,7 @@ export default function SystemParamsModels() {
     ];
 
     return (
-        <div style={{ padding: '12px 16px', background: 'var(--expanded-row-bg, #f0f4ff)' }}>
+        <div style={{ padding: '12px 16px', background: contentTokens.tableExpandedRowBg }}>
         <Table
           columns={modelColumns}
           dataSource={record.models || []}
@@ -289,14 +291,15 @@ export default function SystemParamsModels() {
         }}
       />
 
-      <Modal
-        title={editingProvider ? '編輯 Provider' : '新增 Provider'}
-        open={modalVisible}
-        onOk={handleModalOk}
-        onCancel={handleModalCancel}
-        destroyOnClose
-      >
-        <Form form={form} layout="vertical">
+       <Modal
+         title={editingProvider ? '編輯 Provider' : '新增 Provider'}
+         open={modalVisible}
+         onOk={handleModalOk}
+         onCancel={handleModalCancel}
+         destroyOnClose
+         forceRender
+       >
+         <Form form={form} layout="vertical">
           <Form.Item
             name="name"
             label="名稱"

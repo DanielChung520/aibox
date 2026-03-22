@@ -357,26 +357,27 @@ export default function AgentFormModal({
 
   return (
     <>
-      <Modal
-        title={mode === 'create' ? '新增 Agent' : '編輯 Agent'}
-        open={open}
-        onCancel={onCancel}
-        width={720}
-        footer={
-          <Space>
-            {mode === 'edit' && onDelete && (
-              <Button danger onClick={handleDelete}>
-                刪除
-              </Button>
-            )}
-            <Button onClick={onCancel}>取消</Button>
-            <Button type="primary" onClick={handleSubmit}>
-              {mode === 'create' ? '建立' : '儲存'}
-            </Button>
-          </Space>
-        }
-      >
-        <Form form={form} layout="vertical">
+       <Modal
+         title={mode === 'create' ? '新增 Agent' : '編輯 Agent'}
+         open={open}
+         onCancel={onCancel}
+         width={720}
+         forceRender
+         footer={
+           <Space>
+             {mode === 'edit' && onDelete && (
+               <Button danger onClick={handleDelete}>
+                 刪除
+               </Button>
+             )}
+             <Button onClick={onCancel}>取消</Button>
+             <Button type="primary" onClick={handleSubmit}>
+               {mode === 'create' ? '建立' : '儲存'}
+             </Button>
+           </Space>
+         }
+       >
+         <Form form={form} layout="vertical">
           <Tabs 
             defaultActiveKey="basic" 
             items={[

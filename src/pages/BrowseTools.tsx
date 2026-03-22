@@ -1,7 +1,7 @@
 /**
  * @file        效率工具代理頁面
  * @description 效率工具代理功能，展示各種效率提升的 AI 代理工具
- * @lastUpdate  2026-03-18 07:50:00
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -13,6 +13,7 @@ import AgentCard from '../components/AgentCard';
 import AgentFormModal from '../components/AgentFormModal';
 import { agentApi, Agent as ApiAgent } from '../services/api';
 import { authStore } from '../stores/auth';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 const groupConfig = [
   { key: 'all', label: '全部', icon: 'AppstoreOutlined' },
@@ -25,6 +26,7 @@ const groupConfig = [
 
 export default function BrowseTools() {
   const { message } = App.useApp();
+  const contentTokens = useContentTokens();
   const [activeTab, setActiveTab] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -200,7 +202,7 @@ export default function BrowseTools() {
             刷新
           </Button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-            <HeartOutlined style={{ color: '#ff4d4f' }} />
+            <HeartOutlined style={{ color: contentTokens.colorError }} />
             <span>我的收藏</span>
             <Switch 
               checked={showFavoritesOnly} 

@@ -1,8 +1,10 @@
 import { Typography } from 'antd';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 const { Title } = Typography;
 
 export default function TaskSessionScheduled() {
+  const contentTokens = useContentTokens();
   return (
     <div style={{
       display: 'flex',
@@ -11,7 +13,7 @@ export default function TaskSessionScheduled() {
       height: '100%',
       flexDirection: 'column',
     }}>
-      <Title level={3} style={{ color: '#64748b' }}>定期任務</Title>
+      <Title level={3} style={{ color: contentTokens.textSecondary }}>定期任務</Title>
       <Title level={5} type="secondary">功能開發中</Title>
     </div>
   );

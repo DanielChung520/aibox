@@ -31,6 +31,7 @@ pub mod health;
 pub mod da;
 pub mod da_intents;
 pub mod da_query;
+pub mod themes;
 
 pub fn create_router() -> Router {
     let cors = CorsLayer::new()
@@ -59,6 +60,8 @@ pub fn create_router() -> Router {
         .route("/api/v1/model-providers", get(list_model_providers).post(create_model_provider))
         .route("/api/v1/model-providers/{key}", get(get_model_provider).put(update_model_provider).delete(delete_model_provider))
         .route("/api/v1/model-providers/{key}/sync", post(sync_model_provider))
+        .route("/api/v1/theme-templates", get(themes::list_theme_templates).post(themes::create_theme_template))
+        .route("/api/v1/theme-templates/{key}", get(themes::get_theme_template).put(themes::update_theme_template).delete(themes::delete_theme_template))
         .merge(sse::create_sse_router())
         .merge(ws::create_ws_router())
         .merge(ai::create_ai_router())

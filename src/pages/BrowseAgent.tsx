@@ -1,13 +1,14 @@
 /**
  * @file        企業流程代理頁面
  * @description 企業流程代理功能，展示各種企業經營相關的 AI 代理
- * @lastUpdate  2026-03-18 07:50:00
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  */
 
 import { useState, useEffect } from 'react';
 import { Tabs, Input, Row, Col, Button, Empty, App, Spin, Switch } from 'antd';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 import { SearchOutlined, PlusOutlined, ReloadOutlined, HeartOutlined } from '@ant-design/icons';
 import AgentCard from '../components/AgentCard';
 import AgentFormModal from '../components/AgentFormModal';
@@ -25,6 +26,7 @@ const groupConfig = [
 
 export default function BrowseAgent() {
   const { message } = App.useApp();
+  const contentTokens = useContentTokens();
   const [activeTab, setActiveTab] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -217,7 +219,7 @@ export default function BrowseAgent() {
             刷新
           </Button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-            <HeartOutlined style={{ color: '#ff4d4f' }} />
+            <HeartOutlined style={{ color: contentTokens.colorError }} />
             <span>我的收藏</span>
             <Switch 
               checked={showFavoritesOnly} 

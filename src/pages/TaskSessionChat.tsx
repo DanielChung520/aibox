@@ -179,16 +179,16 @@ export default function TaskChat() {
       {/* 底部輸入區 */}
       <div style={{
         padding: '12px 16px',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: `1px solid ${colors.chatInputBg}`,
         flexShrink: 0,
       }}>
         {queue.length > 0 && (
           <div style={{
             marginBottom: 8,
             padding: '8px 12px',
-            background: 'rgba(255,255,255,0.04)',
+            background: colors.chatInputBg,
             borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: `1px solid ${colors.chatInputBg}`,
           }}>
             <div style={{
               fontSize: 12,
@@ -206,7 +206,7 @@ export default function TaskChat() {
                   alignItems: 'center',
                   gap: 8,
                   padding: '4px 0',
-                  borderBottom: index < queue.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  borderBottom: index < queue.length - 1 ? `1px solid ${colors.chatInputBg}` : 'none',
                 }}
               >
                 <span style={{
@@ -283,7 +283,7 @@ export default function TaskChat() {
             style={{
               width: '100%',
               background: colors.chatInputBg,
-              border: '1px solid rgba(255,255,255,0.08)',
+              border: `1px solid ${colors.chatInputBg}`,
               borderRadius: 8,
               color: colors.textBase,
               fontSize: 14,

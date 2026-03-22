@@ -1,7 +1,7 @@
 /**
  * @file        登錄頁面
  * @description 用戶登錄頁面
- * @lastUpdate  2026-03-19 21:10:20
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -10,17 +10,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Checkbox, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { authApi } from '../services/api';
+import { authApi, paramsApi } from '../services/api';
 import { authStore } from '../stores/auth';
-import { paramsApi } from '../services/api';
+import { useEffectiveTheme, useContentTokens } from '../contexts/AppThemeProvider';
 
 const { Title, Text } = Typography;
 
-interface LoginProps {
-  theme: 'light' | 'dark';
-}
-
-export default function Login({ theme }: LoginProps) {
+export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [appLogo, setAppLogo] = useState('');
@@ -34,11 +30,12 @@ export default function Login({ theme }: LoginProps) {
     }).catch(() => {});
   }, []);
   
-  const isDark = theme === 'dark';
-  const bgColor = isDark ? '#0f172a' : '#f5f5f5';
-  const cardBg = isDark ? '#1e293b' : '#ffffff';
-  const textColor = isDark ? '#f1f5f9' : '#030213';
-  const secondaryColor = isDark ? '#94a3b8' : '#717182';
+  const isDark = useEffectiveTheme() === 'dark';
+  const contentTokens = useContentTokens();
+  const bgColor = contentTokens.colorBgBase;
+  const cardBg = isDark ? contentTokens.chatInputBg : contentTokens.colorBgBase;
+  const textColor = contentTokens.colorTextBase;
+  const secondaryColor = contentTokens.textSecondary;
 
   const onFinish = async (values: { username: string; password: string; remember: boolean }) => {
     setLoading(true);
@@ -71,7 +68,7 @@ export default function Login({ theme }: LoginProps) {
         padding: '40px',
         background: cardBg,
         borderRadius: '10px',
-        boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.5)' : '0 2px 8px rgba(0,0,0,0.1)',
+        boxShadow: isDark ? contentTokens.cardShadow : contentTokens.boxShadowSecondary,
         transition: 'all 0.3s',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
@@ -132,7 +129,7 @@ export default function Login({ theme }: LoginProps) {
               loading={loading}
               block
               style={{ 
-                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                background: `linear-gradient(135deg, ${contentTokens.colorPrimary} 0%, ${contentTokens.colorInfo} 100%)`,
                 border: 'none',
               }}
             >

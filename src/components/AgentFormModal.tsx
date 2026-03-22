@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Switch, InputNumber, Tabs, Button, Space, message, Radio } from 'antd';
+import { Modal, Form, Input, Select, Switch, InputNumber, Tabs, Button, Space, App, Radio } from 'antd';
 import { iconMap } from '../utils/icons';
 import IconPicker from './IconPicker';
 import { roleApi } from '../services/api';
@@ -102,6 +102,7 @@ export default function AgentFormModal({
   groupKey,
   defaultAgentType = 'tool',
 }: AgentFormModalProps) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [iconPickerVisible, setIconPickerVisible] = useState(false);
   const [isThirdParty, setIsThirdParty] = useState(false);

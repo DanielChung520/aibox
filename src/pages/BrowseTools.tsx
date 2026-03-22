@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Tabs, Input, Row, Col, Button, Empty, message, Spin, Switch } from 'antd';
+import { Tabs, Input, Row, Col, Button, Empty, App, Spin, Switch } from 'antd';
 import { SearchOutlined, PlusOutlined, ReloadOutlined, HeartOutlined } from '@ant-design/icons';
 import AgentCard from '../components/AgentCard';
 import AgentFormModal from '../components/AgentFormModal';
@@ -24,6 +24,7 @@ const groupConfig = [
 ];
 
 export default function BrowseTools() {
+  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);

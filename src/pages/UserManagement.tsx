@@ -9,11 +9,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Switch } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, Popconfirm, Switch, App } from 'antd';
+import type { MessageInstance } from 'antd/es/message/interface';
 import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from '@ant-design/icons';
 import { userApi, roleApi, User, Role } from '../services/api';
 
-function StatusSwitch({ userKey, status, onStatusChange }: { userKey: string; status: string; onStatusChange: (key: string, newStatus: string) => void }) {
+function StatusSwitch({ userKey, status, onStatusChange, message }: { userKey: string; status: string; onStatusChange: (key: string, newStatus: string) => void; message: MessageInstance }) {
   const handleChange = async (checked: boolean) => {
     const newStatus = checked ? 'enabled' : 'disabled';
     try {
@@ -43,6 +44,7 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const { message } = App.useApp();
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -168,7 +170,7 @@ export default function UserManagement() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string, record: User) => (
-        <StatusSwitch userKey={record._key} status={status} onStatusChange={handleStatusChange} />
+        <StatusSwitch userKey={record._key} status={status} onStatusChange={handleStatusChange} message={message} />
       ),
     },
     {

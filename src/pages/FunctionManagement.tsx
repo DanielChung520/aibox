@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, Popconfirm, Tag, message } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, Popconfirm, Tag, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SettingOutlined, DragOutlined } from '@ant-design/icons';
 import { functionApi, roleApi, Function, Role, FunctionRoleAuth } from '../services/api';
 import { iconMap } from '../utils/icons';
@@ -62,6 +62,7 @@ export default function FunctionManagement() {
   const [authFunction, setAuthFunction] = useState<Function | null>(null);
   const [authData, setAuthData] = useState<FunctionRoleAuth | null>(null);
   const [iconPickerVisible, setIconPickerVisible] = useState(false);
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [authForm] = Form.useForm();
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());

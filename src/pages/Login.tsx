@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Checkbox, Typography, message } from 'antd';
+import { Form, Input, Button, Checkbox, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authApi } from '../services/api';
 import { authStore } from '../stores/auth';
@@ -24,6 +24,7 @@ export default function Login({ theme }: LoginProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [appLogo, setAppLogo] = useState('');
+  const { message } = App.useApp();
 
   useEffect(() => {
     paramsApi.list().then((res: any) => {

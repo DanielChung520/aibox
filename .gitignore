@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment (contains secrets)
+.env
+!.env.production
+
+# Rust build artifacts
+target/
+
+# Process IDs
+.pids/
+
+# Sisyphus agent state
+.sisyphus/
+
+# Screenshots (development artifacts)
+*.png

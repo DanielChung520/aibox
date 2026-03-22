@@ -17,7 +17,7 @@ import {
   Select,
   Switch,
   Popconfirm,
-  message,
+  App,
   Badge,
   Typography,
 } from 'antd';
@@ -35,6 +35,7 @@ import { modelProviderApi, ModelProvider, LLMModel } from '../services/api';
 const { Title } = Typography;
 
 export default function SystemParamsModels() {
+  const { message } = App.useApp();
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);

@@ -160,7 +160,7 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
         style={{ background: siderBg }}
       >
         <div style={{
-          height: 60,
+          height: 65,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -175,17 +175,17 @@ export default function MainLayout({ theme: themeMode, setTheme }: MainLayoutPro
               <img
                 src={appLogo}
                 alt="logo"
-                style={{ height: 36, width: 'auto', objectFit: 'contain' }}
+                style={{ height: 50, width: 'auto', objectFit: 'contain' }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
-              {!collapsed && <strong>ABC 管理系统</strong>}
+              {!collapsed && <strong>AI- BOX</strong>}
             </div>
           ) : !collapsed ? (
             <div
               style={{ cursor: 'pointer' }}
               onClick={() => navigate('/app/home')}
             >
-              <strong>ABC 管理系统</strong>
+              <strong>AI-BOX</strong>
             </div>
           ) : null}
         </div>

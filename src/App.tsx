@@ -8,7 +8,7 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, theme } from 'antd';
+import { ConfigProvider, App as AntApp, theme } from 'antd';
 import Login from './pages/Login';
 import Welcome from './pages/Welcome';
 import MainLayout from './pages/MainLayout';
@@ -23,6 +23,9 @@ import TaskSessionChat from './pages/TaskSessionChat';
 import TaskSessionHistory from './pages/TaskSessionHistory';
 import TaskSessionScheduled from './pages/TaskSessionScheduled';
 import UnderDevelopment from './pages/UnderDevelopment';
+import SchemaPage from './pages/data-agent/SchemaPage';
+import IntentsPage from './pages/data-agent/IntentsPage';
+import QueryPlayground from './pages/data-agent/QueryPlayground';
 import { authStore } from './stores/auth';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -90,6 +93,7 @@ function App() {
       }}
     >
       <BrowserRouter>
+        <AntApp>
         <Routes>
           <Route path="/" element={<Welcome theme={themeMode} />} />
           <Route path="/login" element={<Login theme={themeMode} />} />
@@ -113,8 +117,13 @@ function App() {
             <Route path="task-session/history" element={<TaskSessionHistory />} />
             <Route path="task-session/scheduled" element={<TaskSessionScheduled />} />
             <Route path="under-development" element={<UnderDevelopment />} />
+            {/* Data Agent Routes */}
+            <Route path="data-agent/schema" element={<SchemaPage />} />
+            <Route path="data-agent/intents" element={<IntentsPage />} />
+            <Route path="data-agent/playground" element={<QueryPlayground />} />
           </Route>
         </Routes>
+      </AntApp>
       </BrowserRouter>
     </ConfigProvider>
   );

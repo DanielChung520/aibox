@@ -3,7 +3,6 @@ lastUpdate: 2026-03-19 13:00:00
 author: Daniel Chung
 version: 1.4.0
 ---
-
 # AGENTS.md - Daniel Chung Guide for ABC Desktop
 
 ## Project Overview
@@ -19,6 +18,8 @@ version: 1.4.0
 
 ## Development Guidelines
 
+請注意，AI coder agent，盡量Thinking、回復都使用繁體中文輸出
+
 ### 1. Product Development Principles
 
 本項目為產品開發，請遵循以下原則：
@@ -30,13 +31,13 @@ version: 1.4.0
 
 #### 硬編碼避免清單
 
-| 類型 | 正確做法 |
-|------|----------|
-| API URL | 存放於環境變數或配置檔 |
-| 功能開關 | 存放於資料庫 `system_params` |
+| 類型     | 正確做法                                 |
+| -------- | ---------------------------------------- |
+| API URL  | 存放於環境變數或配置檔                   |
+| 功能開關 | 存放於資料庫 `system_params`           |
 | 權限配置 | 存放於資料庫 `roles` / `permissions` |
-| 菜單配置 | 存放於資料庫 `functions` |
-| 常數配置 | 存放於 `src/config/` 或環境變數 |
+| 菜單配置 | 存放於資料庫 `functions`               |
+| 常數配置 | 存放於 `src/config/` 或環境變數        |
 
 ---
 
@@ -44,12 +45,12 @@ version: 1.4.0
 
 以下操作在執行前**必須先問使用者**，取得同意後才能執行：
 
-| 操作 | 說明 | 原因 |
-|------|------|------|
-| `git checkout` / revert | 還原檔案或目錄到之前狀態 | 會丟失未 commit 的工作進度 |
-| 刪除檔案 | 刪除任何程式碼或設定檔 | 可能造成功能損失 |
-| 大規模重寫 | 一次性重寫整個檔案或模組 | 風險高且難以追蹤變更 |
-| `git reset` / `git stash drop` | 丟棄 commit 或 stash | 不可逆，會丟失程式碼 |
+| 操作                               | 說明                     | 原因                       |
+| ---------------------------------- | ------------------------ | -------------------------- |
+| `git checkout` / revert          | 還原檔案或目錄到之前狀態 | 會丟失未 commit 的工作進度 |
+| 刪除檔案                           | 刪除任何程式碼或設定檔   | 可能造成功能損失           |
+| 大規模重寫                         | 一次性重寫整個檔案或模組 | 風險高且難以追蹤變更       |
+| `git reset` / `git stash drop` | 丟棄 commit 或 stash     | 不可逆，會丟失程式碼       |
 
 **正確做法**：先問「我可以 revert 這個檔案嗎？」，等待回覆後再執行。
 
@@ -139,11 +140,11 @@ version: 1.0.0
 
 #### 檔案行數上限
 
-| 語言 | 單檔上限 | 建議上限 |
-|------|----------|----------|
-| Rust | 500 行 | 300 行 |
-| TypeScript | 400 行 | 250 行 |
-| Python | 400 行 | 250 行 |
+| 語言       | 單檔上限 | 建議上限 |
+| ---------- | -------- | -------- |
+| Rust       | 500 行   | 300 行   |
+| TypeScript | 400 行   | 250 行   |
+| Python     | 400 行   | 250 行   |
 
 #### 切割時機
 
@@ -178,19 +179,21 @@ src/
 
 為避免測試文件與代碼腳本混雜導致項目結構複雜，請遵守以下規範：
 
-| 語言 | 測試位置 | 範例 |
-|------|----------|------|
-| Rust | `.tests/rs/` | `.tests/rs/error_test.rs` |
-| Python | `.tests/py/` | `.tests/py/test_auth.py` |
-| TypeScript | `.tests/ts/` | `.tests/ts/auth.test.ts` |
-| JSON | `.tests/json/` | `.tests/json/schema_test.json` |
+| 語言       | 測試位置         | 範例                             |
+| ---------- | ---------------- | -------------------------------- |
+| Rust       | `.tests/rs/`   | `.tests/rs/error_test.rs`      |
+| Python     | `.tests/py/`   | `.tests/py/test_auth.py`       |
+| TypeScript | `.tests/ts/`   | `.tests/ts/auth.test.ts`       |
+| JSON       | `.tests/json/` | `.tests/json/schema_test.json` |
 
 **禁止**：
+
 - ❌ 在模組目錄內放置測試 (`mod.rs` 同層)
 - ❌ 使用 `mod_test.rs` 命名
 - ❌ 混合測試與業務代碼
 
 **正確做法**：
+
 - ✅ 測試統一放置在 `.tests/` 目錄，按語言分開
 - ✅ 每個模組對應一個測試檔案
 - ✅ 使用描述性的測試檔案名稱
@@ -299,6 +302,7 @@ cd ai-services/aitask && uvicorn main:app --port 8001 --reload
 ### TypeScript Configuration
 
 The project uses `strict: true` in `tsconfig.json`. All TypeScript rules are enforced:
+
 - `noUnusedLocals: true`
 - `noUnusedParameters: true`
 - `noFallthroughCasesInSwitch: true`
@@ -349,14 +353,14 @@ ruff check ai-services/ && ruff format --check ai-services/ && mypy ai-services/
 
 #### 規範要點
 
-| 規則 | 說明 |
-|------|------|
-| mypy | 必須通過 `--strict` 檢查 |
-| ruff | 使用 `ruff check` 發現問題 |
-| 類型提示 | 所有函數必須有型別提示 |
-| docstring | 公開 API 必須有 docstring |
-| 禁止 `Any` | 不使用 `Any` 類型 |
-| 禁止 `type: ignore` | 不使用 `# type: ignore` |
+| 規則                  | 說明                         |
+| --------------------- | ---------------------------- |
+| mypy                  | 必須通過 `--strict` 檢查   |
+| ruff                  | 使用 `ruff check` 發現問題 |
+| 類型提示              | 所有函數必須有型別提示       |
+| docstring             | 公開 API 必須有 docstring    |
+| 禁止 `Any`          | 不使用 `Any` 類型          |
+| 禁止 `type: ignore` | 不使用 `# type: ignore`    |
 
 #### 範例
 
@@ -364,10 +368,10 @@ ruff check ai-services/ && ruff format --check ai-services/ && mypy ai-services/
 # 正確範例
 def calculate_total(items: list[Item]) -> float:
     """Calculate total price of items.
-    
+  
     Args:
         items: List of items to calculate.
-        
+      
     Returns:
         Total price as float.
     """
@@ -401,13 +405,13 @@ import './styles.css';
 
 ### Naming Conventions
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Components | PascalCase | `UserManagement.tsx`, `MainLayout.tsx` |
-| Functions/variables | camelCase | `fetchUsers()`, `loading`, `editingUser` |
-| Interfaces | PascalCase | `User`, `LoginRequest`, `LoginResponse` |
-| File names (utilities) | camelCase | `auth.ts`, `api.ts` |
-| File names (components) | PascalCase | `Login.tsx`, `UserManagement.tsx` |
+| Element                 | Convention | Example                                        |
+| ----------------------- | ---------- | ---------------------------------------------- |
+| Components              | PascalCase | `UserManagement.tsx`, `MainLayout.tsx`     |
+| Functions/variables     | camelCase  | `fetchUsers()`, `loading`, `editingUser` |
+| Interfaces              | PascalCase | `User`, `LoginRequest`, `LoginResponse`  |
+| File names (utilities)  | camelCase  | `auth.ts`, `api.ts`                        |
+| File names (components) | PascalCase | `Login.tsx`, `UserManagement.tsx`          |
 
 ### Component Structure
 
@@ -528,6 +532,7 @@ export const authStore = new AuthStore();
 ### UI Language
 
 The application uses **Chinese** for all UI text:
+
 - Button labels: `登录`, `新增用户`, `编辑`, `删除`
 - Messages: `登录成功`, `获取用户列表失败`
 - Form labels: `用户名`, `密码`, `角色`
@@ -613,14 +618,14 @@ src/
 
 ### 常見 API 端點參考
 
-| 功能 | 端點 | 方法 | 認證 |
-|------|------|------|------|
-| 登入 | `/api/v1/auth/login` | POST | 否 |
-| 取得當前用戶 | `/api/v1/auth/me` | GET | 是 |
-| 使用者列表 | `/api/v1/users` | GET | 是 |
-| 角色列表 | `/api/v1/roles` | GET | 否 |
-| 系統參數 | `/api/v1/system-params` | GET | 否 |
-| AI 對話 | `/api/v1/ai/chat` | POST | 是 |
+| 功能         | 端點                      | 方法 | 認證 |
+| ------------ | ------------------------- | ---- | ---- |
+| 登入         | `/api/v1/auth/login`    | POST | 否   |
+| 取得當前用戶 | `/api/v1/auth/me`       | GET  | 是   |
+| 使用者列表   | `/api/v1/users`         | GET  | 是   |
+| 角色列表     | `/api/v1/roles`         | GET  | 否   |
+| 系統參數     | `/api/v1/system-params` | GET  | 否   |
+| AI 對話      | `/api/v1/ai/chat`       | POST | 是   |
 
 ### 新增 API 流程
 
@@ -631,13 +636,13 @@ src/
 
 ### API 錯誤碼對照
 
-| 狀態碼 | 說明 | 常見原因 |
-|--------|------|----------|
-| 400 | Bad Request | 請求格式錯誤 |
-| 401 | Unauthorized | JWT Token 無效或過期 |
-| 403 | Forbidden | 權限不足 |
-| 404 | Not Found | 資源不存在 |
-| 500 | Internal Error | 伺服器錯誤 |
+| 狀態碼 | 說明           | 常見原因             |
+| ------ | -------------- | -------------------- |
+| 400    | Bad Request    | 請求格式錯誤         |
+| 401    | Unauthorized   | JWT Token 無效或過期 |
+| 403    | Forbidden      | 權限不足             |
+| 404    | Not Found      | 資源不存在           |
+| 500    | Internal Error | 伺服器錯誤           |
 
 ---
 
@@ -929,10 +934,10 @@ const greeting = await invoke<string>('greet', { name: 'World' });
 
 ### 7. 環境配置
 
-| 變數 | 說明 | 預設值 |
-|------|------|--------|
-| `VITE_API_URL` | API 伺服器地址 | `http://localhost:6500` |
-| `VITE_APP_TITLE` | 應用標題 | ABC Desktop |
+| 變數               | 說明           | 預設值                    |
+| ------------------ | -------------- | ------------------------- |
+| `VITE_API_URL`   | API 伺服器地址 | `http://localhost:6500` |
+| `VITE_APP_TITLE` | 應用標題       | ABC Desktop               |
 
 ### 8. 開發命令
 
@@ -964,10 +969,10 @@ npm run tauri build -- --target x86_64-apple-darwin
 
 ## 修改歷程
 
-| 日期 | 版本 | 更新者 | 變更內容 |
-|------|------|--------|----------|
-| 2026-03-19 | 1.4.0 | Daniel Chung | 新增 Safe Operation Rules，破壞性操作必須事先取得同意 |
-| 2026-03-18 | 1.3.0 | Daniel Chung | 新增 Tauri Desktop 桌面殼開發規範 |
-| 2026-03-18 | 1.2.0 | Daniel Chung | 新增 API 開發規範章節，強制要求遵循 API Specification |
+| 日期       | 版本  | 更新者       | 變更內容                                                             |
+| ---------- | ----- | ------------ | -------------------------------------------------------------------- |
+| 2026-03-19 | 1.4.0 | Daniel Chung | 新增 Safe Operation Rules，破壞性操作必須事先取得同意                |
+| 2026-03-18 | 1.3.0 | Daniel Chung | 新增 Tauri Desktop 桌面殼開發規範                                    |
+| 2026-03-18 | 1.2.0 | Daniel Chung | 新增 API 開發規範章節，強制要求遵循 API Specification                |
 | 2026-03-18 | 1.1.0 | Daniel Chung | 新增 Python mypy/ruff 規範、Module Size Guidelines、測試文件放置規範 |
-| 2026-03-17 | 1.0.0 | Daniel Chung | 初始版本，新增開發規範、檔頭標準、重複檢查、刪除流程 |
+| 2026-03-17 | 1.0.0 | Daniel Chung | 初始版本，新增開發規範、檔頭標準、重複檢查、刪除流程                 |

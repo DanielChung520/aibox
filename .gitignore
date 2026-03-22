@@ -38,3 +38,16 @@ target/
 
 # Screenshots (development artifacts)
 *.png
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts / binaries
+*.dmg
+*.exe
+*.msi
+*.deb
+*.rpm
+*.AppImage

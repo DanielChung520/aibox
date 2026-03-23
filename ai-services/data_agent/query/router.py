@@ -1,14 +1,17 @@
 """
-Query Router - NL→AQL query execution and explain endpoints.
+Query Router - NL→AQL and NL→SQL query endpoints.
 
-Provides natural language to ArangoDB AQL query conversion,
-query execution, and AQL explain plan functionality.
+Provides:
+- NL→AQL: Natural language to ArangoDB AQL conversion + execution
+- NL→SQL: 3-tier hybrid NL→SQL pipeline (template/small_llm/large_llm)
+  over Parquet data lake via DuckDB
 
-# Last Update: 2026-03-23 18:40:25
+# Last Update: 2026-03-23 21:23:16
 # Author: Daniel Chung
-# Version: 2.0.0
+# Version: 2.1.0
 """
 
+import logging
 import os
 import time
 from typing import Optional
@@ -16,6 +19,8 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from data_agent.query.nl2sql import run_nl2sql_pipeline
 
 router = APIRouter()
 
@@ -44,16 +49,21 @@ Examples:
 """
 
 
+logger = logging.getLogger(__name__)
+
+
 class QueryRequest(BaseModel):
-    """Query request body."""
     natural_language: str
     collection: Optional[str] = None
     context: Optional[dict[str, object]] = None
 
 
 class ExplainRequest(BaseModel):
-    """AQL explain request body."""
     aql: str
+
+
+class NL2SqlRequest(BaseModel):
+    natural_language: str
 
 
 async def generate_aql(natural_language: str) -> str:
@@ -151,7 +161,17 @@ async def explain_aql(request: ExplainRequest) -> dict[str, object]:
         )
 
 
+@router.post("/nl2sql")
+async def nl2sql(request: NL2SqlRequest) -> dict[str, object]:
+    """NL→SQL pipeline: natural language → DuckDB SQL over Parquet data lake."""
+    try:
+        result = await run_nl2sql_pipeline(query=request.natural_language)
+        return result.model_dump()
+    except Exception as e:
+        logger.error("NL→SQL endpoint error: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/health")
 def query_health() -> dict[str, str]:
-    """Query sub-service health check."""
-    return {"status": "ok", "sub_service": "query", "version": "2.0.0"}
+    return {"status": "ok", "sub_service": "query", "version": "2.1.0"}

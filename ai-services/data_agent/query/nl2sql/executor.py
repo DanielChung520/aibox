@@ -49,7 +49,9 @@ async def execute_sql(
         # Configure S3/httpfs for parquet access
         conn.execute("INSTALL httpfs; LOAD httpfs;")
         if config.s3_endpoint:
-            conn.execute(f"SET s3_endpoint='{config.s3_endpoint}';")
+            endpoint = config.s3_endpoint.replace("http://", "").replace("https://", "")
+            conn.execute(f"SET s3_endpoint='{endpoint}';")
+            conn.execute("SET s3_use_ssl=false;")
         if config.s3_access_key:
             conn.execute(
                 f"SET s3_access_key_id='{config.s3_access_key}';"

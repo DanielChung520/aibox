@@ -29,10 +29,10 @@ DANGEROUS_KEYWORDS = [
 ]
 
 BLOCKED_PATTERNS = [
-    r"--",         # Single-line comment
-    r"/\*",        # Multi-line comment open
-    r"\*/",        # Multi-line comment close
-    r";\s*\S",     # Multi-statement (semicolon followed by content)
+    r"--",                      # Single-line comment
+    r"(?<!['\w/])/\*(?![.])",   # Multi-line comment open (skip /*.parquet paths)
+    r"\*/(?!['\w])",            # Multi-line comment close (skip path context)
+    r";\s*\S",                  # Multi-statement (semicolon followed by content)
 ]
 
 

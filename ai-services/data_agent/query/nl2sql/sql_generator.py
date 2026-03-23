@@ -28,18 +28,19 @@ SQL_SYSTEM_PROMPT = """You are a DuckDB SQL expert. Generate a SELECT query from
 the given query plan and schema.
 
 Rules:
-1. Use read_parquet() for table sources: read_parquet('s3://{bucket}/{table}/*.parquet')
+1. Use read_parquet() for table sources: read_parquet('s3://{bucket}/{module}/{table}/*.parquet')
 2. ONLY generate SELECT statements (no INSERT, UPDATE, DELETE, DROP, ALTER)
 3. Use exact field names from schema
 4. Use appropriate JOIN syntax
-5. Output ONLY valid SQL, no explanation
-6. Alias tables for readability (e.g., EKKO AS e)"""
+5. Do NOT put S3 credentials in read_parquet() — they are configured externally
+6. Output ONLY valid SQL, no explanation
+7. Alias tables for readability (e.g., EKKO AS e)"""
 
 SQL_LARGE_PROMPT = """You are a senior DuckDB SQL expert. Generate a precise \
 SELECT query from the given query plan, schema, and natural language query.
 
 DuckDB-specific syntax:
-- Table source: read_parquet('s3://{bucket}/{table}/*.parquet')
+- Table source: read_parquet('s3://{bucket}/{module}/{table}/*.parquet')
 - Date functions: CAST(field AS DATE), date_trunc('month', field)
 - String: ILIKE for case-insensitive, || for concat
 - Aggregation: COUNT(*), SUM(), AVG(), GROUP BY ALL
@@ -51,7 +52,8 @@ Rules:
 4. Ensure JOIN conditions match schema relations
 5. Apply all filters from the query plan
 6. Respect ordering and limits
-7. Output ONLY valid SQL, no explanation or markdown"""
+7. Do NOT put S3 credentials in read_parquet() — they are configured externally
+8. Output ONLY valid SQL, no explanation or markdown"""
 
 
 async def generate_sql(
@@ -104,23 +106,27 @@ def _fill_template(
     if not template:
         raise SQLGenerationError("No sql_template found for template-tier intent")
 
-    # Replace table references with read_parquet
-    for table in plan.tables:
-        parquet_ref = (
-            f"read_parquet('s3://{config.s3_bucket}/{table}/*.parquet',"
-            f" s3_endpoint='{config.s3_endpoint}',"
-            f" s3_access_key_id='{config.s3_access_key}',"
-            f" s3_secret_access_key='{config.s3_secret_key}')"
-        )
-        # Replace bare table name in FROM/JOIN (case-insensitive)
-        template = re.sub(
-            rf"\b{table}\b(?!\s*\.\s*parquet)",
-            parquet_ref,
-            template,
-            count=1,
-        )
+    # Phase 1: Replace time/path placeholders inside existing read_parquet() paths
+    template = template.replace("{time_range}", "*")
+    template = template.replace("{po_number}", _extract_placeholder(plan, "po_number"))
+    template = template.replace("{vendor_list}", _extract_placeholder(plan, "vendor_list"))
 
-    # Build WHERE conditions from plan filters
+    # Phase 2: Replace bare table references with read_parquet (S3 creds via DuckDB SET)
+    if "read_parquet" not in intent.sql_template:
+        for table in plan.tables:
+            module = table.split("_")[0].lower() if "_" in table else "mm"
+            tbl_name = table.split("_")[-1].lower() if "_" in table else table.lower()
+            parquet_ref = (
+                f"read_parquet('s3://{config.s3_bucket}/{module}/{tbl_name}/*.parquet')"
+            )
+            template = re.sub(
+                rf"\b{re.escape(table)}\b",
+                parquet_ref,
+                template,
+                count=1,
+            )
+
+    # Phase 4: Build WHERE conditions from plan filters
     if plan.filters:
         conditions = " AND ".join(
             f"{f.field} {f.operator} '{f.value}'" for f in plan.filters
@@ -130,13 +136,20 @@ def _fill_template(
         template = template.replace("WHERE {conditions}", "")
         template = template.replace("{conditions}", "1=1")
 
-    # Replace common placeholders
+    # Phase 5: Replace remaining common placeholders
     template = template.replace("{limit}", str(plan.limit))
     template = template.replace("{start_date}", "")
     template = template.replace("{end_date}", "")
-    template = template.replace("{vendor_list}", "")
 
     return template.strip()
+
+
+def _extract_placeholder(plan: QueryPlan, key: str) -> str:
+    """Extract a value from plan filters matching a placeholder key."""
+    for f in plan.filters:
+        if key in f.field.lower() or key in f.value.lower():
+            return f.value
+    return ""
 
 
 async def _generate_sql_with_llm(

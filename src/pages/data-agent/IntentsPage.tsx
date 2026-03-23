@@ -15,6 +15,7 @@ import {
   EditOutlined, PlusOutlined, CloudSyncOutlined,
   DatabaseOutlined
 } from '@ant-design/icons';
+import api from '../../services/api';
 import { dataAgentApi, IntentCatalogEntry, OllamaModel } from '../../services/dataAgentApi';
 
 const { Text } = Typography;
@@ -51,9 +52,8 @@ export default function IntentsPage() {
 
   const fetchModels = async () => {
     try {
-      const res = await fetch('http://localhost:8003/intent-rag/models');
-      const data = await res.json();
-      setModels(data.models || []);
+      const res = await api.get<{ models: OllamaModel[] }>('/api/v1/da/intents/models');
+      setModels(res.data.models || []);
     } catch {
       // silently fail, models optional
     }

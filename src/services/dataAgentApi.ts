@@ -6,7 +6,6 @@
  */
 
 import api from './api';
-import axios from 'axios';
 
 // ==================== Types ====================
 
@@ -172,7 +171,7 @@ export const dataAgentApi = {
     api.delete(`/api/v1/da/intents/catalog/${intentId}`),
 
   syncToQdrant: (data: { model?: string }) => {
-    return axios.post<{ synced_count: number }>('http://localhost:8003/intent-rag/embed-sync', data);
+    return api.post<{ synced_count: number }>('/api/v1/da/intents/sync-qdrant', data);
   },
 
   // Query

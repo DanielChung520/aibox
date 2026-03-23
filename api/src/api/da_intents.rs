@@ -1,19 +1,22 @@
-//! Data Agent Intents API Routes
+//! Data Agent Intents Catalog API Routes
 //!
 //! # Description
-//! DA 的 Intents CRUD endpoints (意圖記錄管理)
+//! DA 的 Intents Catalog CRUD endpoints + proxy to Python data_agent
+//! Catalog 路由直接操作 ArangoDB da_intents 集合
+//! sync-qdrant / models 路由代理轉發到 data_agent:8003
 //!
-//! # Last Update: 2026-03-22 16:51:11
+//! # Last Update: 2026-03-23 22:20:13
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 2.0.0
 
+use crate::config::CONFIG;
 use crate::db::get_db;
 use crate::models::ApiResponse;
 use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde_json::Value;
@@ -21,22 +24,27 @@ use std::collections::HashMap;
 
 pub fn create_da_intents_router() -> Router {
     Router::new()
-        .route("/api/v1/da/intents", get(list_intents))
+        // Catalog CRUD
         .route(
-            "/api/v1/da/intents/{intent_id}",
-            get(get_intent).delete(delete_intent),
+            "/api/v1/da/intents/catalog",
+            get(list_catalog).post(create_intent),
         )
         .route(
-            "/api/v1/da/intents/{intent_id}/revectorize",
-            post(revectorize_intent),
+            "/api/v1/da/intents/catalog/{intent_id}",
+            put(update_intent).delete(delete_intent),
+        )
+        // Proxy to data_agent Python service
+        .route(
+            "/api/v1/da/intents/sync-qdrant",
+            post(proxy_sync_qdrant),
         )
         .route(
-            "/api/v1/da/intents/{intent_id}/template",
-            post(mark_intent_template),
+            "/api/v1/da/intents/models",
+            get(proxy_list_models),
         )
 }
 
-async fn list_intents(
+async fn list_catalog(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let page = params
@@ -59,27 +67,22 @@ async fn list_intents(
         bind_entries.push(("intent_type".to_string(), serde_json::json!(intent_type)));
     }
 
-    if let Some(cache_hit_raw) = params.get("cache_hit").filter(|v| !v.trim().is_empty()) {
-        let cache_hit = cache_hit_raw
-            .parse::<bool>()
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
-        filters.push("d.cache_hit == @cache_hit".to_string());
-        bind_entries.push(("cache_hit".to_string(), serde_json::json!(cache_hit)));
+    if let Some(group) = params.get("group").filter(|v| !v.trim().is_empty()) {
+        filters.push("d.group == @group".to_string());
+        bind_entries.push(("group".to_string(), serde_json::json!(group)));
+    }
+
+    if let Some(strategy) = params.get("generation_strategy").filter(|v| !v.trim().is_empty()) {
+        filters.push("d.generation_strategy == @generation_strategy".to_string());
+        bind_entries.push(("generation_strategy".to_string(), serde_json::json!(strategy)));
     }
 
     if let Some(search) = params.get("search").filter(|v| !v.trim().is_empty()) {
-        filters.push("d.original_query LIKE CONCAT('%', @search, '%')".to_string());
+        filters.push(
+            "(LIKE(d.description, CONCAT('%', @search, '%'), true) || LIKE(d.intent_id, CONCAT('%', @search, '%'), true))"
+                .to_string(),
+        );
         bind_entries.push(("search".to_string(), serde_json::json!(search)));
-    }
-
-    if let Some(start_date) = params.get("start_date").filter(|v| !v.trim().is_empty()) {
-        filters.push("d.created_at >= @start_date".to_string());
-        bind_entries.push(("start_date".to_string(), serde_json::json!(start_date)));
-    }
-
-    if let Some(end_date) = params.get("end_date").filter(|v| !v.trim().is_empty()) {
-        filters.push("d.created_at <= @end_date".to_string());
-        bind_entries.push(("end_date".to_string(), serde_json::json!(end_date)));
     }
 
     let filter_clause = if filters.is_empty() {
@@ -88,39 +91,35 @@ async fn list_intents(
         format!(" FILTER {}", filters.join(" && "))
     };
 
+    let db = get_db();
+
+    // Count query
     let count_query = format!(
         "FOR d IN da_intents{} COLLECT WITH COUNT INTO length RETURN length",
         filter_clause
     );
-
-    let db = get_db();
-
-    // Build HashMap<&str, Value> for count query
     let count_bind: HashMap<&str, Value> = bind_entries
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
-
     let total_result: Vec<u64> = db
         .aql_bind_vars(&count_query, count_bind)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let total_count = total_result.into_iter().next().unwrap_or(0);
 
-    // Add pagination params for records query
+    // Records query with pagination
     bind_entries.push(("offset".to_string(), serde_json::json!(offset)));
     bind_entries.push(("page_size".to_string(), serde_json::json!(page_size)));
 
     let records_query = format!(
-        "FOR d IN da_intents{} SORT d.created_at DESC LIMIT @offset, @page_size RETURN d",
+        "FOR d IN da_intents{} SORT d.group ASC, d.intent_id ASC LIMIT @offset, @page_size RETURN d",
         filter_clause
     );
-
     let records_bind: HashMap<&str, Value> = bind_entries
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
-
     let records: Vec<Value> = db
         .aql_bind_vars(&records_query, records_bind)
         .await
@@ -137,17 +136,98 @@ async fn list_intents(
     })))
 }
 
-async fn get_intent(Path(intent_id): Path<String>) -> Result<impl IntoResponse, StatusCode> {
+async fn create_intent(Json(payload): Json<Value>) -> Result<impl IntoResponse, StatusCode> {
+    let intent_id = payload
+        .get("intent_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
     let db = get_db();
-    let mut intents: Vec<Value> = db
+
+    // Check for duplicates
+    let existing: Vec<Value> = db
+        .aql_bind_vars(
+            "FOR d IN da_intents FILTER d.intent_id == @intent_id LIMIT 1 RETURN d._key",
+            [("intent_id", serde_json::json!(intent_id))].into(),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if !existing.is_empty() {
+        return Err(StatusCode::CONFLICT);
+    }
+
+    let mut doc = payload;
+    if let Some(obj) = doc.as_object_mut() {
+        obj.insert("is_template".to_string(), serde_json::json!(true));
+        obj.insert(
+            "created_at".to_string(),
+            serde_json::json!(chrono::Utc::now().to_rfc3339()),
+        );
+    }
+
+    let col = db
+        .collection("da_intents")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    col.create_document(doc, Default::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut created: Vec<Value> = db
         .aql_bind_vars(
             "FOR d IN da_intents FILTER d.intent_id == @intent_id LIMIT 1 RETURN d",
             [("intent_id", serde_json::json!(intent_id))].into(),
         )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let intent = created.pop().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let intent = intents.pop().ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(ApiResponse::success(intent)))
+}
+
+async fn update_intent(
+    Path(intent_id): Path<String>,
+    Json(payload): Json<Value>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let db = get_db();
+    let keys: Vec<String> = db
+        .aql_bind_vars(
+            "FOR d IN da_intents FILTER d.intent_id == @intent_id LIMIT 1 RETURN d._key",
+            [("intent_id", serde_json::json!(intent_id.clone()))].into(),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let doc_key = keys.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
+
+    let mut update_data = payload;
+    if let Some(obj) = update_data.as_object_mut() {
+        obj.insert(
+            "updated_at".to_string(),
+            serde_json::json!(chrono::Utc::now().to_rfc3339()),
+        );
+        // Prevent changing intent_id
+        obj.remove("_key");
+        obj.remove("_id");
+    }
+
+    let col = db
+        .collection("da_intents")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    col.update_document(&doc_key, update_data, Default::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut updated: Vec<Value> = db
+        .aql_bind_vars(
+            "FOR d IN da_intents FILTER d._key == @key LIMIT 1 RETURN d",
+            [("key", serde_json::json!(doc_key))].into(),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let intent = updated.pop().ok_or(StatusCode::NOT_FOUND)?;
+
     Ok(Json(ApiResponse::success(intent)))
 }
 
@@ -173,72 +253,49 @@ async fn delete_intent(Path(intent_id): Path<String>) -> Result<impl IntoRespons
     Ok(Json(ApiResponse::success("Intent deleted".to_string())))
 }
 
-async fn revectorize_intent(Path(intent_id): Path<String>) -> Result<impl IntoResponse, StatusCode> {
-    let db = get_db();
-    let keys: Vec<String> = db
-        .aql_bind_vars(
-            "FOR d IN da_intents FILTER d.intent_id == @intent_id LIMIT 1 RETURN d._key",
-            [("intent_id", serde_json::json!(intent_id))].into(),
-        )
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let doc_key = keys.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
+/// Proxy POST /api/v1/da/intents/sync-qdrant → data_agent:8003/intent-rag/embed-sync
+async fn proxy_sync_qdrant(Json(payload): Json<Value>) -> Result<impl IntoResponse, StatusCode> {
+    let url = format!("{}/intent-rag/embed-sync", CONFIG.ai_services.data_agent_url);
 
-    let col = db
-        .collection("da_intents")
-        .await
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    col.update_document(
-        &doc_key,
-        serde_json::json!({
-            "updated_at": chrono::Utc::now().to_rfc3339()
-        }),
-        Default::default(),
-    )
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(ApiResponse::success(
-        "Intent re-vectorized successfully".to_string(),
-    )))
+    let resp = client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("proxy_sync_qdrant error: {e}");
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    let status = resp.status();
+    let body: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+
+    if status.is_success() {
+        Ok(Json(body))
+    } else {
+        Err(StatusCode::BAD_GATEWAY)
+    }
 }
 
-async fn mark_intent_template(
-    Path(intent_id): Path<String>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let db = get_db();
-    let keys: Vec<String> = db
-        .aql_bind_vars(
-            "FOR d IN da_intents FILTER d.intent_id == @intent_id LIMIT 1 RETURN d._key",
-            [("intent_id", serde_json::json!(intent_id))].into(),
-        )
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let doc_key = keys.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
+/// Proxy GET /api/v1/da/intents/models → data_agent:8003/intent-rag/models
+async fn proxy_list_models() -> Result<impl IntoResponse, StatusCode> {
+    let url = format!("{}/intent-rag/models", CONFIG.ai_services.data_agent_url);
 
-    let col = db
-        .collection("da_intents")
-        .await
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    col.update_document(
-        &doc_key,
-        serde_json::json!({
-            "is_template": true,
-            "updated_at": chrono::Utc::now().to_rfc3339()
-        }),
-        Default::default(),
-    )
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut updated: Vec<Value> = db
-        .aql_bind_vars(
-            "FOR d IN da_intents FILTER d._key == @key LIMIT 1 RETURN d",
-            [("key", serde_json::json!(doc_key))].into(),
-        )
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let intent = updated.pop().ok_or(StatusCode::NOT_FOUND)?;
+    let resp = client.get(&url).send().await.map_err(|e| {
+        eprintln!("proxy_list_models error: {e}");
+        StatusCode::BAD_GATEWAY
+    })?;
 
-    Ok(Json(ApiResponse::success(intent)))
+    let body: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    Ok(Json(body))
 }

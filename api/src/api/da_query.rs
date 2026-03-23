@@ -3,11 +3,13 @@
 //! # Description
 //! DA 的查詢執行、健康檢查與同步 endpoints
 //! 使用 DuckDB 連線工廠模式（每次查詢建立獨立連線）避免 mutex poison 問題。
+//! /nl2sql proxy 轉發到 Python data_agent 服務。
 //!
-//! # Last Update: 2026-03-22 17:26:46
+//! # Last Update: 2026-03-23 22:20:13
 //! # Author: Daniel Chung
-//! # Version: 1.1.0
+//! # Version: 1.2.0
 
+use crate::config::CONFIG;
 use crate::db::get_db;
 use crate::duckdb_conn::create_connection;
 use axum::{
@@ -28,6 +30,7 @@ pub fn create_da_query_router() -> Router {
     Router::new()
         .route("/api/v1/da/query", post(execute_da_query))
         .route("/api/v1/da/query/sql", post(execute_direct_sql))
+        .route("/api/v1/da/query/nl2sql", post(proxy_nl2sql))
         .route("/api/v1/da/health", get(da_health))
         .route("/api/v1/da/sync/status", get(get_sync_status))
         .route("/api/v1/da/sync/trigger", post(trigger_sync))
@@ -195,6 +198,29 @@ async fn trigger_sync() -> Result<impl IntoResponse, StatusCode> {
             "message": "Sync trigger not yet implemented"
         }
     })))
+}
+
+/// Proxy POST /api/v1/da/query/nl2sql → data_agent:8003/query/nl2sql
+async fn proxy_nl2sql(Json(payload): Json<Value>) -> Result<impl IntoResponse, StatusCode> {
+    let url = format!("{}/query/nl2sql", CONFIG.ai_services.data_agent_url);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let resp = client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("proxy_nl2sql error: {e}");
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    let body: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    Ok(Json(body))
 }
 
 fn is_select_statement(sql: &str) -> bool {

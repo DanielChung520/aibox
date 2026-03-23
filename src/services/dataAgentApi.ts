@@ -1,11 +1,12 @@
 /**
  * @file        Data Agent API 服務層
  * @description DA 的 Schema、Intents、Query 等 API 接口定義
- * @lastUpdate  2026-03-22
+ * @lastUpdate  2026-03-23 21:45:17
  * @author      Daniel Chung
  */
 
 import api from './api';
+import axios from 'axios';
 
 // ==================== Types ====================
 
@@ -55,28 +56,6 @@ export interface TableRelation {
   updated_at: string;
 }
 
-export interface IntentRecord {
-  intent_id: string;
-  session_id: string;
-  user_id: string;
-  original_query: string;
-  intent_json: Record<string, any>;
-  intent_signature: string;
-  sql_generated: string;
-  cache_hit: boolean;
-  intent_type: string;
-  confidence: number;
-  result_summary?: {
-    row_count: number;
-    truncated: boolean;
-    sample?: Record<string, any>[];
-  };
-  duration_ms: number;
-  error_code?: string;
-  trace_id: string;
-  created_at: string;
-}
-
 export interface QueryRequest {
   query: string;
   session_id?: string;
@@ -99,7 +78,7 @@ export interface QueryResponse {
   message?: string;
   data: {
     sql: string;
-    results: Record<string, any>[];
+    results: Record<string, unknown>[];
     columns?: string[];
     metadata: {
       duration_ms: number;
@@ -112,11 +91,27 @@ export interface QueryResponse {
   cache_hit: boolean;
 }
 
-export interface IntentListResponse {
-  records: IntentRecord[];
-  total: number;
-  page: number;
-  page_size: number;
+export interface OllamaModel {
+  name: string;
+  model: string;
+  size: number;
+  modified_at: string;
+  digest: string;
+}
+
+export interface IntentCatalogEntry {
+  intent_id: string;
+  bpa_domain_intent: string;
+  intent_type: string;
+  group: string;
+  description: string;
+  tables?: string[];
+  core_fields?: string[];
+  nl_examples: string[];
+  sql_template: string;
+  is_template: boolean;
+  generation_strategy: 'template' | 'small_llm' | 'large_llm';
+  llm_model?: string;
 }
 
 // ==================== Schema API ====================
@@ -164,49 +159,42 @@ export const dataAgentApi = {
     api.delete(`/api/v1/da/schema/relations/${relationId}`),
 
   // Intents
-  listIntents: (params?: {
-    page?: number;
-    page_size?: number;
-    intent_type?: string;
-    cache_hit?: boolean;
-    search?: string;
-    start_date?: string;
-    end_date?: string;
-  }) => api.get<{ code: number; data: IntentListResponse }>('/api/v1/da/intents', { params }),
-  
-  getIntent: (intentId: string) => 
-    api.get<{ code: number; data: IntentRecord }>(`/api/v1/da/intents/${intentId}`),
-  
+  listCatalog: (params?: { page?: number; page_size?: number; group?: string; intent_type?: string; search?: string; generation_strategy?: string }) =>
+    api.get<{ code: number; data: { records: IntentCatalogEntry[]; total: number; page: number; page_size: number } }>('/api/v1/da/intents/catalog', { params }),
+
+  createIntent: (data: IntentCatalogEntry) =>
+    api.post('/api/v1/da/intents/catalog', data),
+
+  updateIntent: (intentId: string, data: IntentCatalogEntry) =>
+    api.put(`/api/v1/da/intents/catalog/${intentId}`, data),
+
   deleteIntent: (intentId: string) => 
-    api.delete(`/api/v1/da/intents/${intentId}`),
-  
-  reVectorize: (intentId: string) => 
-    api.post(`/api/v1/da/intents/${intentId}/revectorize`),
-  
-  markAsTemplate: (intentId: string) => 
-    api.post(`/api/v1/da/intents/${intentId}/template`),
+    api.delete(`/api/v1/da/intents/catalog/${intentId}`),
+
+  syncToQdrant: (data: { model?: string }) => {
+    return axios.post<{ synced_count: number }>('http://localhost:8003/intent-rag/embed-sync', data);
+  },
 
   // Query
   query: (data: QueryRequest) => {
-    // Return the raw response for proper type handling
-    return api.post<any>('/api/v1/da/query', data);
+    return api.post<QueryResponse>('/api/v1/da/query', data);
   },
   
-  querySql: (data: { sql: string; params?: any[] }) => {
-    return api.post('/api/v1/da/query/sql', data);
+  querySql: (data: { sql: string; params?: unknown[] }) => {
+    return api.post<{ code: number; data: unknown }>('/api/v1/da/query/sql', data);
   },
 
   // Sync
   getSyncStatus: () => {
-    return api.get('/api/v1/da/sync/status');
+    return api.get<{ code: number; data: unknown }>('/api/v1/da/sync/status');
   },
   
   triggerSync: () => {
-    return api.post('/api/v1/da/sync/trigger');
+    return api.post<{ code: number; data: unknown }>('/api/v1/da/sync/trigger');
   },
 
   // Health
-  health: () => api.get('/api/v1/da/health'),
+  health: () => api.get<{ status: string }>('/api/v1/da/health'),
 };
 
 export default dataAgentApi;

@@ -43,13 +43,26 @@ start_api() {
   cargo run --release > /tmp/abc-api.log 2>&1 &
   echo $! > "$PID_DIR/api.pid"
   
-  sleep 3
-    if curl -s http://localhost:6500/api/v1/auth/login -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin123"}' > /dev/null 2>&1; then
-    echo "✅ API Server started on http://localhost:6500"
-  else
-    echo "❌ API Server failed to start"
-    cat /tmp/abc-api.log
-  fi
+  echo "→ Waiting for API Server (compiling + starting, max 120s)..."
+  local elapsed=0
+  local max_wait=120
+  while [ $elapsed -lt $max_wait ]; do
+    if curl -sf http://localhost:6500/health > /dev/null 2>&1; then
+      echo "✅ API Server started on http://localhost:6500 (${elapsed}s)"
+      return 0
+    fi
+    # Check if cargo process is still alive
+    local pid=$(cat "$PID_DIR/api.pid" 2>/dev/null)
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      echo "❌ API Server process exited unexpectedly"
+      cat /tmp/abc-api.log
+      return 1
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  echo "❌ API Server failed to start within ${max_wait}s"
+  tail -30 /tmp/abc-api.log
 }
 
 start_static() {

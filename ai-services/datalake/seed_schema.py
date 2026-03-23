@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""
+@file        seed_schema.py
+@description ArangoDB Schema 初始化 — da_table_info, da_field_info, da_table_relation
+@lastUpdate  2026-03-23 23:40:00
+@author      Daniel Chung
+@version     1.1.0
+"""
 import subprocess
 import json
 
@@ -7,11 +14,11 @@ DB = "abc_desktop"
 AUTH = "root:abc_desktop_2026"
 
 def curl_post_doc(collection: str, docs: list) -> dict:
-    """Bulk insert via ArangoDB document API."""
+    """Bulk insert/overwrite via ArangoDB document API."""
     payload = json.dumps(docs)
     r = subprocess.run([
         "curl", "-s", "-u", AUTH,
-        f"{ARANGO_URL}/_db/{DB}/_api/document/{collection}",
+        f"{ARANGO_URL}/_db/{DB}/_api/document/{collection}?overwriteMode=replace",
         "-X", "POST",
         "-H", "Content-Type: application/json",
         "-d", payload
@@ -67,11 +74,14 @@ insert_batch("da_table_info", tables)
 fields = [
     # MARA
     {"_key": "MM_MARA_MATNR",   "table_id": "MM_MARA", "field_id": "MATNR",   "field_name": "MATNR",   "field_type": "VARCHAR",   "length": 18, "scale": 0, "nullable": False, "description": "物料編號",                           "business_aliases": ["物料","料號","品號"],       "is_pk": True,  "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MARA_MAKTX",   "table_id": "MM_MARA", "field_id": "MAKTX",   "field_name": "MAKTX",   "field_type": "VARCHAR",   "length": 40, "scale": 0, "nullable": True,  "description": "物料描述",                           "business_aliases": ["品名","說明","描述"],       "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_MTART",   "table_id": "MM_MARA", "field_id": "MTART",   "field_name": "MTART",   "field_type": "VARCHAR",   "length": 4,  "scale": 0, "nullable": False, "description": "物料類型",                           "business_aliases": ["類型"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_MATKL",   "table_id": "MM_MARA", "field_id": "MATKL",   "field_name": "MATKL",   "field_type": "VARCHAR",   "length": 9,  "scale": 0, "nullable": True,  "description": "物料群組",                           "business_aliases": ["群組"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_MEINS",   "table_id": "MM_MARA", "field_id": "MEINS",   "field_name": "MEINS",   "field_type": "VARCHAR",   "length": 3,  "scale": 0, "nullable": False, "description": "基本單位",                           "business_aliases": ["單位"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MARA_BRGEW",   "table_id": "MM_MARA", "field_id": "BRGEW",   "field_name": "BRGEW",   "field_type": "DECIMAL",   "length": 13, "scale": 3, "nullable": True,  "description": "毛重",                               "business_aliases": ["重量"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MARA_GEWEI",   "table_id": "MM_MARA", "field_id": "GEWEI",   "field_name": "GEWEI",   "field_type": "VARCHAR",   "length": 3,  "scale": 0, "nullable": True,  "description": "重量單位",                           "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_MATNR2",  "table_id": "MM_MARA", "field_id": "MATNR2",  "field_name": "MATNR2",  "field_type": "VARCHAR",   "length": 18, "scale": 0, "nullable": True,  "description": "替代物料",                           "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
-    {"_key": "MM_MARA_ERDAT",   "table_id": "MM_MARA", "field_id": "ERDAT",   "field_name": "ERDAT",   "field_type": "DATE",      "length": 8,  "scale": 0, "nullable": False, "description": "建立日期",                           "business_aliases": ["建立日","建立日期"],         "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MARA_ERSDA",   "table_id": "MM_MARA", "field_id": "ERSDA",   "field_name": "ERSDA",   "field_type": "DATE",      "length": 8,  "scale": 0, "nullable": False, "description": "建立日期",                           "business_aliases": ["建立日","建立日期"],         "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_ERNAM",   "table_id": "MM_MARA", "field_id": "ERNAM",   "field_name": "ERNAM",   "field_type": "VARCHAR",   "length": 12, "scale": 0, "nullable": False, "description": "建立者",                             "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_MBRSH",    "table_id": "MM_MARA", "field_id": "MBRSH",   "field_name": "MBRSH",   "field_type": "VARCHAR",   "length": 1,  "scale": 0, "nullable": False, "description": "產業領域",                           "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MARA_BISMT",   "table_id": "MM_MARA", "field_id": "BISMT",   "field_name": "BISMT",   "field_type": "VARCHAR",   "length": 18, "scale": 0, "nullable": True,  "description": "舊物料編號",                        "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
@@ -80,6 +90,8 @@ fields = [
     {"_key": "MM_LFA1_LIFNR",   "table_id": "MM_LFA1", "field_id": "LIFNR",   "field_name": "LIFNR",   "field_type": "VARCHAR",   "length": 10, "scale": 0, "nullable": False, "description": "供應商帳號",                         "business_aliases": ["供應商","Vendor"],           "is_pk": True,  "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_LFA1_NAME1",   "table_id": "MM_LFA1", "field_id": "NAME1",   "field_name": "NAME1",   "field_type": "VARCHAR",   "length": 30, "scale": 0, "nullable": False, "description": "供應商名稱",                         "business_aliases": ["名稱","供應商名"],           "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_LFA1_NAME2",   "table_id": "MM_LFA1", "field_id": "NAME2",   "field_name": "NAME2",   "field_type": "VARCHAR",   "length": 30, "scale": 0, "nullable": True,  "description": "供應商名稱2",                        "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_LFA1_ORT01",   "table_id": "MM_LFA1", "field_id": "ORT01",   "field_name": "ORT01",   "field_type": "VARCHAR",   "length": 35, "scale": 0, "nullable": True,  "description": "城市",                               "business_aliases": ["城市","City"],               "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_LFA1_STRAS",   "table_id": "MM_LFA1", "field_id": "STRAS",   "field_name": "STRAS",   "field_type": "VARCHAR",   "length": 35, "scale": 0, "nullable": True,  "description": "街道/地址",                          "business_aliases": ["地址","Address"],            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_LFA1_LAND1",   "table_id": "MM_LFA1", "field_id": "LAND1",   "field_name": "LAND1",   "field_type": "VARCHAR",   "length": 3,  "scale": 0, "nullable": False, "description": "國家代碼",                           "business_aliases": ["國家"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_LFA1_REGIO",   "table_id": "MM_LFA1", "field_id": "REGIO",   "field_name": "REGIO",   "field_type": "VARCHAR",   "length": 3,  "scale": 0, "nullable": True,  "description": "地區/省份",                         "business_aliases": ["省份","地區"],               "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_LFA1_STCD1",   "table_id": "MM_LFA1", "field_id": "STCD1",   "field_name": "STCD1",   "field_type": "VARCHAR",   "length": 16, "scale": 0, "nullable": True,  "description": "統一編號",                           "business_aliases": ["統編","稅號"],               "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
@@ -127,6 +139,11 @@ fields = [
     {"_key": "MM_MSEG_BWART",   "table_id": "MM_MSEG", "field_id": "BWART",   "field_name": "BWART",   "field_type": "VARCHAR",   "length": 3,  "scale": 0, "nullable": False, "description": "移動類型",                           "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MSEG_DMBTR",   "table_id": "MM_MSEG", "field_id": "DMBTR",   "field_name": "DMBTR",   "field_type": "DECIMAL",   "length": 13, "scale": 2, "nullable": False, "description": "金額(本幣)",                         "business_aliases": ["金額"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     {"_key": "MM_MSEG_MENGE",   "table_id": "MM_MSEG", "field_id": "MENGE",   "field_name": "MENGE",   "field_type": "DECIMAL",   "length": 13, "scale": 3, "nullable": False, "description": "數量",                               "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MSEG_MEINS",   "table_id": "MM_MSEG", "field_id": "MEINS",   "field_name": "MEINS",   "field_type": "VARCHAR",   "length": 3,  "scale": 0, "nullable": True,  "description": "基本單位",                           "business_aliases": ["單位","UoM"],                "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MSEG_WAERS",   "table_id": "MM_MSEG", "field_id": "WAERS",   "field_name": "WAERS",   "field_type": "VARCHAR",   "length": 5,  "scale": 0, "nullable": True,  "description": "貨幣",                               "business_aliases": ["幣別"],                     "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MSEG_KOSTL",   "table_id": "MM_MSEG", "field_id": "KOSTL",   "field_name": "KOSTL",   "field_type": "VARCHAR",   "length": 10, "scale": 0, "nullable": True,  "description": "成本中心",                           "business_aliases": ["成本中心","Cost Center"],    "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MSEG_UMLGO",   "table_id": "MM_MSEG", "field_id": "UMLGO",   "field_name": "UMLGO",   "field_type": "VARCHAR",   "length": 4,  "scale": 0, "nullable": True,  "description": "收貨儲存地點",                       "business_aliases": ["收貨倉庫","目的倉"],         "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
+    {"_key": "MM_MSEG_LIFNR",   "table_id": "MM_MSEG", "field_id": "LIFNR",   "field_name": "LIFNR",   "field_type": "VARCHAR",   "length": 10, "scale": 0, "nullable": True,  "description": "供應商帳號",                         "business_aliases": ["供應商"],                   "is_pk": False, "is_fk": True,  "relation_table": "MM_LFA1", "relation_field": "LIFNR"},
     {"_key": "MM_MSEG_EBELN",   "table_id": "MM_MSEG", "field_id": "EBELN",   "field_name": "EBELN",   "field_type": "VARCHAR",   "length": 10, "scale": 0, "nullable": True,  "description": "採購單號",                           "business_aliases": [],                            "is_pk": False, "is_fk": True,  "relation_table": "MM_EKKO", "relation_field": "EBELN"},
     {"_key": "MM_MSEG_EBELP",   "table_id": "MM_MSEG", "field_id": "EBELP",   "field_name": "EBELP",   "field_type": "VARCHAR",   "length": 5,  "scale": 0, "nullable": True,  "description": "採購單行號",                        "business_aliases": [],                            "is_pk": False, "is_fk": False, "relation_table": None, "relation_field": None},
     # VBAK

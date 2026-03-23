@@ -2,6 +2,12 @@
 """
 SAP Data Lake Generator - Generate 2 years of fake SAP data as Parquet files.
 Writes to SeaWeedFS S3 (s3://sap/{module}/{table}/).
+
+@file        generate_sap_data.py
+@description 產生模擬 SAP MM/SD 模組 Parquet 資料湖，供 NL→SQL Pipeline 使用
+@lastUpdate  2026-03-23 23:40:00
+@author      Daniel Chung
+@version     1.1.0
 """
 import io
 import random
@@ -48,7 +54,11 @@ MAT_TYPES = ['HALB', 'ROH', 'HAWA', 'FERT', 'HIBE', 'VERP', 'DIEN']
 MAT_GROUPS = [f'G{i:02d}' for i in range(1, 21)]
 COUNTRIES = ['TW', 'CN', 'JP', 'KR', 'US', 'DE', 'TH', 'VN', 'MY', 'SG']
 UNITS = ['PC', 'KG', 'BOX', 'SET', 'M', 'L', 'PCS']
+WEIGHT_UNITS = ['KG', 'G', 'LB', 'TO']
 CURRENCIES = ['TWD', 'USD', 'CNY', 'EUR']
+COST_CENTERS = [f'CC{i:04d}' for i in range(100, 200)]
+CITIES_TW = ['台北市', '新北市', '桃園市', '台中市', '台南市', '高雄市', '新竹市', '嘉義市']
+STREETS_TW = ['中正路', '中山路', '忠孝東路', '民生東路', '復興北路', '南京東路', '信義路', '敦化南路']
 BUKRS = '1000'
 WERKS = ['TW01', 'TW02', 'CN01']
 LGORT_LIST = ['TW01-S1', 'TW01-S2', 'TW02-S1', 'CN01-S1']
@@ -66,16 +76,27 @@ def rand_date(start: datetime, end: datetime) -> str:
     d = start + timedelta(days=days)
     return d.strftime('%Y%m%d')
 
+MATERIAL_DESCS = [
+    '不鏽鋼板材', '銅管組件', '塑膠外殼', '電子零件套組', '包裝紙箱',
+    '螺絲M6x20', '橡膠墊圈', '鋁合金框架', '矽膠密封條', '碳纖維板',
+    '光學鏡片', '陶瓷基板', '磁性元件', '散熱片', '印刷電路板',
+    '齒輪組', '軸承套件', '氣壓缸', '感測器模組', '電源供應器',
+]
+
 def generate_materials() -> pd.DataFrame:
     rows = []
     for i in range(1, COUNT_MARA + 1):
+        unit = random.choice(UNITS)
         rows.append({
             'MATNR': pad_sap_id(i),
+            'MAKTX': f'{random.choice(MATERIAL_DESCS)}-{i:04d}',
             'MTART': random.choice(MAT_TYPES),
             'MATKL': random.choice(MAT_GROUPS),
-            'MEINS': random.choice(UNITS),
+            'MEINS': unit,
+            'BRGEW': round(random.uniform(0.01, 500.0), 3) if unit in ('PC', 'SET', 'BOX') else None,
+            'GEWEI': random.choice(WEIGHT_UNITS) if unit in ('PC', 'SET', 'BOX') else None,
             'MATNR2': pad_sap_id(random.randint(1, COUNT_MARA)) if random.random() > 0.7 else None,
-            'ERDAT': rand_date(START - timedelta(days=730), START),
+            'ERSDA': rand_date(START - timedelta(days=730), START),
             'ERNAM': random.choice(['SAPUSER', 'ADMIN', 'MM001', 'MM002']),
             'MBRSH': random.choice(['M', 'P', 'C']),
             'BISMT': pad_sap_id(random.randint(1, COUNT_MARA)) if random.random() > 0.8 else None,
@@ -86,11 +107,14 @@ def generate_materials() -> pd.DataFrame:
 def generate_vendors() -> pd.DataFrame:
     rows = []
     for i in range(1, COUNT_LFA1 + 1):
+        country = random.choice(COUNTRIES)
         rows.append({
             'LIFNR': pad_sap_id(i),
             'NAME1': fake.company(),
             'NAME2': fake.company_suffix() if random.random() > 0.5 else None,
-            'LAND1': random.choice(COUNTRIES),
+            'ORT01': random.choice(CITIES_TW) if country == 'TW' else fake.city(),
+            'STRAS': random.choice(STREETS_TW) + str(random.randint(1, 200)) + '號' if country == 'TW' else fake.street_address(),
+            'LAND1': country,
             'REGIO': fake.administrative_unit() if random.random() > 0.3 else None,
             'STCD1': fake.ein() if random.random() > 0.4 else None,
             'STCD2': f"{random.choice(['DE','FR','IT','ES','NL','AT','BE','CH'])}{random.randint(1000000000, 9999999999)}" if random.random() > 0.6 else None,
@@ -180,14 +204,20 @@ def generate_ekpo(ekko: pd.DataFrame, mats: pd.DataFrame, vendors: pd.DataFrame)
 def generate_mseg(ekko: pd.DataFrame, mats: pd.DataFrame) -> pd.DataFrame:
     records = []
     mats_list = mats['MATNR'].tolist()
+    vendors_list = ekko['LIFNR'].unique().tolist()
     for _, po in ekko.iterrows():
         item_count = random.randint(1, ITEMS_PER_PO[1])
         mblnr_seq = random.randint(1, 100000)
         for j in range(item_count):
             mblnr = pad_sap_id(mblnr_seq + j)
-            mjahr = rand_date(START, NOW)[2:4]
+            mjahr = rand_date(START, NOW)[:4]
             budat = rand_date(START, NOW)
             qty = round(random.uniform(5, 3000), 3)
+            bwart = random.choice(['101', '102', '103', '201', '202', '301', '601', '602', '701', '702'])
+            # KOSTL: cost center (for consumption postings 201/261)
+            kostl = random.choice(COST_CENTERS) if bwart in ('201', '261', '202') else None
+            # UMLGO: receiving storage location (for transfer postings 301/311)
+            umlgo = random.choice(LGORT_LIST) if bwart in ('301', '302', '311') else None
             records.append({
                 'MBLNR': mblnr,
                 'MJAHR': mjahr,
@@ -197,9 +227,14 @@ def generate_mseg(ekko: pd.DataFrame, mats: pd.DataFrame) -> pd.DataFrame:
                 'MATNR': random.choice(mats_list) if random.random() > 0.1 else None,
                 'WERKS': random.choice(WERKS),
                 'LGORT': random.choice(LGORT_LIST),
-                'BWART': random.choice(['101', '102', '103', '201', '202', '301', '601', '602', '701', '702']),
+                'BWART': bwart,
                 'DMBTR': round(random.uniform(100, 100000), 2),
                 'MENGE': qty,
+                'MEINS': random.choice(UNITS),
+                'WAERS': random.choice(CURRENCIES),
+                'KOSTL': kostl,
+                'UMLGO': umlgo,
+                'LIFNR': random.choice(vendors_list) if bwart in ('101', '102', '103', '161') else None,
                 'EBELN': po['EBELN'] if random.random() > 0.3 else None,
                 'EBELP': pad_sap_id(random.randint(1, 10), 5) if random.random() > 0.3 else None,
                 'BUDAT_YEAR': budat[:4],

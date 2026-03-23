@@ -4,14 +4,8 @@ SAP Data Lake Generator - Generate 2 years of fake SAP data as Parquet files.
 Writes to SeaWeedFS S3 (s3://sap/{module}/{table}/).
 """
 import io
-import os
-import sys
-import json
-import hashlib
 import random
-import hashlib
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import pyarrow as pa

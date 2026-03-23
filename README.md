@@ -1,7 +1,7 @@
 ---
-lastUpdate: 2026-03-18 02:30:00
+lastUpdate: 2026-03-23 19:05:37
 author: Daniel Chung
-version: 1.1.0
+version: 1.2.0
 ---
 
 # ABC Desktop 管理系统
@@ -65,11 +65,12 @@ aibox/
 │   ├── Cargo.toml
 │   └── .env
 ├── ai-services/               # Python AI Services
-│   ├── aitask/               # AI Task 服务 (port 8001)
-│   ├── data-query/           # Data Query 服务 (port 8002)
-│   ├── knowledge-assets/     # Knowledge Assets 服务 (port 8003)
-│   ├── mcp-tools/            # MCP Tools 服务 (port 8004)
-│   ├── bpa/                  # BPA 服务 (port 8005)
+│   ├── aitask/               # AI Task 服務 (port 8001)
+│   ├── data_agent/           # Data Agent 服務 (port 8003) — 意圖 RAG + NL→SQL
+│   ├── mcp_tools/            # MCP Tools 服務 (port 8004)
+│   ├── bpa/mm_agent/         # BPA 物料管理 Agent (port 8005)
+│   ├── knowledge_agent/      # Knowledge Agent 服務 (port 8007)
+│   ├── datalake/             # 資料湖種子資料與 Schema 工具
 │   └── requirements.txt
 ├── src/                       # React 前端源码
 ├── src-tauri/                 # Tauri 桌面应用壳
@@ -125,11 +126,12 @@ cd api && cargo watch -x run
 
 ```bash
 # 启动 Python AI Services (分开终端)
-cd ai-services/aitask && uvicorn main:app --port 8001 --reload
-cd ai-services/data-query && uvicorn main:app --port 8002 --reload
-cd ai-services/knowledge-assets && uvicorn main:app --port 8003 --reload
-cd ai-services/mcp-tools && uvicorn main:app --port 8004 --reload
-cd ai-services/bpa && uvicorn main:app --port 8005 --reload
+cd ai-services && source .venv/bin/activate
+uvicorn aitask.main:app --port 8001 --reload
+uvicorn data_agent.main:app --port 8003 --reload
+uvicorn mcp_tools.main:app --port 8004 --reload
+uvicorn bpa.mm_agent.main:app --port 8005 --reload
+uvicorn knowledge_agent.main:app --port 8007 --reload
 ```
 
 ```bash
@@ -241,13 +243,15 @@ curl -sL https://raw.githubusercontent.com/your-repo/main/install.sh | bash
 |------|------|------|
 | API Gateway | 6500 | Rust Axum |
 | AITask | 8001 | Python FastAPI |
-| Data Query | 8002 | Python FastAPI |
-| Knowledge Assets | 8003 | Python FastAPI |
+| Data Agent | 8003 | Python FastAPI (意圖 RAG + NL→SQL) |
 | MCP Tools | 8004 | Python FastAPI |
-| BPA | 8005 | Python FastAPI |
+| BPA MM Agent | 8005 | Python FastAPI (物料管理) |
+| Knowledge Agent | 8007 | Python FastAPI (知識庫 RAG) |
 | Frontend (dev) | 1420 | Vite dev server |
 | Frontend (preview) | 6000 | Vite preview |
 | ArangoDB | 8529 | 数据库 |
+| Qdrant | 6333 | 向量數據庫 |
+| MinIO (S3) | 8334 | 資料湖儲存 |
 | Ollama | 11434 | LLM |
 | LM Studio | 1234 | LLM |
 
@@ -279,10 +283,10 @@ JWT_EXPIRATION_HOURS=24
 # AI Services
 # ===================
 AITASK_URL=http://localhost:8001
-DATA_QUERY_URL=http://localhost:8002
-KNOWLEDGE_ASSETS_URL=http://localhost:8003
+DATA_AGENT_URL=http://localhost:8003
 MCP_TOOLS_URL=http://localhost:8004
-BPA_URL=http://localhost:8005
+BPA_MM_AGENT_URL=http://localhost:8005
+KNOWLEDGE_AGENT_URL=http://localhost:8007
 
 # ===================
 # External AI
@@ -386,11 +390,12 @@ lsof -i :6500
 
 ```bash
 # 启动 AI 服务 (需要先启动 Rust API Gateway)
-cd ai-services/aitask && uvicorn main:app --port 8001
-cd ai-services/data-query && uvicorn main:app --port 8002
-cd ai-services/knowledge-assets && uvicorn main:app --port 8003
-cd ai-services/mcp-tools && uvicorn main:app --port 8004
-cd ai-services/bpa && uvicorn main:app --port 8005
+cd ai-services && source .venv/bin/activate
+uvicorn aitask.main:app --port 8001
+uvicorn data_agent.main:app --port 8003
+uvicorn mcp_tools.main:app --port 8004
+uvicorn bpa.mm_agent.main:app --port 8005
+uvicorn knowledge_agent.main:app --port 8007
 ```
 
 ### 运行测试
@@ -422,5 +427,6 @@ npm run test
 
 | 日期 | 版本 | 更新者 | 變更內容 |
 |------|------|--------|----------|
+| 2026-03-23 | 1.2.0 | Daniel Chung | 重構 AI Services 架構：data_agent(8003), knowledge_agent(8007), bpa/mm_agent(8005), datalake |
 | 2026-03-18 | 1.1.0 | Daniel Chung | 新增 AI Agent 系統架構、Python AI Services、單元測試 |
 | 2026-03-17 | 1.0.0 | Daniel Chung | 初始版本，完整專案文檔 |

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import subprocess
 import json
-import time
 
 ARANGO_URL = "http://localhost:8529"
 DB = "abc_desktop"

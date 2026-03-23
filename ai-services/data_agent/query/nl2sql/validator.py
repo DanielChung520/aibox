@@ -16,7 +16,6 @@ from typing import Optional
 
 import httpx
 
-from data_agent.query.nl2sql.exceptions import SQLValidationError
 from data_agent.query.nl2sql.models import (
     PipelineConfig,
     SchemaContext,

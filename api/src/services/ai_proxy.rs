@@ -3,9 +3,9 @@
 //! # Description
 //! AI 服務代理，負責轉發請求到 Python AI 服務
 //!
-//! # Last Update: 2026-03-18 03:20:00
+//! # Last Update: 2026-03-23 18:55:00
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use crate::error::ApiError;
 use reqwest::Client;
@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 pub struct AiProxy {
     client: Client,
     aitask_url: String,
-    data_query_url: String,
-    knowledge_assets_url: String,
+    data_agent_url: String,
+    knowledge_agent_url: String,
     mcp_tools_url: String,
-    bpa_url: String,
+    bpa_mm_agent_url: String,
 }
 
 impl AiProxy {
@@ -26,13 +26,13 @@ impl AiProxy {
             client: Client::new(),
             aitask_url: std::env::var("AITASK_URL")
                 .unwrap_or_else(|_| "http://localhost:8001".to_string()),
-            data_query_url: std::env::var("DATA_QUERY_URL")
-                .unwrap_or_else(|_| "http://localhost:8002".to_string()),
-            knowledge_assets_url: std::env::var("KNOWLEDGE_ASSETS_URL")
+            data_agent_url: std::env::var("DATA_AGENT_URL")
                 .unwrap_or_else(|_| "http://localhost:8003".to_string()),
+            knowledge_agent_url: std::env::var("KNOWLEDGE_AGENT_URL")
+                .unwrap_or_else(|_| "http://localhost:8007".to_string()),
             mcp_tools_url: std::env::var("MCP_TOOLS_URL")
                 .unwrap_or_else(|_| "http://localhost:8004".to_string()),
-            bpa_url: std::env::var("BPA_URL")
+            bpa_mm_agent_url: std::env::var("BPA_MM_AGENT_URL")
                 .unwrap_or_else(|_| "http://localhost:8005".to_string()),
         }
     }
@@ -60,14 +60,14 @@ impl AiProxy {
 
     pub async fn forward_query(&self, query: &str) -> Result<serde_json::Value, ApiError> {
         let response = self.client
-            .post(format!("{}/query", self.data_query_url))
+            .post(format!("{}/query", self.data_agent_url))
             .json(&serde_json::json!({ "natural_language": query }))
             .send()
             .await
             .map_err(|e| ApiError::bad_gateway(&e.to_string()))?;
 
         if !response.status().is_success() {
-            return Err(ApiError::bad_gateway("DataQuery service error"));
+            return Err(ApiError::bad_gateway("DataAgent service error"));
         }
 
         response.json().await
@@ -76,14 +76,14 @@ impl AiProxy {
 
     pub async fn forward_knowledge(&self, query: &str) -> Result<serde_json::Value, ApiError> {
         let response = self.client
-            .post(format!("{}/search", self.knowledge_assets_url))
+            .post(format!("{}/search", self.knowledge_agent_url))
             .json(&serde_json::json!({ "query": query }))
             .send()
             .await
             .map_err(|e| ApiError::bad_gateway(&e.to_string()))?;
 
         if !response.status().is_success() {
-            return Err(ApiError::bad_gateway("KnowledgeAssets service error"));
+            return Err(ApiError::bad_gateway("KnowledgeAgent service error"));
         }
 
         response.json().await
@@ -111,7 +111,7 @@ impl AiProxy {
 
     pub async fn forward_bpa(&self, workflow: &str, params: serde_json::Value) -> Result<serde_json::Value, ApiError> {
         let response = self.client
-            .post(format!("{}/start", self.bpa_url))
+            .post(format!("{}/start", self.bpa_mm_agent_url))
             .json(&serde_json::json!({
                 "workflow": workflow,
                 "params": params

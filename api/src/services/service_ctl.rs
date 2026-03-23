@@ -3,9 +3,9 @@
 //! # Description
 //! 服務控制，負責啟動、停止、重啟 AI 服務
 //!
-//! # Last Update: 2026-03-18 03:35:00
+//! # Last Update: 2026-03-23 18:55:00
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use crate::error::ApiError;
 use std::process::Command;
@@ -23,7 +23,7 @@ impl ServiceController {
 
     pub fn start(&self, service_name: &str) -> Result<String, ApiError> {
         let script = format!("{}/start_{}.sh", self.service_dir, service_name);
-        
+
         let output = Command::new("bash")
             .arg(&script)
             .output()
@@ -33,13 +33,16 @@ impl ServiceController {
             Ok(format!("Service {} started successfully", service_name))
         } else {
             let error = String::from_utf8_lossy(&output.stderr);
-            Err(ApiError::internal_error(&format!("Failed to start: {}", error)))
+            Err(ApiError::internal_error(&format!(
+                "Failed to start: {}",
+                error
+            )))
         }
     }
 
     pub fn stop(&self, service_name: &str) -> Result<String, ApiError> {
         let script = format!("{}/stop_{}.sh", self.service_dir, service_name);
-        
+
         let output = Command::new("bash")
             .arg(&script)
             .output()
@@ -49,7 +52,10 @@ impl ServiceController {
             Ok(format!("Service {} stopped successfully", service_name))
         } else {
             let error = String::from_utf8_lossy(&output.stderr);
-            Err(ApiError::internal_error(&format!("Failed to stop: {}", error)))
+            Err(ApiError::internal_error(&format!(
+                "Failed to stop: {}",
+                error
+            )))
         }
     }
 
@@ -62,10 +68,10 @@ impl ServiceController {
     pub fn status(&self, service_name: &str) -> Result<ServiceStatus, ApiError> {
         let port = match service_name {
             "aitask" => 8001,
-            "data-query" => 8002,
-            "knowledge-assets" => 8003,
+            "data-agent" => 8003,
+            "knowledge-agent" => 8007,
             "mcp-tools" => 8004,
-            "bpa" => 8005,
+            "bpa-mm-agent" => 8005,
             _ => return Err(ApiError::not_found("Service")),
         };
 

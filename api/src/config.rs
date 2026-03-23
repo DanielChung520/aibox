@@ -3,9 +3,9 @@
 //! # Description
 //! 定義所有環境變數配置，包含資料庫、JWT、AI服務、速率限制、計費等配置
 //!
-//! # Last Update: 2026-03-18 02:05:00
+//! # Last Update: 2026-03-23 18:55:00
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -38,10 +38,10 @@ pub struct JwtConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct AiServicesConfig {
     pub aitask_url: String,
-    pub data_query_url: String,
-    pub knowledge_assets_url: String,
+    pub data_agent_url: String,
+    pub knowledge_agent_url: String,
     pub mcp_tools_url: String,
-    pub bpa_url: String,
+    pub bpa_mm_agent_url: String,
     pub ollama_base_url: String,
     pub lm_studio_url: String,
 }
@@ -68,10 +68,12 @@ impl Config {
     pub fn from_env() -> Self {
         Self {
             database: DatabaseConfig {
-                url: env::var("DATABASE_URL").unwrap_or_else(|_| "http://localhost:8529".to_string()),
+                url: env::var("DATABASE_URL")
+                    .unwrap_or_else(|_| "http://localhost:8529".to_string()),
                 name: env::var("DATABASE_NAME").unwrap_or_else(|_| "aibox".to_string()),
                 user: env::var("DATABASE_USER").unwrap_or_else(|_| "root".to_string()),
-                password: env::var("DATABASE_PASSWORD").unwrap_or_else(|_| "abc_desktop_2026".to_string()),
+                password: env::var("DATABASE_PASSWORD")
+                    .unwrap_or_else(|_| "abc_desktop_2026".to_string()),
             },
             jwt: JwtConfig {
                 secret: env::var("JWT_SECRET").expect("JWT_SECRET is required"),
@@ -81,13 +83,20 @@ impl Config {
                     .unwrap_or(24),
             },
             ai_services: AiServicesConfig {
-                aitask_url: env::var("AITASK_URL").unwrap_or_else(|_| "http://localhost:8001".to_string()),
-                data_query_url: env::var("DATA_QUERY_URL").unwrap_or_else(|_| "http://localhost:8002".to_string()),
-                knowledge_assets_url: env::var("KNOWLEDGE_ASSETS_URL").unwrap_or_else(|_| "http://localhost:8003".to_string()),
-                mcp_tools_url: env::var("MCP_TOOLS_URL").unwrap_or_else(|_| "http://localhost:8004".to_string()),
-                bpa_url: env::var("BPA_URL").unwrap_or_else(|_| "http://localhost:8005".to_string()),
-                ollama_base_url: env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| "http://localhost:11434".to_string()),
-                lm_studio_url: env::var("LM_STUDIO_URL").unwrap_or_else(|_| "http://localhost:1234".to_string()),
+                aitask_url: env::var("AITASK_URL")
+                    .unwrap_or_else(|_| "http://localhost:8001".to_string()),
+                data_agent_url: env::var("DATA_AGENT_URL")
+                    .unwrap_or_else(|_| "http://localhost:8003".to_string()),
+                knowledge_agent_url: env::var("KNOWLEDGE_AGENT_URL")
+                    .unwrap_or_else(|_| "http://localhost:8007".to_string()),
+                mcp_tools_url: env::var("MCP_TOOLS_URL")
+                    .unwrap_or_else(|_| "http://localhost:8004".to_string()),
+                bpa_mm_agent_url: env::var("BPA_MM_AGENT_URL")
+                    .unwrap_or_else(|_| "http://localhost:8005".to_string()),
+                ollama_base_url: env::var("OLLAMA_BASE_URL")
+                    .unwrap_or_else(|_| "http://localhost:11434".to_string()),
+                lm_studio_url: env::var("LM_STUDIO_URL")
+                    .unwrap_or_else(|_| "http://localhost:1234".to_string()),
             },
             rate_limit: RateLimitConfig {
                 max_requests: env::var("RATE_LIMIT_MAX_REQUESTS")

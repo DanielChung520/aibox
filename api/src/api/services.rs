@@ -3,9 +3,9 @@
 //! # Description
 //! AI 服務管理 API，包含列表、啟動、停止、重啟、健康狀態
 //!
-//! # Last Update: 2026-03-18 03:10:00
+//! # Last Update: 2026-03-23 18:55:00
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use crate::error::ApiError;
 use axum::{
@@ -74,21 +74,21 @@ fn get_all_services() -> Vec<ServiceInfo> {
             last_check: Some(chrono::Utc::now().to_rfc3339()),
         },
         ServiceInfo {
-            name: "data-query".to_string(),
-            display_name: "Data Query".to_string(),
-            status: ServiceStatus::Running,
-            port: 8002,
-            url: "http://localhost:8002".to_string(),
-            health_url: Some("http://localhost:8002/health".to_string()),
-            last_check: Some(chrono::Utc::now().to_rfc3339()),
-        },
-        ServiceInfo {
-            name: "knowledge-assets".to_string(),
-            display_name: "Knowledge Assets".to_string(),
+            name: "data-agent".to_string(),
+            display_name: "Data Agent".to_string(),
             status: ServiceStatus::Running,
             port: 8003,
             url: "http://localhost:8003".to_string(),
             health_url: Some("http://localhost:8003/health".to_string()),
+            last_check: Some(chrono::Utc::now().to_rfc3339()),
+        },
+        ServiceInfo {
+            name: "knowledge-agent".to_string(),
+            display_name: "Knowledge Agent".to_string(),
+            status: ServiceStatus::Running,
+            port: 8007,
+            url: "http://localhost:8007".to_string(),
+            health_url: Some("http://localhost:8007/health".to_string()),
             last_check: Some(chrono::Utc::now().to_rfc3339()),
         },
         ServiceInfo {
@@ -101,8 +101,8 @@ fn get_all_services() -> Vec<ServiceInfo> {
             last_check: Some(chrono::Utc::now().to_rfc3339()),
         },
         ServiceInfo {
-            name: "bpa".to_string(),
-            display_name: "BPA".to_string(),
+            name: "bpa-mm-agent".to_string(),
+            display_name: "BPA MM Agent".to_string(),
             status: ServiceStatus::Running,
             port: 8005,
             url: "http://localhost:8005".to_string(),

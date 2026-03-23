@@ -113,6 +113,66 @@ export interface IntentCatalogEntry {
   llm_model?: string;
 }
 
+export interface NL2SqlPhaseResult {
+  phase: string;
+  duration_ms: number;
+  success: boolean;
+  error?: string;
+}
+
+export interface NL2SqlIntentMatch {
+  intent_id: string;
+  score: number;
+  generation_strategy: 'template' | 'small_llm' | 'large_llm';
+  sql_template: string;
+  tables: string[];
+  core_fields: string[];
+  description: string;
+  intent_type: string;
+  group: string;
+  nl_examples: string[];
+}
+
+export interface NL2SqlQueryPlan {
+  intent_type: string;
+  primary_table: string;
+  tables: string[];
+  joins: { from_ref: string; to_ref: string; join_type: string }[];
+  filters: { field: string; operator: string; value: string }[];
+  select_fields: string[];
+  aggregations: string[];
+  group_by: string[];
+  order_by: { field: string; direction: string }[];
+  limit: number;
+}
+
+export interface NL2SqlValidation {
+  is_valid: boolean;
+  errors: { layer: number; message: string; severity: string }[];
+  warnings: { layer: number; message: string; severity: string }[];
+}
+
+export interface NL2SqlExecution {
+  sql: string;
+  rows: Record<string, unknown>[];
+  columns: string[];
+  row_count: number;
+  execution_time_ms: number;
+}
+
+export interface NL2SqlResponse {
+  success: boolean;
+  query: string;
+  matched_intent?: NL2SqlIntentMatch;
+  query_plan?: NL2SqlQueryPlan;
+  generated_sql: string;
+  validation?: NL2SqlValidation;
+  execution_result?: NL2SqlExecution;
+  error?: string;
+  phases: NL2SqlPhaseResult[];
+  total_time_ms: number;
+}
+
 // ==================== Schema API ====================
 
 export const dataAgentApi = {
@@ -177,6 +237,11 @@ export const dataAgentApi = {
   // Query
   query: (data: QueryRequest) => {
     return api.post<QueryResponse>('/api/v1/da/query', data);
+  },
+
+  // NL→SQL Pipeline
+  nl2sql: (data: { natural_language: string }) => {
+    return api.post<NL2SqlResponse>('/api/v1/da/query/nl2sql', data);
   },
   
   querySql: (data: { sql: string; params?: unknown[] }) => {

@@ -1,0 +1,226 @@
+"""
+Knowledge Agent Service - RAG-based Knowledge Retrieval
+
+Provides RAG (Retrieval-Augmented Generation) for knowledge base queries.
+Migrated from knowledge_assets to knowledge_agent with port 8007.
+
+# Last Update: 2026-03-23 18:40:25
+# Author: Daniel Chung
+# Version: 2.0.0
+"""
+
+import os
+from typing import Optional
+
+import httpx
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+app = FastAPI(
+    title="AIBox Knowledge Agent Service",
+    description="RAG-based knowledge retrieval service.",
+    version="2.0.0",
+)
+
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:1420,http://localhost:6500",
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+ARANGO_URL = os.getenv("ARANGO_URL", "http://localhost:8529")
+ARANGO_DB = os.getenv("ARANGO_DATABASE", "abc_desktop")
+ARANGO_USER = os.getenv("ARANGO_USER", "root")
+ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "abc_desktop_2026")
+
+
+class KnowledgeRequest(BaseModel):
+    """Knowledge search request."""
+    query: str
+    collection: Optional[str] = "knowledge"
+    limit: Optional[int] = 5
+
+
+class Document(BaseModel):
+    """A knowledge document."""
+    key: str = ""
+    content: str
+    source: Optional[str] = None
+    metadata: Optional[dict[str, object]] = None
+
+
+class KnowledgeResponse(BaseModel):
+    """Knowledge search response."""
+    query: str
+    results: list[Document]
+    context: str
+    answer: Optional[str] = None
+
+
+async def get_embedding(text: str) -> list[float]:
+    """Get embedding vector from Ollama."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{OLLAMA_BASE_URL}/api/embed",
+            json={"model": "bge-m3:latest", "input": text},
+        )
+        response.raise_for_status()
+        data = response.json()
+        embeddings = data.get("embeddings", [])
+        if embeddings and len(embeddings) > 0:
+            result: list[float] = list(embeddings[0])
+            return result
+        return []
+
+
+async def search_similar(
+    collection: str, limit: int
+) -> list[dict[str, object]]:
+    """Search similar documents in ArangoDB collection."""
+    aql = f"FOR doc IN {collection} SORT BM25(doc) DESC LIMIT {limit} RETURN doc"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
+            json={"query": aql},
+            auth=(ARANGO_USER, ARANGO_PASSWORD),
+        )
+        response.raise_for_status()
+        data = response.json()
+        result: list[dict[str, object]] = data.get("result", [])
+        return result
+
+
+async def generate_answer(query: str, context: str) -> str:
+    """Generate answer from knowledge context via LLM."""
+    prompt = (
+        f"Based on the following knowledge base context, "
+        f"answer the user's question.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question: {query}\n\nAnswer:"
+    )
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            f"{OLLAMA_BASE_URL}/api/chat",
+            json={
+                "model": DEFAULT_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "temperature": 0.5,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        content: str = data.get("message", {}).get("content", "").strip()
+        return content
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    """Service information."""
+    return {
+        "service": "knowledge_agent",
+        "description": "RAG-based knowledge retrieval",
+        "version": "2.0.0",
+        "port": "8007",
+        "status": "running",
+    }
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    """Health check."""
+    return {"status": "ok", "service": "knowledge_agent"}
+
+
+@app.post("/search", response_model=KnowledgeResponse)
+async def search(request: KnowledgeRequest) -> KnowledgeResponse:
+    """Search knowledge base and generate answer."""
+    try:
+        results = await search_similar(
+            request.collection or "knowledge",
+            request.limit or 5,
+        )
+
+        if not results:
+            return KnowledgeResponse(
+                query=request.query,
+                results=[],
+                context="",
+                answer="No relevant knowledge found.",
+            )
+
+        context_parts: list[str] = []
+        documents: list[Document] = []
+
+        for doc in results:
+            content = str(doc.get("content", ""))
+            context_parts.append(content)
+            documents.append(
+                Document(
+                    key=str(doc.get("_key", "")),
+                    content=content,
+                    source=str(doc.get("source", "")) or None,
+                    metadata=None,
+                )
+            )
+
+        context = "\n\n".join(context_parts)
+        answer = await generate_answer(request.query, context)
+
+        return KnowledgeResponse(
+            query=request.query,
+            results=documents,
+            context=context,
+            answer=answer,
+        )
+
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=502, detail=f"Service unavailable: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/add")
+async def add_document(
+    collection: str, content: str, source: Optional[str] = None
+) -> dict[str, object]:
+    """Add a document to the knowledge base."""
+    doc = {
+        "content": content,
+        "source": source or "manual",
+        "created_at": "2026-03-23",
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/document/{collection}",
+            json=doc,
+            auth=(ARANGO_USER, ARANGO_PASSWORD),
+        )
+        response.raise_for_status()
+        result: dict[str, object] = response.json()
+        return result
+
+
+@app.get("/collections")
+async def list_collections() -> dict[str, object]:
+    """List available collections."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/collection",
+            auth=(ARANGO_USER, ARANGO_PASSWORD),
+        )
+        response.raise_for_status()
+        result: dict[str, object] = response.json()
+        return result

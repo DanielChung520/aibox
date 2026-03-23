@@ -5,7 +5,7 @@ Defines all data models for the NL→SQL pipeline:
 PipelineConfig, PipelineResult, IntentMatch, QueryPlan,
 SchemaContext, SQLResult, ValidationResult.
 
-# Last Update: 2026-03-23 18:40:25
+# Last Update: 2026-03-23 23:24:21
 # Author: Daniel Chung
 # Version: 1.0.0
 """
@@ -26,8 +26,8 @@ class GenerationStrategy(str, Enum):
 class PipelineConfig(BaseModel):
     """Configuration for the NL→SQL pipeline."""
     ollama_base_url: str = Field(default="http://localhost:11434")
-    small_model: str = Field(default="qwen2.5-coder:7b")
-    large_model: str = Field(default="qwen3:32b")
+    small_model: str = Field(default="mistral-nemo:12b")
+    large_model: str = Field(default="qwen3-coder:30b")
     embedding_model: str = Field(default="bge-m3:latest")
     qdrant_url: str = Field(default="http://localhost:6333")
     qdrant_collection: str = Field(default="data_agent_intents")

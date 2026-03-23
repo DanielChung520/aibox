@@ -6,7 +6,7 @@ Intent Classification → Schema Retrieval → Query Plan → SQL Gen → Valida
 
 Includes self-correction loop (1 retry on execution failure).
 
-# Last Update: 2026-03-23 18:40:25
+# Last Update: 2026-03-23 23:24:21
 # Author: Daniel Chung
 # Version: 1.0.0
 """
@@ -36,8 +36,8 @@ def _build_config() -> PipelineConfig:
     """Build pipeline config from environment variables."""
     return PipelineConfig(
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        small_model=os.getenv("NL2SQL_SMALL_MODEL", "qwen2.5-coder:7b"),
-        large_model=os.getenv("NL2SQL_LARGE_MODEL", "qwen3:32b"),
+        small_model=os.getenv("NL2SQL_SMALL_MODEL", "mistral-nemo:12b"),
+        large_model=os.getenv("NL2SQL_LARGE_MODEL", "qwen3-coder:30b"),
         embedding_model=os.getenv("EMBEDDING_MODEL", "bge-m3:latest"),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_collection=os.getenv("QDRANT_COLLECTION", "data_agent_intents"),
@@ -50,7 +50,7 @@ def _build_config() -> PipelineConfig:
         s3_access_key=os.getenv("S3_ACCESS_KEY", "admin"),
         s3_secret_key=os.getenv("S3_SECRET_KEY", "admin123"),
         match_threshold=float(os.getenv("MATCH_THRESHOLD", "0.5")),
-        max_retries=int(os.getenv("NL2SQL_MAX_RETRIES", "1")),
+        max_retries=int(os.getenv("NL2SQL_MAX_RETRIES", "2")),
     )
 
 
@@ -115,12 +115,15 @@ async def run_nl2sql_pipeline(
         ))
         logger.info("Query plan generated: %s", plan.intent_type)
 
-        # Phase 4: SQL Generation (with self-correction retry)
+        # Phase 4-6: SQL Generation → Validation → Execution (with retry)
         generated_sql = ""
+        validation = None
+        last_error = ""
         for attempt in range(config.max_retries + 1):
+            # Phase 4: SQL Generation
             t0 = time.time() * 1000
             generated_sql = await generate_sql(
-                query, plan, intent, schema, config
+                query, plan, intent, schema, config, last_error
             )
             phases.append(PipelinePhaseResult(
                 phase=f"sql_generation_attempt_{attempt + 1}",
@@ -144,15 +147,11 @@ async def run_nl2sql_pipeline(
                 success=validation.is_valid,
             ))
 
-            if validation.is_valid:
-                break
-
-            if attempt < config.max_retries:
-                logger.warning(
-                    "SQL validation failed, retrying: %s",
-                    [e.message for e in validation.errors],
-                )
-            else:
+            if not validation.is_valid:
+                last_error = str([e.message for e in validation.errors])
+                if attempt < config.max_retries:
+                    logger.warning("Validation failed, retrying: %s", last_error)
+                    continue
                 return PipelineResult(
                     success=False,
                     query=query,
@@ -165,23 +164,59 @@ async def run_nl2sql_pipeline(
                     total_time_ms=round(time.time() * 1000 - start_time, 2),
                 )
 
-        # Phase 6: Execution
-        t0 = time.time() * 1000
-        result = await execute_sql(generated_sql, config)
-        phases.append(PipelinePhaseResult(
-            phase="execution",
-            duration_ms=round(time.time() * 1000 - t0, 2),
-        ))
-        logger.info("Execution complete: %d rows", result.row_count)
+            # Phase 6: Execution
+            t0 = time.time() * 1000
+            try:
+                result = await execute_sql(generated_sql, config)
+                phases.append(PipelinePhaseResult(
+                    phase="execution",
+                    duration_ms=round(time.time() * 1000 - t0, 2),
+                ))
+                logger.info("Execution complete: %d rows", result.row_count)
+
+                return PipelineResult(
+                    success=True,
+                    query=query,
+                    matched_intent=intent,
+                    query_plan=plan,
+                    generated_sql=generated_sql,
+                    validation=validation,
+                    execution_result=result,
+                    phases=phases,
+                    total_time_ms=round(time.time() * 1000 - start_time, 2),
+                )
+            except PipelineError as exec_err:
+                phases.append(PipelinePhaseResult(
+                    phase=f"execution_attempt_{attempt + 1}",
+                    duration_ms=round(time.time() * 1000 - t0, 2),
+                    success=False,
+                    error=str(exec_err),
+                ))
+                last_error = str(exec_err)
+                if attempt < config.max_retries:
+                    logger.warning("Execution failed, retrying: %s",
+                                   last_error[:200])
+                    continue
+                return PipelineResult(
+                    success=False,
+                    query=query,
+                    matched_intent=intent,
+                    query_plan=plan,
+                    generated_sql=generated_sql,
+                    validation=validation,
+                    error=f"[execution] {last_error}",
+                    phases=phases,
+                    total_time_ms=round(time.time() * 1000 - start_time, 2),
+                )
 
         return PipelineResult(
-            success=True,
+            success=False,
             query=query,
             matched_intent=intent,
             query_plan=plan,
             generated_sql=generated_sql,
             validation=validation,
-            execution_result=result,
+            error=f"Pipeline exhausted retries: {last_error}",
             phases=phases,
             total_time_ms=round(time.time() * 1000 - start_time, 2),
         )

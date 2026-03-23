@@ -4,7 +4,7 @@ NL→SQL Pipeline - Schema Retriever
 Retrieves pruned schema context from ArangoDB for the tables
 identified by intent classification. Never sends full schema to LLM.
 
-# Last Update: 2026-03-23 18:40:25
+# Last Update: 2026-03-23 23:24:21
 # Author: Daniel Chung
 # Version: 1.0.0
 """
@@ -44,8 +44,12 @@ async def retrieve_schema(
 
     try:
         table_schemas = await _fetch_tables(tables, config)
-        field_schemas = await _fetch_fields(tables, config)
-        relations = await _fetch_relations(tables, config)
+        table_id_map = {ts.table_name: ts.module + "_" + ts.table_name
+                        for ts in table_schemas}
+        table_ids = list(table_id_map.values())
+
+        field_schemas = await _fetch_fields(table_ids, table_id_map, config)
+        relations = await _fetch_relations(table_ids, config)
         join_graph = _build_join_graph(relations)
 
         return SchemaContext(
@@ -75,7 +79,7 @@ async def _fetch_tables(
         TableSchema(
             table_name=str(r.get("table_name", "")),
             description=str(r.get("description", "")),
-            row_count=int(r.get("row_count", 0)),
+            row_count=int(r.get("row_count_estimate", 0)),
             module=str(r.get("module", "")),
         )
         for r in results
@@ -83,49 +87,55 @@ async def _fetch_tables(
 
 
 async def _fetch_fields(
-    tables: list[str], config: PipelineConfig
+    table_ids: list[str],
+    table_id_map: dict[str, str],
+    config: PipelineConfig,
 ) -> list[FieldSchema]:
     """Fetch field metadata from da_field_info collection."""
-    table_list = ", ".join(f'"{t}"' for t in tables)
+    id_list = ", ".join(f'"{tid}"' for tid in table_ids)
     aql = (
         f"FOR f IN da_field_info "
-        f"FILTER f.table_name IN [{table_list}] "
+        f"FILTER f.table_id IN [{id_list}] "
         f"RETURN f"
     )
 
+    reverse_map = {v: k for k, v in table_id_map.items()}
     results = await _execute_aql(aql, config)
     return [
         FieldSchema(
-            table_name=str(r.get("table_name", "")),
+            table_name=reverse_map.get(
+                str(r.get("table_id", "")),
+                str(r.get("table_id", "")).split("_", 1)[-1],
+            ),
             field_name=str(r.get("field_name", "")),
-            data_type=str(r.get("data_type", "")),
+            data_type=str(r.get("field_type", "")),
             description=str(r.get("description", "")),
-            is_key=bool(r.get("is_key", False)),
+            is_key=bool(r.get("is_pk", False)),
         )
         for r in results
     ]
 
 
 async def _fetch_relations(
-    tables: list[str], config: PipelineConfig
+    table_ids: list[str], config: PipelineConfig
 ) -> list[TableRelation]:
     """Fetch table relations from da_table_relation collection."""
-    table_list = ", ".join(f'"{t}"' for t in tables)
+    id_list = ", ".join(f'"{tid}"' for tid in table_ids)
     aql = (
         f"FOR r IN da_table_relation "
-        f"FILTER r.from_table IN [{table_list}] "
-        f"OR r.to_table IN [{table_list}] "
+        f"FILTER r.left_table IN [{id_list}] "
+        f"OR r.right_table IN [{id_list}] "
         f"RETURN r"
     )
 
     results = await _execute_aql(aql, config)
     return [
         TableRelation(
-            from_table=str(r.get("from_table", "")),
-            from_field=str(r.get("from_field", "")),
-            to_table=str(r.get("to_table", "")),
-            to_field=str(r.get("to_field", "")),
-            relation_type=str(r.get("relation_type", "INNER")),
+            from_table=str(r.get("left_table", "")).split("_", 1)[-1],
+            from_field=str(r.get("left_field", "")),
+            to_table=str(r.get("right_table", "")).split("_", 1)[-1],
+            to_field=str(r.get("right_field", "")),
+            relation_type=str(r.get("join_type", "INNER")),
         )
         for r in results
     ]

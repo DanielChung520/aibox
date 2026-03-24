@@ -1,6 +1,6 @@
 //! Theme Templates API
 //!
-//! # Last Update: 2026-03-22 19:17:08
+//! # Last Update: 2026-03-23 21:04:59
 //! # Author: Daniel Chung
 //! # Version: 1.0.0
 
@@ -102,7 +102,7 @@ pub async fn update_theme_template(
 
     let updated: Vec<ThemeTemplate> = db
         .aql_bind_vars(
-            "FOR t IN theme_templates FILTER t._key == @key UPDATE t WITH MERGE(OLD, @data) IN theme_templates RETURN NEW",
+            "FOR t IN theme_templates FILTER t._key == @key UPDATE t WITH @data IN theme_templates RETURN NEW",
             [
                 ("key", json!(key)),
                 ("data", data),

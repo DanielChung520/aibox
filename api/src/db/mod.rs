@@ -249,6 +249,9 @@ async fn seed_functions(db: &Database<ReqwestClient>) -> Result<(), String> {
         ("system.roles.list", "角色列表", "tab", Some("system.roles"), None, None, None, 1),
         ("system.roles.create", "新增角色", "tab", Some("system.roles"), None, None, None, 2),
         ("system.roles.permissions", "权限分配", "tab", Some("system.roles"), None, None, None, 3),
+        ("knowledge", "知识管理", "group", None, None, Some("BookOutlined"), None, 2),
+        ("knowledge.ontology", "知识本体列表", "sub_function", Some("knowledge"), Some("/app/knowledge/ontology"), Some("ApartmentOutlined"), None, 1),
+        ("knowledge.management", "知识库管理", "sub_function", Some("knowledge"), Some("/app/knowledge/management"), Some("DatabaseOutlined"), None, 2),
     ];
 
     let now = Utc::now().to_rfc3339();

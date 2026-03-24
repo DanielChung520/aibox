@@ -548,10 +548,12 @@ async fn update_param(Path(key): Path<String>, Json(payload): Json<UpdateParamRe
     let db = get_db();
     let col = db.collection("system_params").await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let new_value = payload.param_value.or(payload.value).ok_or(StatusCode::BAD_REQUEST)?;
+
     col.update_document(
         &key,
         serde_json::json!({
-            "param_value": payload.param_value,
+            "param_value": new_value,
             "updated_at": chrono::Utc::now().to_rfc3339(),
         }),
         Default::default(),

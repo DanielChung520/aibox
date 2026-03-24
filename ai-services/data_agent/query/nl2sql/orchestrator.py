@@ -15,6 +15,7 @@ import logging
 import os
 import time
 
+from data_agent.config_reader import get_param
 from data_agent.query.nl2sql.exceptions import PipelineError
 from data_agent.query.nl2sql.executor import execute_sql
 from data_agent.query.nl2sql.intent_classifier import classify_intent
@@ -32,13 +33,17 @@ from data_agent.query.nl2sql.validator import validate_sql
 logger = logging.getLogger(__name__)
 
 
-def _build_config() -> PipelineConfig:
-    """Build pipeline config from environment variables."""
+async def _build_config() -> PipelineConfig:
+    """Build pipeline config from ArangoDB system_params (cache + env fallback)."""
+    small_model = await get_param("da.small_llm_model")
+    large_model = await get_param("da.large_llm_model")
+    embedding_model = await get_param("da.embedding_model")
+
     return PipelineConfig(
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        small_model=os.getenv("NL2SQL_SMALL_MODEL", "mistral-nemo:12b"),
-        large_model=os.getenv("NL2SQL_LARGE_MODEL", "qwen3-coder:30b"),
-        embedding_model=os.getenv("EMBEDDING_MODEL", "bge-m3:latest"),
+        small_model=small_model,
+        large_model=large_model,
+        embedding_model=embedding_model,
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_collection=os.getenv("QDRANT_COLLECTION", "data_agent_intents"),
         arango_url=os.getenv("ARANGO_URL", "http://localhost:8529"),
@@ -76,7 +81,7 @@ async def run_nl2sql_pipeline(
         PipelineResult with all phase outcomes.
     """
     if config is None:
-        config = _build_config()
+        config = await _build_config()
 
     start_time = time.time() * 1000
     phases: list[PipelinePhaseResult] = []

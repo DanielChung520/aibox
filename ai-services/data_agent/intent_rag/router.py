@@ -15,6 +15,8 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from data_agent.config_reader import get_param
+
 router = APIRouter()
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -24,8 +26,6 @@ ARANGO_URL = os.getenv("ARANGO_URL", "http://localhost:8529")
 ARANGO_DB = os.getenv("ARANGO_DATABASE", "abc_desktop")
 ARANGO_USER = os.getenv("ARANGO_USER", "root")
 ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "abc_desktop_2026")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3:latest")
-EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1024"))
 MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.5"))
 
 
@@ -57,11 +57,12 @@ class EmbedSyncResponse(BaseModel):
 
 
 async def get_embedding(text: str) -> list[float]:
-    """Get embedding vector from Ollama."""
+    """Get embedding vector from Ollama using configured model."""
+    embedding_model = await get_param("da.embedding_model")
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             f"{OLLAMA_BASE_URL}/api/embed",
-            json={"model": EMBEDDING_MODEL, "input": text},
+            json={"model": embedding_model, "input": text},
         )
         response.raise_for_status()
         data = response.json()
@@ -124,13 +125,13 @@ async def embed_sync() -> EmbedSyncResponse:
                 status="no_intents_found",
             )
 
+        embedding_dim = int(await get_param("da.embedding_dimension"))
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Ensure collection exists
             await client.put(
                 f"{QDRANT_URL}/collections/{QDRANT_COLLECTION}",
                 json={
                     "vectors": {
-                        "size": EMBEDDING_DIM,
+                        "size": embedding_dim,
                         "distance": "Cosine",
                     }
                 },

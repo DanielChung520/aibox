@@ -1,32 +1,56 @@
 /**
  * @file        Data Agent Intents 目錄管理頁面
- * @description 查看、管理 DA 的意圖目錄與模板
- * @lastUpdate  2026-03-23 21:45:17
+ * @description 查看、管理 DA 的意圖目錄與模板，含 LLM/Embedding 設定
+ * @lastUpdate  2026-03-24 11:27:02
  * @author      Daniel Chung
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Card, Table, Button, Tag, Space, Typography, 
-  Descriptions, Select, Input, Drawer, Tabs, App, Statistic, Row, Col, theme, Modal, Form
+  Descriptions, Select, Input, Drawer, Tabs, App, Statistic, Row, Col, theme, Modal, Form,
+  InputNumber, Divider, Alert
 } from 'antd';
 import { 
   EyeOutlined, DeleteOutlined, ReloadOutlined,
   EditOutlined, PlusOutlined, CloudSyncOutlined,
-  DatabaseOutlined
+  DatabaseOutlined, SettingOutlined
 } from '@ant-design/icons';
 import api from '../../services/api';
+import { paramsApi } from '../../services/api';
 import { dataAgentApi, IntentCatalogEntry } from '../../services/dataAgentApi';
 
 const { Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
+/** system_params keys for DA settings */
+const DA_PARAM_KEYS = {
+  embeddingModel: 'da.embedding_model',
+  embeddingDimension: 'da.embedding_dimension',
+  smallLlmModel: 'da.small_llm_model',
+  largeLlmModel: 'da.large_llm_model',
+} as const;
+
+interface DaSettings {
+  embeddingModel: string;
+  embeddingDimension: number;
+  smallLlmModel: string;
+  largeLlmModel: string;
+}
+
 type IntentType = 'aggregate' | 'filter' | 'join' | 'time_series' | 'ranking' | 'comparison';
 type GenerationStrategy = 'template' | 'small_llm' | 'large_llm';
 
+const DEFAULT_SETTINGS: DaSettings = {
+  embeddingModel: 'bge-m3:latest',
+  embeddingDimension: 1024,
+  smallLlmModel: 'mistral-nemo:12b',
+  largeLlmModel: 'qwen3-coder:30b',
+};
+
 export default function IntentsPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { token } = theme.useToken();
   const [intents, setIntents] = useState<IntentCatalogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,14 +70,121 @@ export default function IntentsPage() {
   const [form] = Form.useForm();
 
   const [models, setModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('bge-m3:latest');
   const [syncing, setSyncing] = useState(false);
+
+  // Settings Drawer
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settingsForm] = Form.useForm();
+  const [settings, setSettings] = useState<DaSettings>(DEFAULT_SETTINGS);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchModels = async () => {
     try {
       const res = await api.get<{ models: string[] }>('/api/v1/da/intents/models');
       setModels(res.data.models || []);
     } catch { /* empty */ }
+  };
+
+  const loadSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    try {
+      const res = await paramsApi.list();
+      const allParams = res.data.data || [];
+      const loaded: DaSettings = { ...DEFAULT_SETTINGS };
+      for (const p of allParams) {
+        if (p.param_key === DA_PARAM_KEYS.embeddingModel) loaded.embeddingModel = p.param_value;
+        if (p.param_key === DA_PARAM_KEYS.embeddingDimension) loaded.embeddingDimension = parseInt(p.param_value, 10) || 1024;
+        if (p.param_key === DA_PARAM_KEYS.smallLlmModel) loaded.smallLlmModel = p.param_value;
+        if (p.param_key === DA_PARAM_KEYS.largeLlmModel) loaded.largeLlmModel = p.param_value;
+      }
+      setSettings(loaded);
+      settingsForm.setFieldsValue(loaded);
+    } catch {
+      message.error('載入 DA 設定失敗');
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [message, settingsForm]);
+
+  const saveSettings = async () => {
+    try {
+      const values = await settingsForm.validateFields();
+      const embeddingChanged = values.embeddingModel !== settings.embeddingModel
+        || values.embeddingDimension !== settings.embeddingDimension;
+      const llmChanged = values.smallLlmModel !== settings.smallLlmModel
+        || values.largeLlmModel !== settings.largeLlmModel;
+
+      if (!embeddingChanged && !llmChanged) {
+        message.info('設定無變更');
+        return;
+      }
+
+      const warnings: string[] = [];
+      if (embeddingChanged) {
+        warnings.push('⚠️ Embedding 模型或維度變更後，必須重新「同步到 Qdrant」，否則語義匹配將失效。');
+        warnings.push('若維度不同，Qdrant collection 需要重建。');
+      }
+      if (llmChanged) {
+        warnings.push('⚠️ LLM 模型變更將影響 SQL 生成品質，請確認已在本機安裝對應模型。');
+      }
+
+      modal.confirm({
+        title: '確認變更 Data Agent 設定？',
+        width: 520,
+        content: (
+          <div>
+            <Alert type="warning" showIcon message={warnings.map((w, i) => <div key={i}>{w}</div>)} style={{ marginBottom: 12 }} />
+            <Divider style={{ margin: '8px 0' }} />
+            {embeddingChanged && (
+              <div style={{ marginBottom: 4 }}>
+                <Text strong>Embedding：</Text> {settings.embeddingModel} ({settings.embeddingDimension}d) → {values.embeddingModel} ({values.embeddingDimension}d)
+              </div>
+            )}
+            {llmChanged && (
+              <>
+                {values.smallLlmModel !== settings.smallLlmModel && (
+                  <div style={{ marginBottom: 4 }}>
+                    <Text strong>Small LLM：</Text> {settings.smallLlmModel} → {values.smallLlmModel}
+                  </div>
+                )}
+                {values.largeLlmModel !== settings.largeLlmModel && (
+                  <div style={{ marginBottom: 4 }}>
+                    <Text strong>Large LLM：</Text> {settings.largeLlmModel} → {values.largeLlmModel}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ),
+        okText: '確認變更',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          setSavingSettings(true);
+          try {
+            const updates = [
+              { key: DA_PARAM_KEYS.embeddingModel, value: values.embeddingModel },
+              { key: DA_PARAM_KEYS.embeddingDimension, value: String(values.embeddingDimension) },
+              { key: DA_PARAM_KEYS.smallLlmModel, value: values.smallLlmModel },
+              { key: DA_PARAM_KEYS.largeLlmModel, value: values.largeLlmModel },
+            ];
+            for (const u of updates) {
+              await paramsApi.update(u.key, u.value);
+            }
+            setSettings(values as DaSettings);
+            message.success('DA 設定已儲存');
+            if (embeddingChanged) {
+              message.warning('請記得重新「同步到 Qdrant」以套用新的 Embedding 模型');
+            }
+          } catch {
+            message.error('儲存設定失敗');
+          } finally {
+            setSavingSettings(false);
+          }
+        },
+      });
+    } catch { /* validation error */ }
   };
 
   const loadIntents = async (page = 1, pageSize = 20, search?: string) => {
@@ -82,7 +213,8 @@ export default function IntentsPage() {
   useEffect(() => {
     loadIntents();
     fetchModels();
-  }, []);
+    loadSettings();
+  }, [loadSettings]);
 
   const handleDelete = async (intentId: string) => {
     try {
@@ -97,7 +229,7 @@ export default function IntentsPage() {
   const handleSyncQdrant = async () => {
     setSyncing(true);
     try {
-      const res = await dataAgentApi.syncToQdrant({ model: selectedModel });
+      const res = await dataAgentApi.syncToQdrant({ model: settings.embeddingModel });
       message.success(`同步成功，共同步 ${res.data.synced_count} 個意圖`);
     } catch (error) {
       message.error('同步失敗');
@@ -266,13 +398,10 @@ export default function IntentsPage() {
           {strategyOptions.map(s => <Option key={s} value={s}>{s}</Option>)}
         </Select>
 
-        <Select value={selectedModel} onChange={setSelectedModel} style={{ width: 160 }} placeholder="選擇 Embedding 模型">
-          {models.length > 0 ? models.map(m => <Option key={m} value={m}>{m}</Option>) : <Option value="bge-m3:latest">bge-m3:latest</Option>}
-        </Select>
-
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新增意圖</Button>
         <Button icon={<CloudSyncOutlined />} onClick={handleSyncQdrant} loading={syncing}>同步到 Qdrant</Button>
         <Button icon={<ReloadOutlined />} onClick={() => loadIntents()}>重新整理</Button>
+        <Button icon={<SettingOutlined />} onClick={() => { setSettingsVisible(true); settingsForm.setFieldsValue(settings); }}>設定</Button>
       </Space>
 
       <Table 
@@ -387,6 +516,65 @@ export default function IntentsPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Drawer
+        title="Data Agent 設定"
+        placement="right"
+        width={480}
+        open={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        loading={settingsLoading}
+        extra={
+          <Button type="primary" onClick={saveSettings} loading={savingSettings}>
+            儲存設定
+          </Button>
+        }
+      >
+        <Form form={settingsForm} layout="vertical" initialValues={settings}>
+          <Divider titlePlacement="left" plain>Embedding 向量模型</Divider>
+          <Alert
+            type="info" showIcon style={{ marginBottom: 16 }}
+            message="Embedding 模型用於將意圖文字轉為向量，寫入 Qdrant。變更模型或維度後必須重新同步。"
+          />
+          <Row gutter={16}>
+            <Col span={16}>
+              <Form.Item name="embeddingModel" label="Embedding 模型" rules={[{ required: true, message: '請選擇模型' }]}>
+                <Select placeholder="選擇模型" showSearch>
+                  {models.map(m => <Option key={m} value={m}>{m}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="embeddingDimension" label="向量維度" rules={[{ required: true, message: '請輸入維度' }]}>
+                <InputNumber min={64} max={4096} step={64} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider titlePlacement="left" plain>SQL 生成 LLM</Divider>
+          <Alert
+            type="info" showIcon style={{ marginBottom: 16 }}
+            message="Small LLM 用於中等複雜查詢，Large LLM 用於複雜多表查詢。請確認模型已安裝於 Ollama。"
+          />
+          <Form.Item name="smallLlmModel" label="Small LLM 模型" rules={[{ required: true, message: '請選擇模型' }]}>
+            <Select placeholder="選擇模型" showSearch>
+              {models.map(m => <Option key={m} value={m}>{m}</Option>)}
+            </Select>
+          </Form.Item>
+          <Form.Item name="largeLlmModel" label="Large LLM 模型" rules={[{ required: true, message: '請選擇模型' }]}>
+            <Select placeholder="選擇模型" showSearch>
+              {models.map(m => <Option key={m} value={m}>{m}</Option>)}
+            </Select>
+          </Form.Item>
+
+          <Divider style={{ margin: '16px 0' }} />
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="目前 Embedding">{settings.embeddingModel} ({settings.embeddingDimension}d)</Descriptions.Item>
+            <Descriptions.Item label="目前 Small LLM">{settings.smallLlmModel}</Descriptions.Item>
+            <Descriptions.Item label="目前 Large LLM">{settings.largeLlmModel}</Descriptions.Item>
+          </Descriptions>
+        </Form>
+      </Drawer>
     </div>
   );
 }

@@ -428,7 +428,7 @@ pub struct FunctionRoleAuth {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateParamRequest {
-    pub value: String,
+    pub value: Option<String>,
     pub param_value: Option<String>,
 }
 

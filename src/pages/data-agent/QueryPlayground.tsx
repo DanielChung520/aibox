@@ -16,7 +16,8 @@ import {
   PlayCircleOutlined, CopyOutlined, ClearOutlined, 
   DatabaseOutlined, ClockCircleOutlined,
   TableOutlined, BranchesOutlined, ThunderboltOutlined,
-  InfoCircleOutlined, CheckCircleOutlined, CloseCircleOutlined
+  InfoCircleOutlined, CheckCircleOutlined, CloseCircleOutlined,
+  LikeOutlined, DislikeOutlined
 } from '@ant-design/icons';
 import { dataAgentApi, TableInfo, QueryResponse, NL2SqlResponse } from '../../services/dataAgentApi';
 
@@ -55,6 +56,7 @@ export default function QueryPlayground() {
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [sqlCopied, setSqlCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('result');
+  const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
 
   useEffect(() => {
     dataAgentApi.listTables()
@@ -88,11 +90,7 @@ export default function QueryPlayground() {
         setError(data.message || '查詢執行失敗');
       }
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message || '查詢執行失敗');
-      } else {
-        setError('查詢執行失敗');
-      }
+      setError(err instanceof Error ? err.message : '查詢執行失敗');
     } finally {
       setExecutionTime(Date.now() - startTime);
       setLoading(false);
@@ -110,11 +108,7 @@ export default function QueryPlayground() {
         setError(data.error || '查詢執行失敗');
       }
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message || '查詢執行失敗');
-      } else {
-        setError('查詢執行失敗');
-      }
+      setError(err instanceof Error ? err.message : '查詢執行失敗');
     } finally {
       setLoading(false);
     }
@@ -132,6 +126,7 @@ export default function QueryPlayground() {
     setAqlQueryResponse(null);
     setSqlResponse(null);
     setExecutionTime(null);
+    setFeedbackGiven(null);
 
     const startTime = Date.now();
 
@@ -150,6 +145,7 @@ export default function QueryPlayground() {
     setError(null);
     setExecutionTime(null);
     setSqlCopied(false);
+    setFeedbackGiven(null);
   };
 
   const handleCopySql = () => {
@@ -170,6 +166,19 @@ export default function QueryPlayground() {
     setModuleScope(module === 'ALL' ? [] : [module]);
   };
 
+  const handleFeedback = async (action: 'thumbs_up' | 'thumbs_down') => {
+    if (!sqlResponse?.matched_intent?.intent_id || !query.trim()) return;
+    setFeedbackGiven(action === 'thumbs_up' ? 'up' : 'down');
+    if (action === 'thumbs_up') {
+      try {
+        await dataAgentApi.feedbackIntent(sqlResponse.matched_intent.intent_id, { action, nl_query: query.trim() });
+        message.success('已將查詢加入意圖訓練資料');
+      } catch { message.error('回饋提交失敗'); }
+    } else {
+      message.info('感謝您的回饋');
+    }
+  };
+
   const availableModules = [...new Set(tables.map(t => t.module))];
 
   const quickTemplatesAql = [
@@ -177,15 +186,8 @@ export default function QueryPlayground() {
     { label: '供應商列表', query: '列出所有供應商', module: 'MM' },
     { label: '銷售訂單', query: '查詢本月銷售訂單', module: 'SD' },
   ];
-
-  const quickTemplatesSql = [
-    { label: '查詢上個月的採購訂單', query: '查詢上個月的採購訂單', module: 'MM' },
-    { label: '列出所有供應商', query: '列出所有供應商', module: 'MM' },
-    { label: '各供應商的採購金額排名', query: '各供應商的採購金額排名', module: 'MM' },
-    { label: '查詢庫存異動記錄', query: '查詢庫存異動記錄', module: 'MM' },
-    { label: '本月物料入庫總量', query: '本月物料入庫總量', module: 'MM' },
-  ];
-
+  const quickTemplatesSql = ['查詢上個月的採購訂單', '列出所有供應商', '各供應商的採購金額排名', '查詢庫存異動記錄', '本月物料入庫總量']
+    .map(q => ({ label: q, query: q, module: 'MM' }));
   const templatesToUse = queryMode === 'SQL' ? quickTemplatesSql : quickTemplatesAql;
 
 const renderResultTabs = () => {
@@ -311,6 +313,9 @@ const renderResultTabs = () => {
 
           <Card 
             title={<Space><span>查詢結果</span>{((queryMode === 'AQL' && aqlResult) || (queryMode === 'SQL' && sqlResponse)) && <Tag color="blue">{(queryMode === 'AQL' ? aqlResult?.rows.length : sqlResponse?.execution_result?.row_count) ?? 0} 列</Tag>}</Space>}
+            extra={queryMode === 'SQL' && sqlResponse?.success && !feedbackGiven ? (
+              <Space><Button size="small" icon={<LikeOutlined />} onClick={() => handleFeedback('thumbs_up')}>有用</Button><Button size="small" icon={<DislikeOutlined />} onClick={() => handleFeedback('thumbs_down')}>無用</Button></Space>
+            ) : feedbackGiven ? (<Tag color={feedbackGiven === 'up' ? 'green' : 'default'}>{feedbackGiven === 'up' ? '已加入訓練' : '已回饋'}</Tag>) : null}
             style={{ marginTop: 16 }}
           >
             {loading && (
@@ -380,14 +385,9 @@ const renderResultTabs = () => {
           )}
 
           <Card title="使用說明">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text type="secondary">1. 選擇查詢模式 (SQL 或 AQL)</Text>
-              <Text type="secondary">2. 輸入自然語言查詢或使用快速範本</Text>
-              <Text type="secondary">3. 點擊「執行查詢」獲得結果</Text>
-              <Text type="secondary">4. 可查看 SQL、Query Plan 和執行階段資訊</Text>
-              <Divider />
-              <Alert type="info" description="複雜查詢可能需要較長時間處理，建議縮小查詢範圍以獲得更快回應。" showIcon />
-            </Space>
+            <Text type="secondary">1. 選擇查詢模式 → 2. 輸入自然語言 → 3. 執行查詢 → 4. 查看結果/SQL/Plan</Text>
+            <Divider style={{ margin: '12px 0' }} />
+            <Alert type="info" description="複雜查詢可能需要較長時間處理，建議縮小查詢範圍以獲得更快回應。" showIcon />
           </Card>
         </Col>
       </Row>

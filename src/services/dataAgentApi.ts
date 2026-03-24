@@ -232,6 +232,11 @@ export const dataAgentApi = {
   deleteIntent: (intentId: string) => 
     api.delete(`/api/v1/da/intents/catalog/${intentId}`),
 
+  feedbackIntent: (intentId: string, data: { action: 'thumbs_up' | 'thumbs_down'; nl_query: string }) =>
+    api.post<{ code: number; data: { action: string; intent_id: string; applied: boolean; nl_added?: string } }>(
+      `/api/v1/da/intents/catalog/${intentId}/feedback`, data
+    ),
+
   syncToQdrant: (data: { model?: string }) => {
     return api.post<{ synced_count: number }>('/api/v1/da/intents/sync-qdrant', data);
   },

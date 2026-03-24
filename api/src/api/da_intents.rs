@@ -5,9 +5,9 @@
 //! Catalog 路由直接操作 ArangoDB da_intents 集合
 //! sync-qdrant / models 路由代理轉發到 data_agent:8003
 //!
-//! # Last Update: 2026-03-23 22:20:13
+//! # Last Update: 2026-03-24 13:16:23
 //! # Author: Daniel Chung
-//! # Version: 2.0.0
+//! # Version: 2.1.0
 
 use crate::config::CONFIG;
 use crate::db::get_db;
@@ -32,6 +32,11 @@ pub fn create_da_intents_router() -> Router {
         .route(
             "/api/v1/da/intents/catalog/{intent_id}",
             put(update_intent).delete(delete_intent),
+        )
+        // Feedback (append nl_examples)
+        .route(
+            "/api/v1/da/intents/catalog/{intent_id}/feedback",
+            post(feedback_intent),
         )
         // Proxy to data_agent Python service
         .route(
@@ -251,6 +256,64 @@ async fn delete_intent(Path(intent_id): Path<String>) -> Result<impl IntoRespons
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(ApiResponse::success("Intent deleted".to_string())))
+}
+
+async fn feedback_intent(
+    Path(intent_id): Path<String>,
+    Json(payload): Json<Value>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let action = payload
+        .get("action")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let nl_query = payload
+        .get("nl_query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if action != "thumbs_up" || nl_query.is_empty() {
+        return Ok(Json(serde_json::json!({
+            "code": 0,
+            "data": { "action": action, "intent_id": intent_id, "applied": false }
+        })));
+    }
+
+    let db = get_db();
+    let keys: Vec<String> = db
+        .aql_bind_vars(
+            "FOR d IN da_intents FILTER d.intent_id == @intent_id LIMIT 1 RETURN d._key",
+            [("intent_id", serde_json::json!(intent_id.clone()))].into(),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let doc_key = keys.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
+
+    let update_doc = serde_json::json!({
+        "updated_at": chrono::Utc::now().to_rfc3339(),
+    });
+    let col = db
+        .collection("da_intents")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    col.update_document(&doc_key, update_doc, Default::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    db.aql_bind_vars::<Value>(
+        "FOR d IN da_intents FILTER d._key == @key UPDATE d WITH { nl_examples: APPEND(d.nl_examples, @nl) } IN da_intents",
+        [
+            ("key", serde_json::json!(doc_key)),
+            ("nl", serde_json::json!(nl_query)),
+        ]
+        .into(),
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({
+        "code": 0,
+        "data": { "action": "thumbs_up", "intent_id": intent_id, "applied": true, "nl_added": nl_query }
+    })))
 }
 
 /// Proxy POST /api/v1/da/intents/sync-qdrant → data_agent:8003/intent-rag/embed-sync

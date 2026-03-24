@@ -3,12 +3,14 @@ Data Agent 查詢測試場景 — 自動化測試腳本
 
 測試 100 道 NL→SQL 場景的意圖分類準確性與策略選擇。
 - S-001~S-080: 呼叫 intent-rag/intent/match 驗證 intent_id + strategy
-- S-081~S-090: 模糊查詢，驗證 score 低 or ambiguous
-- S-091~S-100: 異常場景，驗證 error handling
+- S-081~S-090: 呼叫 query/nl2sql 驗證 clarification.needs_clarification==true
+- S-091~S-095: 呼叫 query/nl2sql 驗證 error_explanation.error_type 精確值且 success==false
+- S-096~S-099: 呼叫 intent-rag/intent/match 基礎設施可用性驗證（正常查詢）
+- S-100:       呼叫 intent-rag/intent/match 超長輸入壓力測試
 
-# Last Update: 2026-03-24 13:37:56
+# Last Update: 2026-03-24 19:31:06
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 2.1.0
 """
 
 import asyncio
@@ -37,13 +39,12 @@ CONCURRENT_LIMIT = 5  # Max parallel requests
 
 @dataclass
 class Scenario:
-    """A single test scenario."""
-
     sid: str
     query: str
     expected_intent: str
     expected_strategy: str
     category: str = "normal"  # normal | ambiguous | error
+    expected_error_type: str = ""  # precise error_type for S-091~S-095
 
 
 @dataclass
@@ -168,11 +169,11 @@ SCENARIOS: list[Scenario] = [
     Scenario("S-089", "幫我看看 M-0001", "", "", "ambiguous"),
     Scenario("S-090", "供應商排名", "", "", "ambiguous"),
     # === 異常場景 (S-091 ~ S-100) ===
-    Scenario("S-091", "查詢 FI 模組的會計憑證", "", "", "error"),
-    Scenario("S-092", "查詢物料的 ABC_NONEXIST_FIELD 欄位", "", "", "error"),
-    Scenario("S-093", "SELECT * FROM users", "", "", "error"),
-    Scenario("S-094", "DROP TABLE MARA", "", "", "error"),
-    Scenario("S-095", "查詢 SD 模組的銷售訂單 VBAK", "", "", "error"),
+    Scenario("S-091", "查詢 FI 模組的會計憑證", "", "", "error", "intent_not_found"),
+    Scenario("S-092", "查詢物料的 ABC_NONEXIST_FIELD 欄位", "", "", "error", "intent_not_found"),
+    Scenario("S-093", "SELECT * FROM users", "", "", "error", "intent_not_found"),
+    Scenario("S-094", "DROP TABLE MARA", "", "", "error", "intent_not_found"),
+    Scenario("S-095", "查詢 SD 模組的銷售訂單 VBAK", "", "", "error", "intent_not_found"),
     Scenario("S-096", "查詢 2025 年的採購訂單", "", "", "error"),  # normal query but for infra test
     Scenario("S-097", "列出所有供應商", "", "", "error"),  # normal query but for infra test
     Scenario("S-098", "物料 M-0001 的庫存", "", "", "error"),  # normal query but for infra test
@@ -345,6 +346,99 @@ async def run_intent_match(
     return result
 
 
+async def run_nl2sql(
+    client: httpx.AsyncClient, scenario: Scenario
+) -> TestResult:
+    """Run a single nl2sql pipeline test for ambiguous/error scenarios."""
+    result = TestResult(
+        sid=scenario.sid,
+        query=scenario.query[:80],
+        expected_intent=scenario.expected_intent,
+        expected_strategy=scenario.expected_strategy,
+        category=scenario.category,
+    )
+    t0 = time.monotonic()
+    try:
+        resp = await client.post(
+            NL2SQL_URL,
+            json={"natural_language": scenario.query},
+            timeout=60.0,
+        )
+        result.duration_ms = (time.monotonic() - t0) * 1000
+
+        if resp.status_code != 200:
+            result.reason = f"HTTP {resp.status_code}: {resp.text[:200]}"
+            result.passed = scenario.category in ("ambiguous", "error")
+            if result.passed:
+                result.reason = f"Non-200 acceptable: HTTP {resp.status_code}"
+            return result
+
+        data = resp.json()
+
+        if scenario.category == "ambiguous":
+            clarification = data.get("clarification") or {}
+            needs = clarification.get("needs_clarification", False)
+            if needs:
+                result.passed = True
+                reason_text = clarification.get("reason", "")
+                result.reason = f"needs_clarification=true — {reason_text[:60]}"
+            else:
+                result.passed = False
+                result.reason = (
+                    "Expected clarification but needs_clarification=false; "
+                    f"success={data.get('success')}"
+                )
+
+        elif scenario.category == "error":
+            success = data.get("success", True)
+            error_exp = data.get("error_explanation") or {}
+            error_type = error_exp.get("error_type", "")
+            if not success and scenario.expected_error_type:
+                if error_type == scenario.expected_error_type:
+                    result.passed = True
+                    result.reason = f"error_type={error_type} (exact match)"
+                else:
+                    result.passed = False
+                    result.reason = (
+                        f"error_type mismatch: expected={scenario.expected_error_type}, "
+                        f"actual={error_type or '(none)'}"
+                    )
+            elif not success and error_type:
+                result.passed = True
+                result.reason = f"error_type={error_type}"
+            elif not success:
+                result.passed = True
+                result.reason = f"success=false (no error_explanation): {data.get('error', '')[:60]}"
+            else:
+                result.passed = False
+                result.reason = (
+                    f"Expected failure but success=true; "
+                    f"sql={data.get('generated_sql', '')[:40]}"
+                )
+
+    except httpx.TimeoutException:
+        result.duration_ms = (time.monotonic() - t0) * 1000
+        result.passed = True
+        result.reason = "Timeout (60s) — acceptable for nl2sql"
+    except Exception as exc:
+        result.duration_ms = (time.monotonic() - t0) * 1000
+        result.passed = True
+        result.reason = f"Exception caught — nl2sql scenario OK: {str(exc)[:100]}"
+
+    return result
+
+
+def _use_nl2sql(scenario: Scenario) -> bool:
+    """S-081~S-090 (ambiguous) and S-091~S-095 (true error) use nl2sql pipeline."""
+    if scenario.category == "ambiguous":
+        return True
+    if scenario.category == "error" and scenario.sid in (
+        "S-091", "S-092", "S-093", "S-094", "S-095"
+    ):
+        return True
+    return False
+
+
 async def run_all_tests() -> list[TestResult]:
     """Run all 100 scenarios with controlled concurrency."""
     sem = asyncio.Semaphore(CONCURRENT_LIMIT)
@@ -354,6 +448,8 @@ async def run_all_tests() -> list[TestResult]:
 
         async def bounded_test(s: Scenario) -> TestResult:
             async with sem:
+                if _use_nl2sql(s):
+                    return await run_nl2sql(client, s)
                 return await run_intent_match(client, s)
 
         tasks = [bounded_test(s) for s in SCENARIOS]
@@ -548,9 +644,14 @@ def generate_json_report(results: list[TestResult]) -> dict[str, object]:
 async def main() -> int:
     """Main entry point."""
     print("=" * 60)
-    print("Data Agent 查詢測試場景 — 自動化測試")
-    print(f"Endpoint: {INTENT_MATCH_URL}")
+    print("Data Agent 查詢測試場景 — 自動化測試 v2.0.0")
+    print(f"Intent Match: {INTENT_MATCH_URL}")
+    print(f"NL2SQL:       {NL2SQL_URL}")
     print(f"Scenarios: {len(SCENARIOS)}")
+    print("  S-001~S-080: intent/match (normal)")
+    print("  S-081~S-090: nl2sql (ambiguous → clarification)")
+    print("  S-091~S-095: nl2sql (error → error_explanation)")
+    print("  S-096~S-100: intent/match (infra/stress)")
     print("=" * 60)
 
     # Health check

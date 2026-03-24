@@ -13,7 +13,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3001',
-  timeout: 10000,
+  timeout: 30000,
 });
 
 // Add token to requests
@@ -239,12 +239,16 @@ export interface ContentTokens {
   colorInfo: string;
   colorBgBase: string;
   colorTextBase: string;
+  pageBg: string;
+  contentBg: string;
+  containerBg: string;
   borderRadius: number;
   fontFamily: string;
   boxShadow: string;
   boxShadowSecondary: string;
   tableExpandedRowBg: string;
   tableHeaderBg: string;
+  tableRowHoverBg: string;
   chatInputBg: string;
   chatUserBubble: string;
   chatAssistantBubble: string;
@@ -258,6 +262,8 @@ export interface ContentTokens {
   btnText: string;
   cardShadow: string;
   cardShadowHover: string;
+  tableShadow: string;
+  bgOpacity: number;
 }
 
 export interface ThemeTemplate {
@@ -278,6 +284,28 @@ export const themeTemplateApi = {
   create: (data: Partial<ThemeTemplate>) => api.post('/api/v1/theme-templates', data),
   update: (key: string, data: Partial<ThemeTemplate>) => api.put(`/api/v1/theme-templates/${key}`, data),
   delete: (key: string) => api.delete(`/api/v1/theme-templates/${key}`),
+};
+
+export type ServiceStatus = 'running' | 'stopped' | 'starting' | 'stopping' | 'error';
+
+export interface ServiceInfo {
+  name: string;
+  display_name: string;
+  status: ServiceStatus;
+  port: number;
+  url: string;
+  health_url: string | null;
+  last_check: string | null;
+  latency_ms: number | null;
+}
+
+export interface ServiceListResponse {
+  services: ServiceInfo[];
+}
+
+export const servicesApi = {
+  list: () => api.get<ServiceListResponse>('/api/v1/services'),
+  get: (name: string) => api.get<{ service: ServiceInfo }>(`/api/v1/services/${name}`),
 };
 
 export default api;

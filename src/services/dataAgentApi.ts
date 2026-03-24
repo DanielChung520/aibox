@@ -268,7 +268,7 @@ export const dataAgentApi = {
 
   // NL→SQL Pipeline
   nl2sql: (data: { natural_language: string }) => {
-    return api.post<NL2SqlResponse>('/api/v1/da/query/nl2sql', data);
+    return api.post<NL2SqlResponse>('/api/v1/da/query/nl2sql', data, { timeout: 180000 });
   },
   
   querySql: (data: { sql: string; params?: unknown[] }) => {

@@ -26,7 +26,7 @@ ARANGO_URL = os.getenv("ARANGO_URL", "http://localhost:8529")
 ARANGO_DB = os.getenv("ARANGO_DATABASE", "abc_desktop")
 ARANGO_USER = os.getenv("ARANGO_USER", "root")
 ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "abc_desktop_2026")
-MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.5"))
+MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.58"))
 
 
 class IntentMatchRequest(BaseModel):

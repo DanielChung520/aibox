@@ -132,7 +132,7 @@ SCENARIOS: list[Scenario] = [
     Scenario("S-055", "上季度每月的收貨與發料對比", "mm_e04", "small_llm"),
     Scenario("S-056", "工廠 1000 的異動記錄", "mm_e01", "small_llm"),
     Scenario("S-057", "物料 M-0001 今年被領料幾次", "mm_e02", "small_llm"),
-    Scenario("S-058", "上個月有退貨的物料", "mm_e07", "small_llm"),
+    Scenario("S-058", "上個月有退貨的物料", "mm_e07", "large_llm"),
     Scenario("S-059", "哪些物料上個月有調撥進出", "mm_e08", "small_llm"),
     Scenario("S-060", "成本中心 CC001 的領料記錄", "mm_e02", "small_llm"),
     # === Large LLM — 高複雜度查詢 (S-061 ~ S-080) ===

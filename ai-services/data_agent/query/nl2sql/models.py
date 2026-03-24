@@ -39,7 +39,7 @@ class PipelineConfig(BaseModel):
     s3_bucket: str = Field(default="sap")
     s3_access_key: str = Field(default="")
     s3_secret_key: str = Field(default="")
-    match_threshold: float = Field(default=0.5)
+    match_threshold: float = Field(default=0.58)
     max_retries: int = Field(default=1)
 
 

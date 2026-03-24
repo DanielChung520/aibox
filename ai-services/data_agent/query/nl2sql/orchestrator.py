@@ -2,13 +2,11 @@
 NL→SQL Pipeline - Orchestrator
 
 Main pipeline entry point that coordinates all phases:
-Intent Classification → Schema Retrieval → Query Plan → SQL Gen → Validation → Execution
+Intent Classification → Reranking → Schema → Plan → SQL → Validation → Execution
 
-Includes self-correction loop (1 retry on execution failure).
-
-# Last Update: 2026-03-23 23:24:21
+# Last Update: 2026-03-24 14:12:23
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 1.1.0
 """
 
 import logging
@@ -18,14 +16,19 @@ import time
 from data_agent.config_reader import get_param
 from data_agent.query.nl2sql.exceptions import PipelineError
 from data_agent.query.nl2sql.executor import execute_sql
-from data_agent.query.nl2sql.intent_classifier import classify_intent
+from data_agent.query.nl2sql.intent_classifier import (
+    classify_intent,
+    classify_intent_candidates,
+)
 from data_agent.query.nl2sql.models import (
     GenerationStrategy,
+    IntentMatch,
     PipelineConfig,
     PipelinePhaseResult,
     PipelineResult,
 )
 from data_agent.query.nl2sql.plan_generator import generate_query_plan
+from data_agent.query.nl2sql.reranker import RERANK_THRESHOLD, rerank_candidates
 from data_agent.query.nl2sql.schema_retriever import retrieve_schema
 from data_agent.query.nl2sql.sql_generator import generate_sql
 from data_agent.query.nl2sql.validator import validate_sql
@@ -34,16 +37,12 @@ logger = logging.getLogger(__name__)
 
 
 async def _build_config() -> PipelineConfig:
-    """Build pipeline config from ArangoDB system_params (cache + env fallback)."""
-    small_model = await get_param("da.small_llm_model")
-    large_model = await get_param("da.large_llm_model")
-    embedding_model = await get_param("da.embedding_model")
-
+    """Build pipeline config from ArangoDB system_params."""
     return PipelineConfig(
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        small_model=small_model,
-        large_model=large_model,
-        embedding_model=embedding_model,
+        small_model=await get_param("da.small_llm_model"),
+        large_model=await get_param("da.large_llm_model"),
+        embedding_model=await get_param("da.embedding_model"),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_collection=os.getenv("QDRANT_COLLECTION", "data_agent_intents"),
         arango_url=os.getenv("ARANGO_URL", "http://localhost:8529"),
@@ -54,32 +53,111 @@ async def _build_config() -> PipelineConfig:
         s3_bucket=os.getenv("S3_BUCKET", "sap"),
         s3_access_key=os.getenv("S3_ACCESS_KEY", "admin"),
         s3_secret_key=os.getenv("S3_SECRET_KEY", "admin123"),
-        match_threshold=float(os.getenv("MATCH_THRESHOLD", "0.5")),
+        match_threshold=float(os.getenv("MATCH_THRESHOLD", "0.58")),
         max_retries=int(os.getenv("NL2SQL_MAX_RETRIES", "2")),
     )
 
 
-async def run_nl2sql_pipeline(
-    query: str,
-    config: PipelineConfig | None = None,
+async def _classify_with_reranking(
+    query: str, config: PipelineConfig, phases: list[PipelinePhaseResult],
+) -> tuple[IntentMatch, float]:
+    """Classify intent, applying LLM reranking when top-1 score is ambiguous."""
+    t0 = time.time() * 1000
+    intent = await classify_intent(query, config)
+    classify_ms = round(time.time() * 1000 - t0, 2)
+    phases.append(PipelinePhaseResult(phase="intent_classification", duration_ms=classify_ms))
+
+    if intent.score < RERANK_THRESHOLD and intent.generation_strategy != GenerationStrategy.TEMPLATE:
+        t0 = time.time() * 1000
+        candidates = await classify_intent_candidates(query, config, limit=3)
+        if len(candidates) > 1:
+            intent = await rerank_candidates(query, candidates, config)
+            phases.append(PipelinePhaseResult(
+                phase="reranking", duration_ms=round(time.time() * 1000 - t0, 2),
+            ))
+            logger.info("Reranked: %s (score=%.3f)", intent.intent_id, intent.score)
+
+    logger.info("Intent: %s (score=%.3f, strategy=%s)",
+                intent.intent_id, intent.score, intent.generation_strategy.value)
+    return intent, classify_ms
+
+
+async def _generate_and_execute(
+    query: str, intent: IntentMatch, config: PipelineConfig,
+    phases: list[PipelinePhaseResult], start_time: float,
 ) -> PipelineResult:
-    """Run the full NL→SQL pipeline.
+    """Run phases 2-6: Schema → Plan → SQL → Validate → Execute (with retry)."""
 
-    Phases:
-    1. Intent Classification (Qdrant)
-    2. Schema Retrieval (ArangoDB)
-    3. Query Plan Generation (template or LLM)
-    4. SQL Generation (3-tier hybrid)
-    5. SQL Validation (3-layer)
-    6. DuckDB Execution
+    t0 = time.time() * 1000
+    schema = await retrieve_schema(intent.tables, config)
+    phases.append(PipelinePhaseResult(phase="schema_retrieval",
+                                      duration_ms=round(time.time() * 1000 - t0, 2)))
 
-    Args:
-        query: Natural language query string.
-        config: Pipeline configuration (built from env if None).
+    t0 = time.time() * 1000
+    plan = await generate_query_plan(query, intent, schema, config)
+    phases.append(PipelinePhaseResult(phase="plan_generation",
+                                      duration_ms=round(time.time() * 1000 - t0, 2)))
 
-    Returns:
-        PipelineResult with all phase outcomes.
-    """
+    generated_sql = ""
+    validation = None
+    last_error = ""
+    for attempt in range(config.max_retries + 1):
+        t0 = time.time() * 1000
+        generated_sql = await generate_sql(query, plan, intent, schema, config, last_error)
+        phases.append(PipelinePhaseResult(
+            phase=f"sql_generation_attempt_{attempt + 1}",
+            duration_ms=round(time.time() * 1000 - t0, 2),
+        ))
+
+        t0 = time.time() * 1000
+        run_semantic = intent.generation_strategy == GenerationStrategy.LARGE_LLM
+        validation = await validate_sql(generated_sql, schema, config, run_semantic_check=run_semantic)
+        phases.append(PipelinePhaseResult(
+            phase=f"sql_validation_attempt_{attempt + 1}",
+            duration_ms=round(time.time() * 1000 - t0, 2), success=validation.is_valid,
+        ))
+
+        if not validation.is_valid:
+            last_error = str([e.message for e in validation.errors])
+            if attempt < config.max_retries:
+                continue
+            return PipelineResult(success=False, query=query, matched_intent=intent,
+                                  query_plan=plan, generated_sql=generated_sql,
+                                  validation=validation, error="SQL validation failed after retries",
+                                  phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
+
+        t0 = time.time() * 1000
+        try:
+            result = await execute_sql(generated_sql, config)
+            phases.append(PipelinePhaseResult(phase="execution",
+                                              duration_ms=round(time.time() * 1000 - t0, 2)))
+            return PipelineResult(success=True, query=query, matched_intent=intent,
+                                  query_plan=plan, generated_sql=generated_sql,
+                                  validation=validation, execution_result=result,
+                                  phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
+        except PipelineError as exec_err:
+            phases.append(PipelinePhaseResult(
+                phase=f"execution_attempt_{attempt + 1}",
+                duration_ms=round(time.time() * 1000 - t0, 2), success=False, error=str(exec_err),
+            ))
+            last_error = str(exec_err)
+            if attempt < config.max_retries:
+                continue
+            return PipelineResult(success=False, query=query, matched_intent=intent,
+                                  query_plan=plan, generated_sql=generated_sql,
+                                  validation=validation, error=f"[execution] {last_error}",
+                                  phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
+
+    return PipelineResult(success=False, query=query, matched_intent=intent,
+                          query_plan=plan, generated_sql=generated_sql,
+                          validation=validation, error=f"Pipeline exhausted retries: {last_error}",
+                          phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
+
+
+async def run_nl2sql_pipeline(
+    query: str, config: PipelineConfig | None = None,
+) -> PipelineResult:
+    """Run the full NL→SQL pipeline with optional reranking."""
     if config is None:
         config = await _build_config()
 
@@ -87,166 +165,14 @@ async def run_nl2sql_pipeline(
     phases: list[PipelinePhaseResult] = []
 
     try:
-        # Phase 1: Intent Classification
-        t0 = time.time() * 1000
-        intent = await classify_intent(query, config)
-        phases.append(PipelinePhaseResult(
-            phase="intent_classification",
-            duration_ms=round(time.time() * 1000 - t0, 2),
-        ))
-        logger.info(
-            "Intent classified: %s (score=%.3f, strategy=%s)",
-            intent.intent_id, intent.score, intent.generation_strategy.value,
-        )
-
-        # Phase 2: Schema Retrieval
-        t0 = time.time() * 1000
-        schema = await retrieve_schema(intent.tables, config)
-        phases.append(PipelinePhaseResult(
-            phase="schema_retrieval",
-            duration_ms=round(time.time() * 1000 - t0, 2),
-        ))
-        logger.info(
-            "Schema retrieved: %d tables, %d fields, %d relations",
-            len(schema.tables), len(schema.fields), len(schema.relations),
-        )
-
-        # Phase 3: Query Plan Generation
-        t0 = time.time() * 1000
-        plan = await generate_query_plan(query, intent, schema, config)
-        phases.append(PipelinePhaseResult(
-            phase="plan_generation",
-            duration_ms=round(time.time() * 1000 - t0, 2),
-        ))
-        logger.info("Query plan generated: %s", plan.intent_type)
-
-        # Phase 4-6: SQL Generation → Validation → Execution (with retry)
-        generated_sql = ""
-        validation = None
-        last_error = ""
-        for attempt in range(config.max_retries + 1):
-            # Phase 4: SQL Generation
-            t0 = time.time() * 1000
-            generated_sql = await generate_sql(
-                query, plan, intent, schema, config, last_error
-            )
-            phases.append(PipelinePhaseResult(
-                phase=f"sql_generation_attempt_{attempt + 1}",
-                duration_ms=round(time.time() * 1000 - t0, 2),
-            ))
-            logger.info("SQL generated (attempt %d): %s...", attempt + 1,
-                        generated_sql[:100])
-
-            # Phase 5: SQL Validation
-            t0 = time.time() * 1000
-            run_semantic = (
-                intent.generation_strategy == GenerationStrategy.LARGE_LLM
-            )
-            validation = await validate_sql(
-                generated_sql, schema, config,
-                run_semantic_check=run_semantic,
-            )
-            phases.append(PipelinePhaseResult(
-                phase=f"sql_validation_attempt_{attempt + 1}",
-                duration_ms=round(time.time() * 1000 - t0, 2),
-                success=validation.is_valid,
-            ))
-
-            if not validation.is_valid:
-                last_error = str([e.message for e in validation.errors])
-                if attempt < config.max_retries:
-                    logger.warning("Validation failed, retrying: %s", last_error)
-                    continue
-                return PipelineResult(
-                    success=False,
-                    query=query,
-                    matched_intent=intent,
-                    query_plan=plan,
-                    generated_sql=generated_sql,
-                    validation=validation,
-                    error="SQL validation failed after retries",
-                    phases=phases,
-                    total_time_ms=round(time.time() * 1000 - start_time, 2),
-                )
-
-            # Phase 6: Execution
-            t0 = time.time() * 1000
-            try:
-                result = await execute_sql(generated_sql, config)
-                phases.append(PipelinePhaseResult(
-                    phase="execution",
-                    duration_ms=round(time.time() * 1000 - t0, 2),
-                ))
-                logger.info("Execution complete: %d rows", result.row_count)
-
-                return PipelineResult(
-                    success=True,
-                    query=query,
-                    matched_intent=intent,
-                    query_plan=plan,
-                    generated_sql=generated_sql,
-                    validation=validation,
-                    execution_result=result,
-                    phases=phases,
-                    total_time_ms=round(time.time() * 1000 - start_time, 2),
-                )
-            except PipelineError as exec_err:
-                phases.append(PipelinePhaseResult(
-                    phase=f"execution_attempt_{attempt + 1}",
-                    duration_ms=round(time.time() * 1000 - t0, 2),
-                    success=False,
-                    error=str(exec_err),
-                ))
-                last_error = str(exec_err)
-                if attempt < config.max_retries:
-                    logger.warning("Execution failed, retrying: %s",
-                                   last_error[:200])
-                    continue
-                return PipelineResult(
-                    success=False,
-                    query=query,
-                    matched_intent=intent,
-                    query_plan=plan,
-                    generated_sql=generated_sql,
-                    validation=validation,
-                    error=f"[execution] {last_error}",
-                    phases=phases,
-                    total_time_ms=round(time.time() * 1000 - start_time, 2),
-                )
-
-        return PipelineResult(
-            success=False,
-            query=query,
-            matched_intent=intent,
-            query_plan=plan,
-            generated_sql=generated_sql,
-            validation=validation,
-            error=f"Pipeline exhausted retries: {last_error}",
-            phases=phases,
-            total_time_ms=round(time.time() * 1000 - start_time, 2),
-        )
-
+        intent, _ = await _classify_with_reranking(query, config, phases)
+        return await _generate_and_execute(query, intent, config, phases, start_time)
     except PipelineError as e:
         logger.error("Pipeline error at %s: %s", e.phase, str(e))
-        phases.append(PipelinePhaseResult(
-            phase=e.phase,
-            duration_ms=0,
-            success=False,
-            error=str(e),
-        ))
-        return PipelineResult(
-            success=False,
-            query=query,
-            error=f"[{e.phase}] {str(e)}",
-            phases=phases,
-            total_time_ms=round(time.time() * 1000 - start_time, 2),
-        )
+        phases.append(PipelinePhaseResult(phase=e.phase, duration_ms=0, success=False, error=str(e)))
+        return PipelineResult(success=False, query=query, error=f"[{e.phase}] {str(e)}",
+                              phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
     except Exception as e:
         logger.error("Unexpected pipeline error: %s", str(e))
-        return PipelineResult(
-            success=False,
-            query=query,
-            error=f"Unexpected error: {str(e)}",
-            phases=phases,
-            total_time_ms=round(time.time() * 1000 - start_time, 2),
-        )
+        return PipelineResult(success=False, query=query, error=f"Unexpected error: {str(e)}",
+                              phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))

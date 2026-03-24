@@ -21,3 +21,36 @@ html, body, #root {
 .ant-menu-dark .ant-menu-sub .ant-menu-item:hover {
   background: rgba(59, 130, 246, 0.25) !important;
 }
+
+/* 表格陰影 — 透過 CSS 變數由 AppContent 注入 */
+.ant-table-wrapper {
+  box-shadow: var(--table-shadow, none);
+  border-radius: 8px;
+}
+
+.datalake-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.datalake-tabs > .ant-tabs-nav {
+  flex: none;
+}
+
+.datalake-tabs > .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.datalake-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+  height: 100%;
+}
+
+.datalake-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+  height: 100%;
+  overflow: hidden;
+}

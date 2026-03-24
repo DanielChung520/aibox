@@ -18,6 +18,7 @@ export interface TableInfo {
   primary_keys: string[];
   partition_keys: string[];
   row_count_estimate?: number;
+  record_count?: number;
   status: 'enabled' | 'disabled' | 'deprecated';
   version: number;
   created_at: string;

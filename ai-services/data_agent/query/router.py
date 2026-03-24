@@ -135,9 +135,7 @@ async def query(request: QueryRequest) -> dict[str, object]:
         }
 
     except httpx.HTTPError as e:
-        raise HTTPException(
-            status_code=502, detail=f"Service unavailable: {str(e)}"
-        )
+        raise HTTPException(status_code=502, detail=f"Service unavailable: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -156,9 +154,7 @@ async def explain_aql(request: ExplainRequest) -> dict[str, object]:
             result: dict[str, object] = response.json()
             return result
     except httpx.HTTPError as e:
-        raise HTTPException(
-            status_code=502, detail=f"ArangoDB unavailable: {str(e)}"
-        )
+        raise HTTPException(status_code=502, detail=f"ArangoDB unavailable: {str(e)}")
 
 
 @router.post("/nl2sql")
@@ -169,6 +165,110 @@ async def nl2sql(request: NL2SqlRequest) -> dict[str, object]:
         return result.model_dump()
     except Exception as e:
         logger.error("NL→SQL endpoint error: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tables/{table_name}/preview")
+async def preview_table_data(
+    table_name: str,
+    offset: int = 0,
+    limit: int = 20,
+) -> dict[str, object]:
+    try:
+        aql_info = """
+            FOR t IN da_table_info
+            FILTER t.table_name == @table_name
+            LIMIT 1
+            RETURN t
+        """
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            info_resp = await client.post(
+                f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
+                json={"query": aql_info, "bindVars": {"table_name": table_name}},
+                auth=(ARANGO_USER, ARANGO_PASSWORD),
+            )
+            info_resp.raise_for_status()
+            info_data = info_resp.json()
+            table_info = (
+                info_data.get("result", [{}])[0] if info_data.get("result") else {}
+            )
+
+        table_id = table_info.get("table_id", table_name)
+
+        aql_fields = """
+            FOR f IN da_field_info
+            FILTER f.table_id == @table_id
+            SORT f.field_name ASC
+            RETURN f
+        """
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            fields_resp = await client.post(
+                f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
+                json={"query": aql_fields, "bindVars": {"table_id": table_id}},
+                auth=(ARANGO_USER, ARANGO_PASSWORD),
+            )
+            fields_resp.raise_for_status()
+            fields_data = fields_resp.json()
+            fields = fields_data.get("result", [])
+
+        collection_name = table_info.get("table_name", table_id)
+        total = 0
+        rows: list[dict[str, object]] = []
+
+        aql_count = """
+            FOR doc IN @@collection
+            COLLECT WITH COUNT INTO total
+            RETURN total
+        """
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            count_resp = await client.post(
+                f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
+                json={"query": aql_count, "bindVars": {"@collection": collection_name}},
+                auth=(ARANGO_USER, ARANGO_PASSWORD),
+            )
+            if 200 <= count_resp.status_code < 300:
+                count_data = count_resp.json()
+                total = (
+                    count_data.get("result", [0])[0] if count_data.get("result") else 0
+                )
+
+        aql_rows = """
+            FOR doc IN @@collection
+            SORT doc._key ASC
+            LIMIT @offset, @limit
+            RETURN doc
+        """
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            rows_resp = await client.post(
+                f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
+                json={
+                    "query": aql_rows,
+                    "bindVars": {
+                        "@collection": collection_name,
+                        "offset": offset,
+                        "limit": limit,
+                    },
+                },
+                auth=(ARANGO_USER, ARANGO_PASSWORD),
+            )
+            if 200 <= rows_resp.status_code < 300:
+                rows_data = rows_resp.json()
+                rows = rows_data.get("result", [])
+
+        return {
+            "table_name": table_name,
+            "table_id": table_id,
+            "table_info": table_info,
+            "fields": fields,
+            "rows": rows,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+        }
+
+    except httpx.HTTPStatusError:
+        raise HTTPException(status_code=404, detail="Table not found")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 

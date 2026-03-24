@@ -13,6 +13,7 @@ use crate::config::CONFIG;
 use crate::db::get_db;
 use crate::duckdb_conn::create_connection;
 use axum::{
+    extract::{Path, Query},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -22,6 +23,7 @@ use duckdb::arrow::array::{
     Array, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
     StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
 };
+use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::time::Instant;
 use uuid::Uuid;
@@ -31,6 +33,7 @@ pub fn create_da_query_router() -> Router {
         .route("/api/v1/da/query", post(execute_da_query))
         .route("/api/v1/da/query/sql", post(execute_direct_sql))
         .route("/api/v1/da/query/nl2sql", post(proxy_nl2sql))
+        .route("/api/v1/da/query/tables/{table_name}/preview", get(proxy_table_preview))
         .route("/api/v1/da/health", get(da_health))
         .route("/api/v1/da/sync/status", get(get_sync_status))
         .route("/api/v1/da/sync/trigger", post(trigger_sync))
@@ -216,6 +219,41 @@ async fn proxy_nl2sql(Json(payload): Json<Value>) -> Result<impl IntoResponse, S
         .await
         .map_err(|e| {
             eprintln!("proxy_nl2sql error: {e}");
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    let body: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    Ok(Json(body))
+}
+
+#[derive(serde::Deserialize)]
+struct PreviewQuery {
+    offset: Option<usize>,
+    limit: Option<usize>,
+}
+
+async fn proxy_table_preview(
+    Path(table_name): Path<String>,
+    Query(params): Query<PreviewQuery>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(20);
+    let url = format!(
+        "{}/query/tables/{}/preview?offset={}&limit={}",
+        CONFIG.ai_services.data_agent_url, table_name, offset, limit
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("proxy_table_preview error: {e}");
             StatusCode::BAD_GATEWAY
         })?;
 

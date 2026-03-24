@@ -45,7 +45,7 @@ export default function MainLayout() {
   const headerBg = shellTokens.headerBg;
   const textColor = shellTokens.logoColor;
   const primaryColor = contentTokens.colorPrimary;
-  const contentBg = contentTokens.colorBgBase;
+  const contentBg = contentTokens.contentBg || contentTokens.colorBgBase;
 
   useEffect(() => {
     const unsubscribe = authStore.subscribe(() => {
@@ -152,7 +152,7 @@ export default function MainLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: shellTokens.headerBg }}>
+    <Layout style={{ minHeight: '100vh', background: contentTokens.pageBg || shellTokens.headerBg }}>
       <Sider 
         trigger={null} 
         collapsible 
@@ -257,9 +257,12 @@ export default function MainLayout() {
         <Content style={{
           margin: '16px',
           padding: '24px',
-          background: isDark ? contentBg : `${contentBg}cc`,
+          background: contentBg,
           borderRadius: '10px',
-          minHeight: 280,
+          height: 'calc(100vh - 96px)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
         }}>
           <Outlet />
         </Content>

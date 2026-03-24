@@ -1,7 +1,7 @@
 /**
  * @file        應用入口
  * @description 路由配置、ConfigProvider、主題供應
- * @lastUpdate  2026-03-22 19:23:12
+ * @lastUpdate  2026-03-24 23:01:20
  * @author      Daniel Chung
  * @version     2.0.0
  */
@@ -30,6 +30,7 @@ import QueryPlayground from './pages/data-agent/QueryPlayground';
 import DataLakePage from './pages/data-agent/DataLakePage';
 import OntologyList from './pages/knowledge/OntologyList';
 import KnowledgeBaseManagement from './pages/knowledge/KnowledgeBaseManagement';
+import KnowledgeBaseDetail from './pages/knowledge/KnowledgeBaseDetail';
 import { authStore } from './stores/auth';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -129,6 +130,7 @@ function AppContent() {
               <Route path="data-agent/datalake" element={<DataLakePage />} />
               <Route path="knowledge/ontology" element={<OntologyList />} />
               <Route path="knowledge/management" element={<KnowledgeBaseManagement />} />
+              <Route path="knowledge/management/:id" element={<KnowledgeBaseDetail />} />
             </Route>
           </Routes>
         </AntApp>

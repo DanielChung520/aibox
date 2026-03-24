@@ -1,10 +1,12 @@
 /**
  * @file        API 服務層
  * @description Axios 實例配置、API 請求封裝、所有業務 API 接口定義
- * @lastUpdate  2026-03-22 19:11:57
+ * @lastUpdate  2026-03-24 23:01:20
  * @author      Daniel Chung
- * @version     1.1.0
+ * @version     1.3.0
  * @history
+ * - 2026-03-24 23:01:20 | Daniel Chung | 1.3.0 | 新增 Knowledge Base 介面定義與 API 方法
+ * - 2026-03-24 20:58:11 | Daniel Chung | 1.2.0 | 新增 Ontology 介面定義與 API 方法
  * - 2026-03-22 19:11:57 | Daniel Chung | 1.1.0 | 新增 ThemeTemplate 介面定義
  * - 2026-03-17 23:27:55 | Daniel Chung | 1.0.0 | 初始版本
  */
@@ -286,6 +288,68 @@ export const themeTemplateApi = {
   delete: (key: string) => api.delete(`/api/v1/theme-templates/${key}`),
 };
 
+// ===== Ontology (知識本體) =====
+
+export interface EntityClass {
+  name: string;
+  base_class: string;
+  description: string;
+}
+
+export interface ObjectProperty {
+  name: string;
+  description: string;
+  domain: string[];
+  range: string[];
+}
+
+export type OntologyLayer = 'basic' | 'domain' | 'major';
+
+export interface OntologyMetadata {
+  domain_owner?: string;
+  domain?: string;
+  major_owner?: string;
+  data_classification?: string;
+  intended_usage?: string[];
+}
+
+export interface Ontology {
+  _key: string;
+  type: OntologyLayer;
+  name: string;
+  version: string;
+  default_version: boolean;
+  ontology_name: string;
+  description: string;
+  author: string;
+  last_modified: string;
+  inherits_from: string[];
+  compatible_domains?: string[];
+  tags: string[];
+  use_cases: string[];
+  entity_classes: EntityClass[];
+  object_properties: ObjectProperty[];
+  metadata: OntologyMetadata;
+  status?: string;
+}
+
+export const ontologyApi = {
+  list: (layer?: OntologyLayer) =>
+    api.get<{ code: number; data: Ontology[] }>('/api/v1/ontologies', { params: layer ? { type: layer } : {} }),
+  get: (key: string) =>
+    api.get<{ code: number; data: Ontology }>(`/api/v1/ontologies/${key}`),
+  create: (data: Partial<Ontology>) =>
+    api.post('/api/v1/ontologies', data),
+  importOntology: (data: Partial<Ontology>) =>
+    api.post('/api/v1/ontologies/import', data),
+  update: (key: string, data: Partial<Ontology>) =>
+    api.put(`/api/v1/ontologies/${key}`, data),
+  delete: (key: string) =>
+    api.delete(`/api/v1/ontologies/${key}`),
+};
+
+// ===== Services =====
+
 export type ServiceStatus = 'running' | 'stopped' | 'starting' | 'stopping' | 'error';
 
 export interface ServiceInfo {
@@ -306,6 +370,84 @@ export interface ServiceListResponse {
 export const servicesApi = {
   list: () => api.get<ServiceListResponse>('/api/v1/services'),
   get: (name: string) => api.get<{ service: ServiceInfo }>(`/api/v1/services/${name}`),
+};
+
+// ===== Knowledge Base (知識庫) =====
+
+export interface KnowledgeRoot {
+  _key: string;
+  name: string;
+  description?: string;
+  ontology_domain: string;
+  ontology_majors: string[];
+  source_count: number;
+  vector_status: 'pending' | 'processing' | 'completed' | 'failed';
+  graph_status: 'pending' | 'processing' | 'completed' | 'failed';
+  is_favorite: boolean;
+  created_at: string;
+}
+
+export interface KnowledgeFile {
+  _key: string;
+  filename: string;
+  file_size: number;
+  file_type: string;
+  upload_time: string;
+  vector_status: 'pending' | 'processing' | 'completed' | 'failed';
+  graph_status: 'pending' | 'processing' | 'completed' | 'failed';
+  knowledge_root_id: string;
+}
+
+export interface VectorChunk {
+  chunk_id: string;
+  text: string;
+  vector_preview: number[];
+  metadata: Record<string, string>;
+}
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+  properties: Record<string, string>;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  label: string;
+}
+
+interface ApiResponse<T> { code: number; data: T }
+interface ApiMessage { code: number; message: string }
+
+export const knowledgeApi = {
+  listRoots: (params?: { search?: string; is_favorite?: boolean }) =>
+    api.get<ApiResponse<KnowledgeRoot[]>>('/api/v1/knowledge/roots', { params }),
+  createRoot: (data: Partial<KnowledgeRoot>) =>
+    api.post<ApiResponse<{ _key: string }>>('/api/v1/knowledge/roots', data),
+  getRoot: (id: string) =>
+    api.get<ApiResponse<KnowledgeRoot>>(`/api/v1/knowledge/roots/${id}`),
+  updateRoot: (id: string, data: Partial<KnowledgeRoot>) =>
+    api.put<ApiMessage>(`/api/v1/knowledge/roots/${id}`, data),
+  deleteRoot: (id: string) =>
+    api.delete<ApiMessage>(`/api/v1/knowledge/roots/${id}`),
+  copyRoot: (id: string) =>
+    api.post<ApiResponse<{ _key: string }>>(`/api/v1/knowledge/roots/${id}/copy`),
+  listFiles: (rootId: string) =>
+    api.get<ApiResponse<KnowledgeFile[]>>(`/api/v1/knowledge/roots/${rootId}/files`),
+  uploadFile: (rootId: string, formData: FormData) =>
+    api.post<ApiResponse<{ fileId: string }>>(`/api/v1/knowledge/roots/${rootId}/files/upload`, formData),
+  getFile: (fileId: string) =>
+    api.get<ApiResponse<KnowledgeFile>>(`/api/v1/knowledge/files/${fileId}`),
+  deleteFile: (fileId: string) =>
+    api.delete<ApiMessage>(`/api/v1/knowledge/files/${fileId}`),
+  getPreview: (fileId: string) =>
+    api.get<ApiResponse<{ content: string; type: string }>>(`/api/v1/knowledge/files/${fileId}/preview`),
+  getVectors: (fileId: string, params: { limit: number; offset: number }) =>
+    api.get<ApiResponse<{ chunks: VectorChunk[]; total: number }>>(`/api/v1/knowledge/files/${fileId}/vectors`, { params }),
+  getGraph: (fileId: string) =>
+    api.get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(`/api/v1/knowledge/files/${fileId}/graph`),
 };
 
 export default api;

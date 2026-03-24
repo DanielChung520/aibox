@@ -16,7 +16,7 @@ import {
   DatabaseOutlined
 } from '@ant-design/icons';
 import api from '../../services/api';
-import { dataAgentApi, IntentCatalogEntry, OllamaModel } from '../../services/dataAgentApi';
+import { dataAgentApi, IntentCatalogEntry } from '../../services/dataAgentApi';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -45,18 +45,15 @@ export default function IntentsPage() {
   const [editingIntent, setEditingIntent] = useState<IntentCatalogEntry | null>(null);
   const [form] = Form.useForm();
 
-  // Qdrant Sync & LLM Selector State
-  const [models, setModels] = useState<OllamaModel[]>([]);
+  const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('bge-m3:latest');
   const [syncing, setSyncing] = useState(false);
 
   const fetchModels = async () => {
     try {
-      const res = await api.get<{ models: OllamaModel[] }>('/api/v1/da/intents/models');
+      const res = await api.get<{ models: string[] }>('/api/v1/da/intents/models');
       setModels(res.data.models || []);
-    } catch {
-      // silently fail, models optional
-    }
+    } catch { /* empty */ }
   };
 
   const loadIntents = async (page = 1, pageSize = 20, search?: string) => {
@@ -269,8 +266,8 @@ export default function IntentsPage() {
           {strategyOptions.map(s => <Option key={s} value={s}>{s}</Option>)}
         </Select>
 
-        <Select value={selectedModel} onChange={setSelectedModel} style={{ width: 160 }} placeholder="選擇 LLM 模型">
-          {models.length > 0 ? models.map(m => <Option key={m.name} value={m.name}>{m.name}</Option>) : <Option value="bge-m3:latest">bge-m3:latest</Option>}
+        <Select value={selectedModel} onChange={setSelectedModel} style={{ width: 160 }} placeholder="選擇 Embedding 模型">
+          {models.length > 0 ? models.map(m => <Option key={m} value={m}>{m}</Option>) : <Option value="bge-m3:latest">bge-m3:latest</Option>}
         </Select>
 
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新增意圖</Button>
@@ -339,9 +336,9 @@ export default function IntentsPage() {
       <Modal
         title={editingIntent ? '編輯意圖' : '新增意圖'}
         open={modalVisible} onOk={handleModalSubmit} onCancel={() => setModalVisible(false)}
-        width={800} okText="儲存" cancelText="取消" forceRender
+        width={800} okText="儲存" cancelText="取消" destroyOnClose
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" preserve={false}>
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="intent_id" label="Intent ID" rules={[{ required: true, message: '請輸入 Intent ID' }]}>

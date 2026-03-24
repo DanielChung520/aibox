@@ -5,9 +5,9 @@ Defines all data models for the NL→SQL pipeline:
 PipelineConfig, PipelineResult, IntentMatch, QueryPlan,
 SchemaContext, SQLResult, ValidationResult.
 
-# Last Update: 2026-03-23 23:24:21
+# Last Update: 2026-03-24 16:17:53
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 1.1.0
 """
 
 from enum import Enum
@@ -174,6 +174,28 @@ class PipelineResult(BaseModel):
     generated_sql: str = ""
     validation: Optional[ValidationResult] = None
     execution_result: Optional[SQLResult] = None
+    clarification: Optional["ClarificationResponse"] = None
+    error_explanation: Optional["ErrorExplanation"] = None
     error: Optional[str] = None
     phases: list[PipelinePhaseResult] = Field(default_factory=list)
     total_time_ms: float = 0.0
+
+
+class ClarificationQuestion(BaseModel):
+    """A single clarification question for an ambiguous NL query."""
+    field: str = ""
+    question: str
+
+
+class ClarificationResponse(BaseModel):
+    """Pre-query clarification when NL query is semantically incomplete."""
+    needs_clarification: bool
+    reason: str = ""
+    questions: list[ClarificationQuestion] = Field(default_factory=list)
+
+
+class ErrorExplanation(BaseModel):
+    """Post-query error explanation when pipeline fails."""
+    error_type: str
+    explanation: str
+    suggestions: list[str] = Field(default_factory=list)

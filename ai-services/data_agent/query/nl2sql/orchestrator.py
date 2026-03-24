@@ -2,11 +2,12 @@
 NL→SQL Pipeline - Orchestrator
 
 Main pipeline entry point that coordinates all phases:
-Intent Classification → Reranking → Schema → Plan → SQL → Validation → Execution
+Clarification → Intent Classification → Reranking → Schema → Plan
+→ SQL → Validation → Execution → Error Explanation (on failure)
 
-# Last Update: 2026-03-24 14:12:23
+# Last Update: 2026-03-24 16:17:53
 # Author: Daniel Chung
-# Version: 1.1.0
+# Version: 1.2.0
 """
 
 import logging
@@ -14,6 +15,7 @@ import os
 import time
 
 from data_agent.config_reader import get_param
+from data_agent.query.nl2sql.error_explainer import explain_error
 from data_agent.query.nl2sql.exceptions import PipelineError
 from data_agent.query.nl2sql.executor import execute_sql
 from data_agent.query.nl2sql.intent_classifier import (
@@ -28,6 +30,7 @@ from data_agent.query.nl2sql.models import (
     PipelineResult,
 )
 from data_agent.query.nl2sql.plan_generator import generate_query_plan
+from data_agent.query.nl2sql.query_clarifier import check_query_clarity
 from data_agent.query.nl2sql.reranker import RERANK_THRESHOLD, rerank_candidates
 from data_agent.query.nl2sql.schema_retriever import retrieve_schema
 from data_agent.query.nl2sql.sql_generator import generate_sql
@@ -121,9 +124,12 @@ async def _generate_and_execute(
             last_error = str([e.message for e in validation.errors])
             if attempt < config.max_retries:
                 continue
+            err_msg = "SQL validation failed after retries"
+            explanation = await explain_error(query, err_msg, "sql_validation", config)
             return PipelineResult(success=False, query=query, matched_intent=intent,
                                   query_plan=plan, generated_sql=generated_sql,
-                                  validation=validation, error="SQL validation failed after retries",
+                                  validation=validation, error=err_msg,
+                                  error_explanation=explanation,
                                   phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
 
         t0 = time.time() * 1000
@@ -143,26 +149,44 @@ async def _generate_and_execute(
             last_error = str(exec_err)
             if attempt < config.max_retries:
                 continue
+            err_msg = f"[execution] {last_error}"
+            explanation = await explain_error(query, last_error, "execution", config)
             return PipelineResult(success=False, query=query, matched_intent=intent,
                                   query_plan=plan, generated_sql=generated_sql,
-                                  validation=validation, error=f"[execution] {last_error}",
+                                  validation=validation, error=err_msg,
+                                  error_explanation=explanation,
                                   phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
 
+    explanation = await explain_error(query, last_error, "pipeline_exhausted", config)
     return PipelineResult(success=False, query=query, matched_intent=intent,
                           query_plan=plan, generated_sql=generated_sql,
                           validation=validation, error=f"Pipeline exhausted retries: {last_error}",
+                          error_explanation=explanation,
                           phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
 
 
 async def run_nl2sql_pipeline(
     query: str, config: PipelineConfig | None = None,
 ) -> PipelineResult:
-    """Run the full NL→SQL pipeline with optional reranking."""
+    """Run the full NL→SQL pipeline with pre-query clarification and error explanation."""
     if config is None:
         config = await _build_config()
 
     start_time = time.time() * 1000
     phases: list[PipelinePhaseResult] = []
+
+    t0 = time.time() * 1000
+    clarification = await check_query_clarity(query, config)
+    phases.append(PipelinePhaseResult(
+        phase="clarification_check", duration_ms=round(time.time() * 1000 - t0, 2),
+    ))
+
+    if clarification.needs_clarification:
+        return PipelineResult(
+            success=False, query=query, clarification=clarification,
+            error="Query needs clarification before processing",
+            phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2),
+        )
 
     try:
         intent, _ = await _classify_with_reranking(query, config, phases)
@@ -170,9 +194,13 @@ async def run_nl2sql_pipeline(
     except PipelineError as e:
         logger.error("Pipeline error at %s: %s", e.phase, str(e))
         phases.append(PipelinePhaseResult(phase=e.phase, duration_ms=0, success=False, error=str(e)))
+        explanation = await explain_error(query, str(e), e.phase, config)
         return PipelineResult(success=False, query=query, error=f"[{e.phase}] {str(e)}",
+                              error_explanation=explanation,
                               phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))
     except Exception as e:
         logger.error("Unexpected pipeline error: %s", str(e))
+        explanation = await explain_error(query, str(e), "unknown", config)
         return PipelineResult(success=False, query=query, error=f"Unexpected error: {str(e)}",
+                              error_explanation=explanation,
                               phases=phases, total_time_ms=round(time.time() * 1000 - start_time, 2))

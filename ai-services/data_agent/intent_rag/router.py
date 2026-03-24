@@ -3,9 +3,9 @@ Intent RAG Router - Qdrant-based intent matching, embedding sync, Ollama models.
 
 Migrated from the standalone da_intent_rag service into the unified data_agent.
 
-# Last Update: 2026-03-23 18:40:25
+# Last Update: 2026-03-24 20:10:43
 # Author: Daniel Chung
-# Version: 2.0.0
+# Version: 2.2.0
 """
 
 import os
@@ -26,7 +26,7 @@ ARANGO_URL = os.getenv("ARANGO_URL", "http://localhost:8529")
 ARANGO_DB = os.getenv("ARANGO_DATABASE", "abc_desktop")
 ARANGO_USER = os.getenv("ARANGO_USER", "root")
 ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "abc_desktop_2026")
-MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.58"))
+MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", "0.56"))
 
 
 class IntentMatchRequest(BaseModel):

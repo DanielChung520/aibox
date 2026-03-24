@@ -5,9 +5,9 @@ Main pipeline entry point that coordinates all phases:
 Clarification → Intent Classification → Reranking → Schema → Plan
 → SQL → Validation → Execution → Error Explanation (on failure)
 
-# Last Update: 2026-03-24 16:17:53
+# Last Update: 2026-03-24 20:10:43
 # Author: Daniel Chung
-# Version: 1.2.0
+# Version: 1.5.0
 """
 
 import logging
@@ -56,8 +56,9 @@ async def _build_config() -> PipelineConfig:
         s3_bucket=os.getenv("S3_BUCKET", "sap"),
         s3_access_key=os.getenv("S3_ACCESS_KEY", "admin"),
         s3_secret_key=os.getenv("S3_SECRET_KEY", "admin123"),
-        match_threshold=float(os.getenv("MATCH_THRESHOLD", "0.58")),
+        match_threshold=float(os.getenv("MATCH_THRESHOLD", "0.56")),
         max_retries=int(os.getenv("NL2SQL_MAX_RETRIES", "2")),
+        generate_timeout=float(os.getenv("NL2SQL_GENERATE_TIMEOUT", "60")),
     )
 
 

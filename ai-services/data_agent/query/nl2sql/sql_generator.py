@@ -1,15 +1,16 @@
 """
 NL→SQL Pipeline - 3-Tier Hybrid SQL Generator
 
-# Last Update: 2026-03-24 12:28:12
+# Last Update: 2026-03-24 16:17:53
 # Author: Daniel Chung
-# Version: 1.1.0
+# Version: 1.3.0
 """
 
 import re
 
 import httpx
 
+from data_agent.query.nl2sql.date_utils import compute_date_range
 from data_agent.query.nl2sql.exceptions import SQLGenerationError
 from data_agent.query.nl2sql.models import (
     GenerationStrategy,
@@ -21,30 +22,36 @@ from data_agent.query.nl2sql.models import (
 
 SQL_SYSTEM_PROMPT = """You are a DuckDB SQL expert. Generate a SELECT query.
 
-MANDATORY: Tables are stored as Parquet files on S3. You MUST use read_parquet() to access them.
-NEVER write FROM EKKO or FROM MARA — ALWAYS write FROM read_parquet('s3://...') AS alias.
-The exact read_parquet paths are provided in the schema section. Copy them exactly.
+MANDATORY: Tables are Parquet on S3. ALWAYS use read_parquet('s3://...') AS alias.
+The exact read_parquet paths are provided in the schema. Copy them exactly.
+
+DuckDB date syntax (IMPORTANT — date columns are VARCHAR in 'YYYYMMDD' format):
+- strftime(strptime(col, '%Y%m%d'), '%Y-%m') for date formatting
+- strptime(col, '%Y%m%d') to parse VARCHAR date to TIMESTAMP
+- CURRENT_DATE, INTERVAL '1 month'
 
 Rules:
-1. ONLY generate SELECT statements (no INSERT, UPDATE, DELETE, DROP, ALTER)
-2. Use exact field names from schema (they are UPPERCASE: EBELN, BUKRS, MATNR, etc.)
-3. Use appropriate JOIN syntax with read_parquet() on both sides
+1. ONLY SELECT statements (no INSERT/UPDATE/DELETE/DROP/ALTER)
+2. Use exact UPPERCASE field names from schema
+3. Use read_parquet() with JOIN on both sides
 4. Output ONLY valid SQL, no explanation"""
 
 SQL_LARGE_PROMPT = """You are a senior DuckDB SQL expert. Generate a precise SELECT query.
 
-MANDATORY: Tables are Parquet files on S3. You MUST use read_parquet() in FROM/JOIN clauses.
-NEVER write FROM EKKO — ALWAYS write FROM read_parquet('s3://sap/mm/ekko/*.parquet') AS e.
+MANDATORY: Tables are Parquet on S3. ALWAYS use read_parquet('s3://...') in FROM/JOIN.
 The exact read_parquet paths are provided in the schema. Copy them exactly.
 
-DuckDB syntax:
-- Date functions: CAST(field AS DATE), date_trunc('month', field)
-- String: ILIKE for case-insensitive, || for concat
-- Aggregation: COUNT(*), SUM(), AVG(), GROUP BY ALL
+DuckDB date syntax (IMPORTANT — date columns are VARCHAR in 'YYYYMMDD' format):
+- strftime(strptime(col, '%Y%m%d'), '%Y-%m') for date formatting
+- strptime(col, '%Y%m%d') to parse VARCHAR date to TIMESTAMP
+- CURRENT_DATE, INTERVAL '1 month'
+- BETWEEN '20260201' AND '20260228' for date range filtering (lexicographic)
+- ILIKE for case-insensitive, || for concat
+- COUNT(*), SUM(), AVG(), GROUP BY ALL
 
 Rules:
-1. ONLY SELECT statements — never INSERT/UPDATE/DELETE/DROP/ALTER
-2. Use exact field names from the provided schema (UPPERCASE: EBELN, BUKRS, etc.)
+1. ONLY SELECT — never INSERT/UPDATE/DELETE/DROP/ALTER
+2. Use exact UPPERCASE field names from the provided schema
 3. Ensure JOIN conditions match schema relations
 4. Apply all filters from the query plan
 5. Output ONLY valid SQL, no explanation or markdown"""
@@ -59,7 +66,7 @@ async def generate_sql(
     previous_error: str = "",
 ) -> str:
     if intent.generation_strategy == GenerationStrategy.TEMPLATE:
-        return _fill_template(plan, intent, config)
+        return _fill_template(query, plan, intent, config)
 
     model = (
         config.small_model
@@ -79,7 +86,7 @@ async def generate_sql(
 
 
 def _fill_template(
-    plan: QueryPlan, intent: IntentMatch, config: PipelineConfig
+    query: str, plan: QueryPlan, intent: IntentMatch, config: PipelineConfig
 ) -> str:
     template = intent.sql_template
     if not template:
@@ -113,8 +120,9 @@ def _fill_template(
         template = template.replace("{conditions}", "1=1")
 
     template = template.replace("{limit}", str(plan.limit))
-    template = template.replace("{start_date}", "")
-    template = template.replace("{end_date}", "")
+    start_date, end_date = compute_date_range(query)
+    template = template.replace("{start_date}", start_date)
+    template = template.replace("{end_date}", end_date)
 
     return template.strip()
 
@@ -197,7 +205,6 @@ def _extract_sql(content: str) -> str:
 
 
 def _build_few_shot_block(intent: IntentMatch) -> str:
-    """Pairing: example_sqls[i]↔nl_examples[i], fallback to sql_template. Max 3."""
     pairs: list[tuple[str, str]] = []
 
     if intent.example_sqls:
@@ -224,30 +231,22 @@ def _build_few_shot_block(intent: IntentMatch) -> str:
 def _format_schema_brief(schema: SchemaContext) -> str:
     lines: list[str] = []
     alias_map: dict[str, str] = {}
+    master_tables = {"mara", "lfa1", "mard", "mchb", "t024", "t001", "t024e"}
     for tbl in schema.tables:
         fields = [f for f in schema.fields if f.table_name == tbl.table_name]
-        field_strs = [
-            f"{f.field_name}({f.data_type})" for f in fields
-        ]
+        field_strs = [f"{f.field_name}({f.data_type})" for f in fields]
         module = tbl.module.lower() if tbl.module else "mm"
-        table_lower = tbl.table_name.lower()
-        master_tables = {"mara", "lfa1", "mard", "mchb", "t024", "t001", "t024e"}
-        suffix = "all.parquet" if table_lower in master_tables else "*.parquet"
-        parquet_path = f"read_parquet('s3://sap/{module}/{table_lower}/{suffix}')"
-        alias = table_lower[0]
+        tbl_lower = tbl.table_name.lower()
+        suffix = "all.parquet" if tbl_lower in master_tables else "*.parquet"
+        pq = f"read_parquet('s3://sap/{module}/{tbl_lower}/{suffix}')"
+        alias = tbl_lower[0]
         if alias in alias_map.values():
-            alias = table_lower[:2]
+            alias = tbl_lower[:2]
         alias_map[tbl.table_name] = alias
-        lines.append(
-            f"-- {tbl.table_name}: FROM {parquet_path} AS {alias}\n"
-            f"--   Columns: {', '.join(field_strs)}"
-        )
-
+        lines.append(f"-- {tbl.table_name}: FROM {pq} AS {alias}\n"
+                     f"--   Columns: {', '.join(field_strs)}")
     if schema.relations:
-        rels = [
-            f"{r.from_table}.{r.from_field}→{r.to_table}.{r.to_field}"
-            for r in schema.relations
-        ]
+        rels = [f"{r.from_table}.{r.from_field}→{r.to_table}.{r.to_field}"
+                for r in schema.relations]
         lines.append(f"-- Relations: {'; '.join(rels)}")
-
     return "\n".join(lines)

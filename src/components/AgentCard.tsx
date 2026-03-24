@@ -1,7 +1,7 @@
 /**
  * @file        Agent 卡片組件
  * @description 顯示 Agent 信息卡片，支持收藏、編輯、刪除和對話操作
- * @lastUpdate  2026-03-22 19:23:12
+ * @lastUpdate  2026-03-24 22:33:13
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -17,7 +17,7 @@ import {
   MessageOutlined 
 } from '@ant-design/icons';
 import { iconMap } from '../utils/icons';
-import { useEffectiveTheme, useContentTokens } from '../contexts/AppThemeProvider';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 interface Agent {
   id: string;
@@ -54,16 +54,14 @@ export default function AgentCard({
   isFavorite: initialIsFavorite = false 
 }: AgentCardProps) {
   const { token } = theme.useToken();
-  const effectiveTheme = useEffectiveTheme();
   const contentTokens = useContentTokens();
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
 
-  const isDarkMode = effectiveTheme === 'dark';
   const hoverShadow = contentTokens.cardShadowHover || token.boxShadowSecondary;
   const normalShadow = contentTokens.cardShadow || token.boxShadow;
-  const iconBgColor = isDarkMode ? 'rgba(167, 139, 250, 0.2)' : '#e6f7ff';
-  const iconColor = isDarkMode ? '#a78bfa' : '#1890ff';
+  const iconBgColor = `${contentTokens.colorPrimary}1a`;
+  const iconColor = contentTokens.colorPrimary;
   const descColor = contentTokens.textSecondary;
   const metaColor = contentTokens.textSecondary;
 
@@ -99,7 +97,7 @@ export default function AgentCard({
         transition: 'all 0.3s ease',
         transform: isHovered && !isDisabled ? 'translateY(-4px)' : 'none',
         boxShadow: isHovered && !isDisabled ? hoverShadow : normalShadow,
-        border: isHovered && isDarkMode ? '1px solid rgba(167, 139, 250, 0.5)' : undefined,
+        border: isHovered ? `1px solid ${contentTokens.colorPrimary}80` : undefined,
         width: '100%',
       }}
       onClick={() => !isDisabled && onChat?.(agent.id)}
@@ -138,7 +136,7 @@ export default function AgentCard({
             <Button 
               type="text" 
               size="small"
-              icon={isFavorite ? <HeartFilled style={{ color: '#ff4d4f' }} /> : <HeartOutlined />}
+              icon={isFavorite ? <HeartFilled style={{ color: contentTokens.colorError }} /> : <HeartOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
                 const newState = !isFavorite;

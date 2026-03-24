@@ -177,7 +177,7 @@ export default function SystemParams() {
                       上传 Logo
                     </Button>
                   </Upload>
-                  <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: token.colorTextQuaternary, marginTop: 4 }}>
                     推荐尺寸: 128x128，支持 PNG/JPG/SVG
                   </div>
                 </div>

@@ -20,6 +20,7 @@ import {
   LikeOutlined, DislikeOutlined, QuestionCircleOutlined, WarningOutlined
 } from '@ant-design/icons';
 import { dataAgentApi, TableInfo, QueryResponse, NL2SqlResponse } from '../../services/dataAgentApi';
+import { useContentTokens } from '../../contexts/AppThemeProvider';
 
 import type { TabsProps } from 'antd';
 
@@ -37,6 +38,7 @@ interface AqlQueryResult {
 export default function QueryPlayground() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  const contentTokens = useContentTokens();
   const [queryMode, setQueryMode] = useState<QueryMode>('SQL');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -187,7 +189,7 @@ export default function QueryPlayground() {
     if (queryMode !== 'SQL' || !sqlResponse?.matched_intent) return null;
     const intent = sqlResponse.matched_intent;
     const scorePercent = Math.round(intent.score * 100);
-    const scoreColor = scorePercent >= 80 ? '#52c41a' : scorePercent >= 60 ? '#1677ff' : '#fa8c16';
+    const scoreColor = scorePercent >= 80 ? contentTokens.colorSuccess : scorePercent >= 60 ? contentTokens.colorPrimary : contentTokens.colorWarning;
     const strategyConfig: Record<string, { color: string; label: string }> = {
       template: { color: 'green', label: '模板替換' },
       small_llm: { color: 'blue', label: 'Small LLM' },

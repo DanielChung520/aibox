@@ -239,7 +239,7 @@ export default function MainLayout() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <ServiceStatusBar textColor={textColor} />
+            <ServiceStatusBar />
             <Button
               type="text"
               icon={isDark ? <SunOutlined /> : <MoonOutlined />}

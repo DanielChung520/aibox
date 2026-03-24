@@ -34,7 +34,7 @@ export default function Home() {
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: 128,
-          color: '#fff',
+          color: contentTokens.btnText,
           fontWeight: 'bold',
         }}>
           ABC

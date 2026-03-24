@@ -2,14 +2,15 @@
  * @file        ServiceStatusBar
  * @description Header 服務燈號列：每 30 秒透過 API Gateway 偵測各後端服務狀態，
  *              綠燈正常、黃燈延遲（>1s）、紅燈無回應，Tooltip 顯示服務名與延遲
- * @lastUpdate  2026-03-24 17:13:58
+ * @lastUpdate  2026-03-24 22:33:13
  * @author      Daniel Chung
- * @version     1.1.0
+ * @version     1.2.0
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { Tooltip } from 'antd';
 import { servicesApi, ServiceStatus } from '../services/api';
+import { useContentTokens, useShellTokens } from '../contexts/AppThemeProvider';
 
 type LightColor = 'green' | 'yellow' | 'red';
 
@@ -30,25 +31,23 @@ function statusToColor(status: ServiceStatus, latencyMs: number | null): LightCo
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
-const COLOR_HEX: Record<LightColor, string> = {
-  green:  '#52c41a',
-  yellow: '#faad14',
-  red:    '#ff4d4f',
-};
-
 const COLOR_LABEL: Record<LightColor, string> = {
   green:  '正常',
   yellow: '延遲',
   red:    '異常',
 };
 
-interface Props {
-  textColor?: string;
-}
-
-export default function ServiceStatusBar({ textColor = '#f1f5f9' }: Props) {
+export default function ServiceStatusBar() {
+  const contentTokens = useContentTokens();
+  const shellTokens = useShellTokens();
   const [lights, setLights] = useState<ServiceLight[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const colorHex: Record<LightColor, string> = {
+    green:  contentTokens.colorSuccess,
+    yellow: contentTokens.colorWarning,
+    red:    contentTokens.colorError,
+  };
 
   const fetchStatuses = useCallback(async () => {
     try {
@@ -100,15 +99,15 @@ export default function ServiceStatusBar({ textColor = '#f1f5f9' }: Props) {
               width:           10,
               height:          10,
               borderRadius:    '50%',
-              backgroundColor: COLOR_HEX[light.color],
-              boxShadow:       `0 0 4px ${COLOR_HEX[light.color]}`,
+              backgroundColor: colorHex[light.color],
+              boxShadow:       `0 0 4px ${colorHex[light.color]}`,
               cursor:          'default',
               flexShrink:      0,
             }}
           />
         </Tooltip>
       ))}
-      <span style={{ color: textColor, fontSize: 12, opacity: 0.6 }}>
+      <span style={{ color: shellTokens.menuItemColor, fontSize: 12, opacity: 0.6 }}>
         服務狀態
       </span>
     </div>

@@ -1,7 +1,7 @@
 /**
  * @file        歡迎頁面
  * @description 應用啟動後的歡迎頁，展示 logo、應用名稱，並自動跳轉至登錄頁
- * @lastUpdate  2026-03-22 19:56:42
+ * @lastUpdate  2026-03-24 22:33:13
  * @author      Daniel Chung
  * @version     1.0.0
  * @history
@@ -10,7 +10,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Typography } from 'antd';
+import { Button, Typography, theme } from 'antd';
 import { useContentTokens, useEffectiveTheme } from '../contexts/AppThemeProvider';
 import logoLight from '../assets/logo-light.png';
 import logoDark from '../assets/logo.png';
@@ -24,6 +24,7 @@ export default function Welcome() {
   const navigatedRef = useRef(false);
   const contentTokens = useContentTokens();
   const effectiveTheme = useEffectiveTheme();
+  const { token } = theme.useToken();
   const logoSrc = effectiveTheme === 'dark' ? logoDark : logoLight;
 
   useEffect(() => {
@@ -59,11 +60,11 @@ export default function Welcome() {
       <div style={{
         textAlign: 'center',
         padding: '40px',
-        background: effectiveTheme === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.85)',
+        background: `${token.colorBgElevated}cc`,
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         borderRadius: '16px',
-        border: effectiveTheme === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.08)',
+        border: `1px solid ${token.colorBorderSecondary}`,
         boxShadow: contentTokens.cardShadow,
         minWidth: '320px',
       }}>
@@ -90,7 +91,7 @@ export default function Welcome() {
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '48px',
-            color: '#fff',
+            color: contentTokens.btnText,
             fontWeight: 'bold',
             animation: 'logoScale 3.6s ease-out forwards',
           }}>

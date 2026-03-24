@@ -1,13 +1,13 @@
 /**
  * @file        樣板維護頁面
  * @description 主題樣板 CRUD 管理，支持外殼(shell)與內容(content)兩類樣板
- * @lastUpdate  2026-03-23 15:30:00
+ * @lastUpdate  2026-03-24 22:33:13
  * @author      Daniel Chung
  * @version     1.1.0
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { App, Table, Button, Modal, Form, Input, Select, Switch, Space, Tag, Popconfirm, InputNumber, Slider, Typography, ColorPicker } from 'antd';
+import { App, Table, Button, Modal, Form, Input, Select, Switch, Space, Tag, Popconfirm, InputNumber, Slider, Typography, ColorPicker, theme } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { themeTemplateApi, ThemeTemplate, ShellTokens, ContentTokens } from '../services/api';
 import { useReloadTemplates } from '../contexts/AppThemeProvider';
@@ -122,7 +122,8 @@ function TextField({ label, fieldKey, rows = 1 }: TextFieldProps) {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <Text strong style={{ display: 'block', marginBottom: 12, marginTop: 8, color: '#1e40af' }}>{children}</Text>;
+  const { token } = theme.useToken();
+  return <Text strong style={{ display: 'block', marginBottom: 12, marginTop: 8, color: token.colorPrimary }}>{children}</Text>;
 }
 
 // Shell tokens form — fields rendered directly (no Collapse) for proper form integration
@@ -254,6 +255,7 @@ function ContentTokensForm() {
 
 export default function ThemeTemplateManagement() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const reloadTemplates = useReloadTemplates();
   const [templates, setTemplates] = useState<ThemeTemplate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -477,7 +479,7 @@ export default function ThemeTemplateManagement() {
             <Input.TextArea rows={2} />
           </Form.Item>
 
-          <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid #f0f0f0' }} />
+          <hr style={{ margin: '16px 0', border: 'none', borderTop: `1px solid ${token.colorBorderSecondary}` }} />
 
           {/* 動態渲染 Shell 或 Content 的 tokens 表單 */}
           {templateType === 'shell' ? (
@@ -486,7 +488,7 @@ export default function ThemeTemplateManagement() {
             <ContentTokensForm />
           )}
 
-          <hr style={{ margin: '16px 0', border: 'none', borderTop: '1px solid #f0f0f0' }} />
+          <hr style={{ margin: '16px 0', border: 'none', borderTop: `1px solid ${token.colorBorderSecondary}` }} />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 16px' }}>
             <Form.Item

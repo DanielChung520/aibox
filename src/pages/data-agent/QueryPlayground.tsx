@@ -1,7 +1,7 @@
 /**
  * @file        Data Agent Query Playground
  * @description 用於測試和執行自然語言查詢的互動式介面
- * @lastUpdate  2026-03-23 22:26:36
+ * @lastUpdate  2026-03-24 16:36:01
  * @author      Daniel Chung
  */
 
@@ -10,14 +10,14 @@ import {
   Card, Input, Button, Select, Table, Tag, Space, 
   Typography, Spin, Alert, Divider, Row, Col, 
   Badge, Collapse, Empty, Statistic, App, Tabs, Descriptions, theme,
-  Radio, Steps
+  Radio, Steps, Progress
 } from 'antd';
 import { 
   PlayCircleOutlined, CopyOutlined, ClearOutlined, 
   DatabaseOutlined, ClockCircleOutlined,
   TableOutlined, BranchesOutlined, ThunderboltOutlined,
   InfoCircleOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  LikeOutlined, DislikeOutlined
+  LikeOutlined, DislikeOutlined, QuestionCircleOutlined, WarningOutlined
 } from '@ant-design/icons';
 import { dataAgentApi, TableInfo, QueryResponse, NL2SqlResponse } from '../../services/dataAgentApi';
 
@@ -101,8 +101,12 @@ export default function QueryPlayground() {
     try {
       const res = await dataAgentApi.nl2sql({ natural_language: query });
       const data = res.data;
+      // Always store response for clarification/error_explanation display
+      setSqlResponse(data);
       if (data.success) {
-        setSqlResponse(data);
+        setActiveTab('result');
+      } else if (data.clarification?.needs_clarification) {
+        // Pre-query clarification — not a real error
         setActiveTab('result');
       } else {
         setError(data.error || '查詢執行失敗');
@@ -177,6 +181,65 @@ export default function QueryPlayground() {
     } else {
       message.info('感謝您的回饋');
     }
+  };
+
+  const renderGenerateSqlCard = () => {
+    if (queryMode !== 'SQL' || !sqlResponse?.matched_intent) return null;
+    const intent = sqlResponse.matched_intent;
+    const scorePercent = Math.round(intent.score * 100);
+    const scoreColor = scorePercent >= 80 ? '#52c41a' : scorePercent >= 60 ? '#1677ff' : '#fa8c16';
+    const strategyConfig: Record<string, { color: string; label: string }> = {
+      template: { color: 'green', label: '模板替換' },
+      small_llm: { color: 'blue', label: 'Small LLM' },
+      large_llm: { color: 'orange', label: 'Large LLM' },
+    };
+    const strategy = strategyConfig[intent.generation_strategy] ?? { color: 'default', label: intent.generation_strategy };
+
+    return (
+      <Card title="Generate SQL 分析" style={{ marginBottom: 16 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Row>
+            <Col span={8}><Text type="secondary">意圖分類</Text></Col>
+            <Col span={16}><Tag color="purple">{intent.intent_type}</Tag></Col>
+          </Row>
+          <Row>
+            <Col span={8}><Text type="secondary">意圖群組</Text></Col>
+            <Col span={16}><Tag color="cyan">{intent.group}</Tag></Col>
+          </Row>
+          <Row>
+            <Col span={8}><Text type="secondary">生成策略</Text></Col>
+            <Col span={16}><Tag color={strategy.color}>{strategy.label}</Tag></Col>
+          </Row>
+          <Row align="middle">
+            <Col span={8}><Text type="secondary">置信度</Text></Col>
+            <Col span={16}>
+              <Space>
+                <Progress percent={scorePercent} size="small" style={{ width: 120 }} strokeColor={scoreColor} showInfo={false} />
+                <Text style={{ color: scoreColor, fontWeight: 600 }}>{scorePercent}%</Text>
+              </Space>
+            </Col>
+          </Row>
+          {intent.tables.length > 0 && (
+            <Row>
+              <Col span={8}><Text type="secondary">相關資料表</Text></Col>
+              <Col span={16}>
+                <Space wrap size={4}>
+                  {intent.tables.map(t => <Tag key={t}>{t}</Tag>)}
+                </Space>
+              </Col>
+            </Row>
+          )}
+          <Row>
+            <Col span={8}><Text type="secondary">意圖描述</Text></Col>
+            <Col span={16}><Text>{intent.description}</Text></Col>
+          </Row>
+          <Row>
+            <Col span={8}><Text type="secondary">Intent ID</Text></Col>
+            <Col span={16}><Text code style={{ fontSize: 11 }}>{intent.intent_id}</Text></Col>
+          </Row>
+        </Space>
+      </Card>
+    );
   };
 
   const availableModules = [...new Set(tables.map(t => t.module))];
@@ -327,6 +390,50 @@ const renderResultTabs = () => {
 
             {error && <Alert type="error" description={error} showIcon style={{ marginBottom: 16 }} />}
 
+            {sqlResponse?.clarification?.needs_clarification && (
+              <Alert
+                type="warning"
+                icon={<QuestionCircleOutlined />}
+                showIcon
+                message="查詢需要澄清"
+                description={
+                  <div>
+                    <Text>{sqlResponse.clarification.reason}</Text>
+                    {sqlResponse.clarification.questions.length > 0 && (
+                      <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                        {sqlResponse.clarification.questions.map((q, i) => (
+                          <li key={i}><Text strong>{q.field ? `[${q.field}] ` : ''}</Text>{q.question}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                }
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+            {sqlResponse?.error_explanation && (
+              <Alert
+                type="error"
+                icon={<WarningOutlined />}
+                showIcon
+                message={`執行異常：${sqlResponse.error_explanation.error_type}`}
+                description={
+                  <div>
+                    <Text>{sqlResponse.error_explanation.explanation}</Text>
+                    {sqlResponse.error_explanation.suggestions.length > 0 && (
+                      <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                        {sqlResponse.error_explanation.suggestions.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                }
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
             {renderResultTabs()}
 
             {!loading && !error && !aqlResult && !sqlResponse && <Empty description="輸入查詢並點擊執行" />}
@@ -354,13 +461,9 @@ const renderResultTabs = () => {
                 />
               </Col>
             </Row>
-            {queryMode === 'SQL' && sqlResponse?.matched_intent?.generation_strategy && (
-              <div style={{ marginTop: 16 }}>
-                <Text type="secondary">匹配策略：</Text>
-                <Tag color="purple" style={{ marginLeft: 8 }}>{sqlResponse.matched_intent.generation_strategy}</Tag>
-              </div>
-            )}
           </Card>
+
+          {renderGenerateSqlCard()}
 
           {queryMode === 'AQL' && (
             <Card title="可用資料表" style={{ marginBottom: 16 }}>

@@ -1,7 +1,7 @@
 /**
  * @file        Data Agent API 服務層
  * @description DA 的 Schema、Intents、Query 等 API 接口定義
- * @lastUpdate  2026-03-23 21:45:17
+ * @lastUpdate  2026-03-24 16:36:01
  * @author      Daniel Chung
  */
 
@@ -163,6 +163,23 @@ export interface NL2SqlExecution {
   execution_time_ms: number;
 }
 
+export interface ClarificationQuestion {
+  field: string;
+  question: string;
+}
+
+export interface ClarificationResponse {
+  needs_clarification: boolean;
+  reason: string;
+  questions: ClarificationQuestion[];
+}
+
+export interface ErrorExplanation {
+  error_type: string;
+  explanation: string;
+  suggestions: string[];
+}
+
 export interface NL2SqlResponse {
   success: boolean;
   query: string;
@@ -171,6 +188,8 @@ export interface NL2SqlResponse {
   generated_sql: string;
   validation?: NL2SqlValidation;
   execution_result?: NL2SqlExecution;
+  clarification?: ClarificationResponse;
+  error_explanation?: ErrorExplanation;
   error?: string;
   phases: NL2SqlPhaseResult[];
   total_time_ms: number;

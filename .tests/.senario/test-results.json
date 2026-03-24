@@ -1,0 +1,252 @@
+{
+  "timestamp": "2026-03-24 13:42:57",
+  "total": 100,
+  "passed": 72,
+  "failed": 28,
+  "pass_rate": 72.0,
+  "intent_accuracy": 77.5,
+  "avg_duration_ms": 765.0,
+  "by_category": {
+    "normal": {
+      "total": 80,
+      "passed": 62,
+      "pass_rate": 77.5
+    },
+    "ambiguous": {
+      "total": 10,
+      "passed": 3,
+      "pass_rate": 30.0
+    },
+    "error": {
+      "total": 10,
+      "passed": 7,
+      "pass_rate": 70.0
+    }
+  },
+  "failures": [
+    {
+      "sid": "S-007",
+      "query": "今年 Q1 的採購訂單",
+      "expected": "mm_a01",
+      "actual": "mm_a03",
+      "score": 0.6747,
+      "reason": "Intent mismatch: expected=mm_a01 actual=mm_a03"
+    },
+    {
+      "sid": "S-011",
+      "query": "供應商 V001 的基本資料",
+      "expected": "mm_b01",
+      "actual": "mm_b06",
+      "score": 0.7063,
+      "reason": "Intent mismatch: expected=mm_b01 actual=mm_b06"
+    },
+    {
+      "sid": "S-018",
+      "query": "物料 M-0050 的重量是多少",
+      "expected": "mm_c01",
+      "actual": "",
+      "score": 0.0,
+      "reason": "No match returned"
+    },
+    {
+      "sid": "S-020",
+      "query": "物料數量最多的物料類型",
+      "expected": "mm_c03",
+      "actual": "mm_d07",
+      "score": 0.6407,
+      "reason": "Wrong #1 (mm_d07), but expected in top-3 @ rank 2"
+    },
+    {
+      "sid": "S-035",
+      "query": "哪種異動類型金額最高",
+      "expected": "mm_e03",
+      "actual": "mm_e06",
+      "score": 0.5378,
+      "reason": "Wrong #1 (mm_e06), but expected in top-3 @ rank 2"
+    },
+    {
+      "sid": "S-038",
+      "query": "供應商 V001 上個月賣了什麼物料給我們",
+      "expected": "mm_a02",
+      "actual": "mm_b06",
+      "score": 0.6572,
+      "reason": "Intent mismatch: expected=mm_a02 actual=mm_b06"
+    },
+    {
+      "sid": "S-044",
+      "query": "哪個供應商交貨最多",
+      "expected": "mm_b04",
+      "actual": "mm_b03",
+      "score": 0.5891,
+      "reason": "Wrong #1 (mm_b03), but expected in top-3 @ rank 3"
+    },
+    {
+      "sid": "S-054",
+      "query": "收貨金額前 10 的物料",
+      "expected": "mm_e01",
+      "actual": "mm_f01",
+      "score": 0.6218,
+      "reason": "Wrong #1 (mm_f01), but expected in top-3 @ rank 3"
+    },
+    {
+      "sid": "S-055",
+      "query": "上季度每月的收貨與發料對比",
+      "expected": "mm_e04",
+      "actual": "mm_f01",
+      "score": 0.6274,
+      "reason": "Wrong #1 (mm_f01), but expected in top-3 @ rank 3"
+    },
+    {
+      "sid": "S-056",
+      "query": "工廠 1000 的異動記錄",
+      "expected": "mm_e01",
+      "actual": "mm_e08",
+      "score": 0.5827,
+      "reason": "Intent mismatch: expected=mm_e01 actual=mm_e08"
+    },
+    {
+      "sid": "S-057",
+      "query": "物料 M-0001 今年被領料幾次",
+      "expected": "mm_e02",
+      "actual": "mm_e01",
+      "score": 0.5902,
+      "reason": "Intent mismatch: expected=mm_e02 actual=mm_e01"
+    },
+    {
+      "sid": "S-058",
+      "query": "上個月有退貨的物料",
+      "expected": "mm_e07",
+      "actual": "mm_e07",
+      "score": 0.7141,
+      "reason": "Intent OK, strategy mismatch: expected=small_llm actual=large_llm"
+    },
+    {
+      "sid": "S-059",
+      "query": "哪些物料上個月有調撥進出",
+      "expected": "mm_e08",
+      "actual": "mm_c04",
+      "score": 0.6187,
+      "reason": "Wrong #1 (mm_c04), but expected in top-3 @ rank 2"
+    },
+    {
+      "sid": "S-062",
+      "query": "每個供應商供應的物料品項數",
+      "expected": "mm_b06",
+      "actual": "mm_b02",
+      "score": 0.6373,
+      "reason": "Wrong #1 (mm_b02), but expected in top-3 @ rank 2"
+    },
+    {
+      "sid": "S-076",
+      "query": "供應商 V001 的平均交貨天數",
+      "expected": "mm_f01",
+      "actual": "mm_b03",
+      "score": 0.6395,
+      "reason": "Intent mismatch: expected=mm_f01 actual=mm_b03"
+    },
+    {
+      "sid": "S-077",
+      "query": "採購金額佔總額 80% 的核心物料",
+      "expected": "mm_f04",
+      "actual": "mm_a05",
+      "score": 0.5696,
+      "reason": "Intent mismatch: expected=mm_f04 actual=mm_a05"
+    },
+    {
+      "sid": "S-079",
+      "query": "過去半年每月的採購 vs 消耗趨勢圖資料",
+      "expected": "mm_f02",
+      "actual": "mm_a04",
+      "score": 0.758,
+      "reason": "Wrong #1 (mm_a04), but expected in top-3 @ rank 2"
+    },
+    {
+      "sid": "S-080",
+      "query": "哪些物料有採購但從未消耗",
+      "expected": "mm_f02",
+      "actual": "mm_f01",
+      "score": 0.5008,
+      "reason": "Intent mismatch: expected=mm_f02 actual=mm_f01"
+    },
+    {
+      "sid": "S-081",
+      "query": "幫我查一下數據",
+      "expected": "",
+      "actual": "mm_e08",
+      "score": 0.5923,
+      "reason": "High score 0.5923 on ambiguous query → matched mm_e08"
+    },
+    {
+      "sid": "S-082",
+      "query": "最近的資料",
+      "expected": "",
+      "actual": "mm_c04",
+      "score": 0.6356,
+      "reason": "High score 0.6356 on ambiguous query → matched mm_c04"
+    },
+    {
+      "sid": "S-084",
+      "query": "那個東西的量",
+      "expected": "",
+      "actual": "mm_a04",
+      "score": 0.5634,
+      "reason": "High score 0.5634 on ambiguous query → matched mm_a04"
+    },
+    {
+      "sid": "S-086",
+      "query": "比較一下",
+      "expected": "",
+      "actual": "mm_b03",
+      "score": 0.5576,
+      "reason": "High score 0.5576 on ambiguous query → matched mm_b03"
+    },
+    {
+      "sid": "S-087",
+      "query": "上個月的情況",
+      "expected": "",
+      "actual": "mm_a04",
+      "score": 0.6103,
+      "reason": "High score 0.6103 on ambiguous query → matched mm_a04"
+    },
+    {
+      "sid": "S-089",
+      "query": "幫我看看 M-0001",
+      "expected": "",
+      "actual": "mm_e01",
+      "score": 0.6173,
+      "reason": "High score 0.6173 on ambiguous query → matched mm_e01"
+    },
+    {
+      "sid": "S-090",
+      "query": "供應商排名",
+      "expected": "",
+      "actual": "mm_b04",
+      "score": 0.7386,
+      "reason": "High score 0.7386 on ambiguous query → matched mm_b04"
+    },
+    {
+      "sid": "S-091",
+      "query": "查詢 FI 模組的會計憑證",
+      "expected": "",
+      "actual": "mm_e05",
+      "score": 0.5985,
+      "reason": "Unexpected match mm_e05 score=0.5985"
+    },
+    {
+      "sid": "S-092",
+      "query": "查詢物料的 ABC_NONEXIST_FIELD 欄位",
+      "expected": "",
+      "actual": "mm_f04",
+      "score": 0.5597,
+      "reason": "Unexpected match mm_f04 score=0.5597"
+    },
+    {
+      "sid": "S-095",
+      "query": "查詢 SD 模組的銷售訂單 VBAK",
+      "expected": "",
+      "actual": "mm_a01",
+      "score": 0.5946,
+      "reason": "Unexpected match mm_a01 score=0.5946"
+    }
+  ]
+}

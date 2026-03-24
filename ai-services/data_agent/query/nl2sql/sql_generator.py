@@ -1,14 +1,9 @@
 """
 NL→SQL Pipeline - 3-Tier Hybrid SQL Generator
 
-Generates DuckDB-compatible SQL from a JSON Query Plan using one of three tiers:
-- Template: Fill placeholders in sql_template (no LLM)
-- Small LLM: qwen2.5-coder:7b with focused schema
-- Large LLM: qwen3:32b with full reasoning
-
-# Last Update: 2026-03-23 23:24:21
+# Last Update: 2026-03-24 12:28:12
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 1.1.0
 """
 
 import re
@@ -63,22 +58,6 @@ async def generate_sql(
     config: PipelineConfig,
     previous_error: str = "",
 ) -> str:
-    """Generate DuckDB SQL from a query plan using the appropriate tier.
-
-    Args:
-        query: Original natural language query.
-        plan: JSON Query Plan.
-        intent: Matched intent with strategy and template.
-        schema: Pruned schema context.
-        config: Pipeline configuration.
-        previous_error: Error message from previous attempt (for self-correction).
-
-    Returns:
-        DuckDB-compatible SELECT SQL string.
-
-    Raises:
-        SQLGenerationError: When SQL generation fails.
-    """
     if intent.generation_strategy == GenerationStrategy.TEMPLATE:
         return _fill_template(plan, intent, config)
 
@@ -95,24 +74,21 @@ async def generate_sql(
     )
 
     return await _generate_sql_with_llm(
-        query, plan, schema, config, model, system_prompt, previous_error
+        query, plan, intent, schema, config, model, system_prompt, previous_error
     )
 
 
 def _fill_template(
     plan: QueryPlan, intent: IntentMatch, config: PipelineConfig
 ) -> str:
-    """Fill SQL template placeholders with query plan values."""
     template = intent.sql_template
     if not template:
         raise SQLGenerationError("No sql_template found for template-tier intent")
 
-    # Phase 1: Replace time/path placeholders inside existing read_parquet() paths
     template = template.replace("{time_range}", "*")
     template = template.replace("{po_number}", _extract_placeholder(plan, "po_number"))
     template = template.replace("{vendor_list}", _extract_placeholder(plan, "vendor_list"))
 
-    # Phase 2: Replace bare table references with read_parquet (S3 creds via DuckDB SET)
     if "read_parquet" not in intent.sql_template:
         for table in plan.tables:
             module = table.split("_")[0].lower() if "_" in table else "mm"
@@ -127,7 +103,6 @@ def _fill_template(
                 count=1,
             )
 
-    # Phase 4: Build WHERE conditions from plan filters
     if plan.filters:
         conditions = " AND ".join(
             f"{f.field} {f.operator} '{f.value}'" for f in plan.filters
@@ -137,7 +112,6 @@ def _fill_template(
         template = template.replace("WHERE {conditions}", "")
         template = template.replace("{conditions}", "1=1")
 
-    # Phase 5: Replace remaining common placeholders
     template = template.replace("{limit}", str(plan.limit))
     template = template.replace("{start_date}", "")
     template = template.replace("{end_date}", "")
@@ -146,7 +120,6 @@ def _fill_template(
 
 
 def _extract_placeholder(plan: QueryPlan, key: str) -> str:
-    """Extract a value from plan filters matching a placeholder key."""
     for f in plan.filters:
         if key in f.field.lower() or key in f.value.lower():
             return f.value
@@ -156,15 +129,16 @@ def _extract_placeholder(plan: QueryPlan, key: str) -> str:
 async def _generate_sql_with_llm(
     query: str,
     plan: QueryPlan,
+    intent: IntentMatch,
     schema: SchemaContext,
     config: PipelineConfig,
     model: str,
     system_prompt: str,
     previous_error: str = "",
 ) -> str:
-    """Generate SQL using LLM (Ollama)."""
     schema_desc = _format_schema_brief(schema)
     plan_json = plan.model_dump_json(indent=2)
+    few_shot_block = _build_few_shot_block(intent)
 
     error_context = ""
     if previous_error:
@@ -178,6 +152,7 @@ async def _generate_sql_with_llm(
         f"Query Plan:\n{plan_json}\n\n"
         f"Available tables (use EXACTLY these FROM clauses):\n"
         f"{schema_desc}\n\n"
+        f"{few_shot_block}"
         f"CRITICAL: Do NOT use bare table names. "
         f"You MUST use read_parquet('s3://...') as shown above.\n"
         f"ONLY use column names listed in the schema above."
@@ -210,7 +185,6 @@ async def _generate_sql_with_llm(
 
 
 def _extract_sql(content: str) -> str:
-    """Extract SQL from LLM response, handling markdown code blocks."""
     sql_match = re.search(r"```(?:sql)?\s*([\s\S]*?)```", content)
     if sql_match:
         return sql_match.group(1).strip()
@@ -222,8 +196,32 @@ def _extract_sql(content: str) -> str:
     raise SQLGenerationError(f"No valid SQL in LLM response: {content[:200]}")
 
 
+def _build_few_shot_block(intent: IntentMatch) -> str:
+    """Pairing: example_sqls[i]↔nl_examples[i], fallback to sql_template. Max 3."""
+    pairs: list[tuple[str, str]] = []
+
+    if intent.example_sqls:
+        for i, sql in enumerate(intent.example_sqls[:3]):
+            nl = intent.nl_examples[i] if i < len(intent.nl_examples) else ""
+            if nl and sql:
+                pairs.append((nl, sql))
+    elif intent.nl_examples and intent.sql_template:
+        pairs.append((intent.nl_examples[0], intent.sql_template))
+
+    if not pairs:
+        return ""
+
+    lines = ["Reference examples for this query type:\n"]
+    for idx, (nl, sql) in enumerate(pairs, 1):
+        lines.append(f"Example {idx}:")
+        lines.append(f"  Question: {nl}")
+        lines.append(f"  SQL: {sql}\n")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def _format_schema_brief(schema: SchemaContext) -> str:
-    """Format schema for LLM prompt — tables shown as FROM-ready SQL snippets."""
     lines: list[str] = []
     alias_map: dict[str, str] = {}
     for tbl in schema.tables:
@@ -233,12 +231,10 @@ def _format_schema_brief(schema: SchemaContext) -> str:
         ]
         module = tbl.module.lower() if tbl.module else "mm"
         table_lower = tbl.table_name.lower()
-        # Heuristic: master data tables use /all.parquet, others use /*.parquet
         master_tables = {"mara", "lfa1", "mard", "mchb", "t024", "t001", "t024e"}
         suffix = "all.parquet" if table_lower in master_tables else "*.parquet"
         parquet_path = f"read_parquet('s3://sap/{module}/{table_lower}/{suffix}')"
         alias = table_lower[0]
-        # Deduplicate aliases (e.g., ekko=e, ekpo=e2)
         if alias in alias_map.values():
             alias = table_lower[:2]
         alias_map[tbl.table_name] = alias

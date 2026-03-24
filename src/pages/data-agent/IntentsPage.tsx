@@ -248,7 +248,8 @@ export default function IntentsPage() {
     setEditingIntent(intent);
     form.setFieldsValue({
       ...intent,
-      nl_examples: intent.nl_examples ? intent.nl_examples.join('\n') : ''
+      nl_examples: intent.nl_examples ? intent.nl_examples.join('\n') : '',
+      example_sqls: intent.example_sqls ? intent.example_sqls.join('\n---\n') : ''
     });
     setModalVisible(true);
   };
@@ -260,6 +261,7 @@ export default function IntentsPage() {
       const payload: IntentCatalogEntry = {
         ...values,
         nl_examples: values.nl_examples ? values.nl_examples.split('\n').filter((l: string) => l.trim()) : [],
+        example_sqls: values.example_sqls ? values.example_sqls.split('\n---\n').filter((l: string) => l.trim()) : [],
         is_template: true
       };
 
@@ -335,7 +337,11 @@ export default function IntentsPage() {
       dataIndex: 'nl_examples',
       key: 'nl_examples',
       width: 90,
-      render: (ex: string[]) => <Tag color="default">{ex?.length || 0} 個</Tag>
+      render: (_: string[], record: IntentCatalogEntry) => {
+        const nlCount = record.nl_examples?.length || 0;
+        const sqlCount = record.example_sqls?.length || 0;
+        return <Tag color={sqlCount > 0 ? 'green' : 'default'}>{nlCount} NL / {sqlCount} SQL</Tag>;
+      }
     },
     {
       title: 'Actions', key: 'actions', width: 120,
@@ -437,7 +443,16 @@ export default function IntentsPage() {
               children: (
                 <Card size="small">
                   <ol>
-                    {(selectedIntent.nl_examples || []).map((ex, i) => <li key={i} style={{ marginBottom: 8 }}>{ex}</li>)}
+                    {(selectedIntent.nl_examples || []).map((ex, i) => (
+                      <li key={i} style={{ marginBottom: 8 }}>
+                        <div>{ex}</div>
+                        {selectedIntent.example_sqls?.[i] && (
+                          <pre style={{ background: token.colorInfoBg, padding: 8, borderRadius: 4, fontSize: 11, margin: '4px 0 0' }}>
+                            {selectedIntent.example_sqls[i]}
+                          </pre>
+                        )}
+                      </li>
+                    ))}
                   </ol>
                 </Card>
               )
@@ -510,6 +525,9 @@ export default function IntentsPage() {
           </Row>
           <Form.Item name="nl_examples" label="NL Examples (每行一個)" rules={[{ required: true, message: '請輸入至少一個 NL Example' }]}>
             <TextArea rows={4} placeholder="請輸入自然語言範例，每行一個" />
+          </Form.Item>
+          <Form.Item name="example_sqls" label="Example SQLs (每段用 --- 分隔，順序對應 NL Examples)">
+            <TextArea rows={4} style={{ fontFamily: 'monospace' }} placeholder="SELECT ... FROM ...\n---\nSELECT ... FROM ..." />
           </Form.Item>
           <Form.Item name="sql_template" label="SQL Template" rules={[{ required: true, message: '請輸入 SQL Template' }]}>
             <TextArea rows={6} style={{ fontFamily: 'monospace' }} />

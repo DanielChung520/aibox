@@ -107,6 +107,7 @@ export interface IntentCatalogEntry {
   tables?: string[];
   core_fields?: string[];
   nl_examples: string[];
+  example_sqls?: string[];
   sql_template: string;
   is_template: boolean;
   generation_strategy: 'template' | 'small_llm' | 'large_llm';
@@ -131,6 +132,7 @@ export interface NL2SqlIntentMatch {
   intent_type: string;
   group: string;
   nl_examples: string[];
+  example_sqls: string[];
 }
 
 export interface NL2SqlQueryPlan {
@@ -259,6 +261,20 @@ export const dataAgentApi = {
 
   // Health
   health: () => api.get<{ status: string }>('/api/v1/da/health'),
+
+  // Data Lake Preview
+  previewTable: (tableName: string, offset = 0, limit = 20) =>
+    api.get<{
+      code: number;
+      table_name: string;
+      table_id: string;
+      table_info: TableInfo;
+      fields: FieldInfo[];
+      rows: Record<string, unknown>[];
+      total: number;
+      offset: number;
+      limit: number;
+    }>(`/api/v1/da/query/tables/${tableName}/preview`, { params: { offset, limit } }),
 };
 
 export default dataAgentApi;

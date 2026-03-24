@@ -55,6 +55,7 @@ class IntentMatch(BaseModel):
     intent_type: str = ""
     group: str = ""
     nl_examples: list[str] = Field(default_factory=list)
+    example_sqls: list[str] = Field(default_factory=list)
 
 
 class TableSchema(BaseModel):

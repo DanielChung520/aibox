@@ -82,6 +82,13 @@ async def classify_intent(
                 else []
             )
 
+            example_sqls_raw = payload.get("example_sqls", [])
+            example_sqls = (
+                [str(s) for s in example_sqls_raw]
+                if isinstance(example_sqls_raw, list)
+                else []
+            )
+
             return IntentMatch(
                 intent_id=str(payload.get("intent_id", "")),
                 score=score,
@@ -93,6 +100,7 @@ async def classify_intent(
                 intent_type=str(payload.get("intent_type", "")),
                 group=str(payload.get("group", "")),
                 nl_examples=nl_examples,
+                example_sqls=example_sqls,
             )
 
         raise IntentNotFoundError(

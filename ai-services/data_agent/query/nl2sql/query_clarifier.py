@@ -5,13 +5,16 @@ LLM judges whether the NL query is semantically complete enough to
 generate SQL.  If ambiguous or missing critical info, returns structured
 clarification questions so the frontend can prompt the user.
 
-# Last Update: 2026-03-24 16:17:53
+Rule-based pre-filter skips LLM for queries containing business keywords.
+
+# Last Update: 2026-03-24 16:36:01
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 1.1.0
 """
 
 import json
 import logging
+import re
 
 import httpx
 
@@ -22,6 +25,31 @@ from data_agent.query.nl2sql.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+_BUSINESS_KEYWORDS: set[str] = {
+    "採購", "訂單", "物料", "供應商", "庫存", "收貨", "發貨", "入庫", "出庫",
+    "PO", "PR", "GR", "MARA", "EKKO", "EKPO", "LFA1", "MARD", "MSEG", "MKPF",
+    "金額", "數量", "價格", "成本", "排名", "統計", "彙總", "明細",
+    "查詢", "列出", "顯示", "搜尋", "找出", "篩選", "比較", "分析",
+    "本月", "上個月", "今年", "去年", "本季", "上季", "近期",
+    "vendor", "material", "purchase", "inventory", "stock", "order",
+    "MAKT", "MCHB", "T001", "EBAN",
+}
+
+_KEYWORD_PATTERN = re.compile(
+    "|".join(re.escape(k) for k in _BUSINESS_KEYWORDS),
+    re.IGNORECASE,
+)
+
+_MIN_LENGTH_FOR_SKIP = 4
+
+
+def _is_likely_valid(query: str) -> bool:
+    """Fast rule-based check: skip LLM if query looks valid."""
+    stripped = query.strip()
+    if len(stripped) < _MIN_LENGTH_FOR_SKIP:
+        return False
+    return bool(_KEYWORD_PATTERN.search(stripped))
 
 CLARIFY_SYSTEM = (
     "你是一個資料查詢助手。使用者會用自然語言描述想查詢的資料。\n"
@@ -48,6 +76,10 @@ async def check_query_clarity(
     query: str, config: PipelineConfig,
 ) -> ClarificationResponse:
     """Ask LLM whether the NL query needs clarification before SQL generation."""
+    if _is_likely_valid(query):
+        logger.debug("Clarifier skipped (rule-based pass): %s", query[:60])
+        return ClarificationResponse(needs_clarification=False)
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(

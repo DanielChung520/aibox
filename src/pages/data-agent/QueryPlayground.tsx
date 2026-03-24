@@ -1,7 +1,7 @@
 /**
  * @file        Data Agent Query Playground
  * @description 用於測試和執行自然語言查詢的互動式介面
- * @lastUpdate  2026-03-24 16:36:01
+ * @lastUpdate  2026-03-24 17:00:20
  * @author      Daniel Chung
  */
 
@@ -388,7 +388,19 @@ const renderResultTabs = () => {
               </div>
             )}
 
-            {error && <Alert type="error" description={error} showIcon style={{ marginBottom: 16 }} />}
+            {error && (
+              <Alert type="error" showIcon style={{ marginBottom: 16 }} description={
+                <div>
+                  <Text>{error}</Text>
+                  {queryMode === 'SQL' && sqlResponse?.generated_sql && !sqlResponse?.error_explanation && (
+                    <div style={{ marginTop: 12 }}>
+                      <Text type="secondary" strong>產生的 SQL：</Text>
+                      <pre style={{ background: token.colorFillTertiary, padding: 12, borderRadius: 6, overflow: 'auto', maxHeight: 200, fontSize: 12, marginTop: 4 }}>{sqlResponse.generated_sql}</pre>
+                    </div>
+                  )}
+                </div>
+              } />
+            )}
 
             {sqlResponse?.clarification?.needs_clarification && (
               <Alert
@@ -427,6 +439,12 @@ const renderResultTabs = () => {
                           <li key={i}>{s}</li>
                         ))}
                       </ul>
+                    )}
+                    {sqlResponse.generated_sql && (
+                      <div style={{ marginTop: 12 }}>
+                        <Text type="secondary" strong>產生的 SQL：</Text>
+                        <pre style={{ background: token.colorFillTertiary, padding: 12, borderRadius: 6, overflow: 'auto', maxHeight: 200, fontSize: 12, marginTop: 4 }}>{sqlResponse.generated_sql}</pre>
+                      </div>
                     )}
                   </div>
                 }

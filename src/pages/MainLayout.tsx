@@ -23,6 +23,7 @@ import { authStore } from '../stores/auth';
 import { authApi, functionApi, paramsApi, Function } from '../services/api';
 import { iconMap } from '../utils/icons';
 import { useThemeMode, useShellTokens, useContentTokens, useEffectiveTheme } from '../contexts/AppThemeProvider';
+import ServiceStatusBar from '../components/ServiceStatusBar';
 
 const { Header, Sider, Content } = Layout;
 
@@ -238,6 +239,7 @@ export default function MainLayout() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <ServiceStatusBar textColor={textColor} />
             <Button
               type="text"
               icon={isDark ? <SunOutlined /> : <MoonOutlined />}

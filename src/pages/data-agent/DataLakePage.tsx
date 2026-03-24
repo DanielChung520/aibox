@@ -1,7 +1,7 @@
 /**
  * @file        數據湖表結構及數據檢視頁面
  * @description 左側顯示所有資料表列表，點擊後右側顯示欄位結構與資料預覽（分頁模式）
- * @lastUpdate  2026-03-24 06:00:00
+ * @lastUpdate  2026-03-24 19:01:41
  * @author      Daniel Chung
  * @version     1.2.0
  */
@@ -284,7 +284,7 @@ export default function DataLakePage() {
                 title: '資料表',
                 key: 'name',
                 render: (_: unknown, t: TableInfo) => (
-                  <Space direction="vertical" size={2}>
+                  <Space orientation="vertical" size={2}>
                     <Space>
                       <Text strong style={{ fontSize: 13 }}>{t.table_name}</Text>
                       <Tag color={MODULE_COLORS[t.module] || 'default'} style={{ fontSize: 10 }}>

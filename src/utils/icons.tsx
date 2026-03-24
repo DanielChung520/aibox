@@ -200,6 +200,8 @@ import {
   RocketOutlined,
   ProjectOutlined,
   PlusSquareOutlined,
+  BookOutlined,
+  ReadOutlined,
 } from '@ant-design/icons';
 
 export type IconName = string;
@@ -397,6 +399,8 @@ export const iconMap: Record<IconName, React.FC<any>> = {
   RocketOutlined,
   ProjectOutlined,
   PlusSquareOutlined,
+  BookOutlined,
+  ReadOutlined,
 };
 
 export const ANT_DESIGN_ICONS = [

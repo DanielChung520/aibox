@@ -11,7 +11,7 @@ import {
   StopOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
-import { useColors } from '../contexts/AppThemeProvider';
+import { useContentTokens } from '../contexts/AppThemeProvider';
 
 interface Message {
   id: string;
@@ -21,7 +21,7 @@ interface Message {
 }
 
 export default function TaskChat() {
-  const colors = useColors();
+  const contentTokens = useContentTokens();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -116,8 +116,8 @@ export default function TaskChat() {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: colors.bgBase,
-      color: colors.textBase,
+      background: contentTokens.colorBgBase,
+      color: contentTokens.colorTextBase,
       fontFamily: 'Inter, "PingFang SC", -apple-system, sans-serif',
       overflow: 'hidden',
     }}>
@@ -127,7 +127,7 @@ export default function TaskChat() {
         overflowY: 'auto',
         padding: '24px 16px',
         scrollbarWidth: 'thin',
-        scrollbarColor: `${colors.textSecondary} transparent`,
+        scrollbarColor: `${contentTokens.textSecondary} transparent`,
       }}>
         {messages.length === 0 && !loading && (
           <div style={{ height: '100%' }} />
@@ -143,12 +143,12 @@ export default function TaskChat() {
           >
             <div style={{
               maxWidth: '70%',
-              background: msg.role === 'user' ? colors.chatInputBg : 'transparent',
+              background: msg.role === 'user' ? contentTokens.chatInputBg : 'transparent',
               borderRadius: 8,
               padding: '10px 12px',
               fontSize: 14,
               lineHeight: 22,
-              color: colors.textBase,
+              color: contentTokens.colorTextBase,
             }}>
               {msg.content}
             </div>
@@ -164,7 +164,7 @@ export default function TaskChat() {
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    background: colors.textSecondary,
+                    background: contentTokens.textSecondary,
                     animation: 'dotBounce 1.4s ease-in-out infinite',
                     animationDelay: `${i * 0.16}s`,
                   }}
@@ -179,20 +179,20 @@ export default function TaskChat() {
       {/* 底部輸入區 */}
       <div style={{
         padding: '12px 16px',
-        borderTop: `1px solid ${colors.chatInputBg}`,
+        borderTop: `1px solid ${contentTokens.chatInputBg}`,
         flexShrink: 0,
       }}>
         {queue.length > 0 && (
           <div style={{
             marginBottom: 8,
             padding: '8px 12px',
-            background: colors.chatInputBg,
+            background: contentTokens.chatInputBg,
             borderRadius: 8,
-            border: `1px solid ${colors.chatInputBg}`,
+            border: `1px solid ${contentTokens.chatInputBg}`,
           }}>
             <div style={{
               fontSize: 12,
-              color: colors.textSecondary,
+              color: contentTokens.textSecondary,
               marginBottom: 6,
               fontWeight: 500,
             }}>
@@ -206,19 +206,19 @@ export default function TaskChat() {
                   alignItems: 'center',
                   gap: 8,
                   padding: '4px 0',
-                  borderBottom: index < queue.length - 1 ? `1px solid ${colors.chatInputBg}` : 'none',
+                  borderBottom: index < queue.length - 1 ? `1px solid ${contentTokens.chatInputBg}` : 'none',
                 }}
               >
                 <span style={{
                   fontSize: 12,
-                  color: colors.textSecondary,
+                  color: contentTokens.textSecondary,
                   flexShrink: 0,
                 }}>
                   {index + 1}.
                 </span>
                 <span style={{
                   fontSize: 13,
-                  color: colors.textBase,
+                  color: contentTokens.colorTextBase,
                   flex: 1,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -230,13 +230,13 @@ export default function TaskChat() {
                   onClick={() => handleRemoveFromQueue(index)}
                   style={{
                     fontSize: 12,
-                    color: colors.iconDefault,
+                    color: contentTokens.iconDefault,
                     cursor: 'pointer',
                     padding: '2px',
                     transition: 'color 0.2s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = colors.iconHover)}
-                  onMouseLeave={e => (e.currentTarget.style.color = colors.iconDefault)}
+                  onMouseEnter={e => (e.currentTarget.style.color = contentTokens.iconHover)}
+                  onMouseLeave={e => (e.currentTarget.style.color = contentTokens.iconDefault)}
                 >
                   <CloseOutlined />
                 </span>
@@ -254,7 +254,7 @@ export default function TaskChat() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Dropdown menu={{ items: replyModeItems, onClick: ({ key }) => setReplyMode(getLabel(replyModeItems, key) || '1. 自動') }} trigger={['click']}>
-              <span style={{ fontSize: 13, color: colors.textSecondary, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: colors.chatInputBg }}>
+              <span style={{ fontSize: 13, color: contentTokens.textSecondary, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: contentTokens.chatInputBg }}>
                 {replyMode} ▾
               </span>
             </Dropdown>
@@ -263,9 +263,9 @@ export default function TaskChat() {
             {inputBarIcons.map(item => (
               <span
                 key={item.key}
-                style={{ fontSize: 14, color: colors.iconDefault, cursor: 'pointer', transition: 'color 0.2s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = colors.iconHover)}
-                onMouseLeave={e => (e.currentTarget.style.color = colors.iconDefault)}
+                style={{ fontSize: 14, color: contentTokens.iconDefault, cursor: 'pointer', transition: 'color 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.color = contentTokens.iconHover)}
+                onMouseLeave={e => (e.currentTarget.style.color = contentTokens.iconDefault)}
               >
                 {item.icon}
               </span>
@@ -282,10 +282,10 @@ export default function TaskChat() {
             autoSize={{ minRows: 3, maxRows: 3 }}
             style={{
               width: '100%',
-              background: colors.chatInputBg,
-              border: `1px solid ${colors.chatInputBg}`,
+              background: contentTokens.chatInputBg,
+              border: `1px solid ${contentTokens.chatInputBg}`,
               borderRadius: 8,
-              color: colors.textBase,
+              color: contentTokens.colorTextBase,
               fontSize: 14,
               padding: '8px 120px 8px 12px',
               resize: 'none',
@@ -302,9 +302,9 @@ export default function TaskChat() {
             {inputBarIcons.map(item => (
               <span
                 key={item.key}
-                style={{ fontSize: 14, color: colors.iconDefault, cursor: 'pointer', transition: 'color 0.2s', padding: '2px 4px' }}
-                onMouseEnter={e => (e.currentTarget.style.color = colors.iconHover)}
-                onMouseLeave={e => (e.currentTarget.style.color = colors.iconDefault)}
+                style={{ fontSize: 14, color: contentTokens.iconDefault, cursor: 'pointer', transition: 'color 0.2s', padding: '2px 4px' }}
+                onMouseEnter={e => (e.currentTarget.style.color = contentTokens.iconHover)}
+                onMouseLeave={e => (e.currentTarget.style.color = contentTokens.iconDefault)}
               >
                 {item.icon}
               </span>
@@ -313,23 +313,23 @@ export default function TaskChat() {
               onClick={loading ? handleStop : handleSend}
               style={{
                 fontSize: 16,
-                color: loading ? colors.btnClear : (inputValue.trim() ? colors.btnSend : colors.iconDefault),
+                color: loading ? contentTokens.btnClear : (inputValue.trim() ? contentTokens.btnSend : contentTokens.iconDefault),
                 cursor: loading || inputValue.trim() ? 'pointer' : 'not-allowed',
                 transition: 'color 0.2s',
                 padding: '2px 4px',
               }}
               onMouseEnter={e => {
                 if (loading) {
-                  e.currentTarget.style.color = colors.btnClearHover;
+                  e.currentTarget.style.color = contentTokens.btnClearHover;
                 } else if (inputValue.trim()) {
-                  e.currentTarget.style.color = colors.btnSendHover;
+                  e.currentTarget.style.color = contentTokens.btnSendHover;
                 }
               }}
               onMouseLeave={e => {
                 if (loading) {
-                  e.currentTarget.style.color = colors.btnClear;
+                  e.currentTarget.style.color = contentTokens.btnClear;
                 } else if (inputValue.trim()) {
-                  e.currentTarget.style.color = colors.btnSend;
+                  e.currentTarget.style.color = contentTokens.btnSend;
                 }
               }}
             >
@@ -346,7 +346,7 @@ export default function TaskChat() {
         }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${colors.textSecondary}; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: ${contentTokens.textSecondary}; border-radius: 2px; }
       `}</style>
     </div>
   );

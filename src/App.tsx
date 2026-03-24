@@ -27,6 +27,9 @@ import UnderDevelopment from './pages/UnderDevelopment';
 import SchemaPage from './pages/data-agent/SchemaPage';
 import IntentsPage from './pages/data-agent/IntentsPage';
 import QueryPlayground from './pages/data-agent/QueryPlayground';
+import DataLakePage from './pages/data-agent/DataLakePage';
+import OntologyList from './pages/knowledge/OntologyList';
+import KnowledgeBaseManagement from './pages/knowledge/KnowledgeBaseManagement';
 import { authStore } from './stores/auth';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -52,7 +55,17 @@ function AppContent() {
 
   const algorithm = effectiveTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm;
 
+  const opacity = contentTokens.bgOpacity / 100;
+  const bgBase = contentTokens.colorBgBase;
+  const bgColor = opacity < 1 && bgBase.startsWith('#') && bgBase.length === 7
+    ? `${bgBase}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
+    : bgBase;
+
+  const pageBg = contentTokens.pageBg || bgColor;
+  const containerBg = contentTokens.containerBg || bgColor;
+
   return (
+    <div style={{ '--table-shadow': contentTokens.tableShadow || 'none' } as React.CSSProperties}>
     <ConfigProvider
       theme={{
         token: {
@@ -61,17 +74,18 @@ function AppContent() {
           colorWarning: contentTokens.colorWarning,
           colorError: contentTokens.colorError,
           colorInfo: contentTokens.colorInfo,
-          colorBgBase: contentTokens.colorBgBase,
+          colorBgBase: bgColor,
           colorTextBase: contentTokens.colorTextBase,
           borderRadius: contentTokens.borderRadius,
           fontFamily: contentTokens.fontFamily,
           boxShadow: contentTokens.boxShadow,
           boxShadowSecondary: contentTokens.boxShadowSecondary,
+          colorBgContainer: containerBg,
         },
         algorithm,
         components: {
           Layout: {
-            bodyBg: contentTokens.colorBgBase,
+            bodyBg: pageBg,
           },
           Card: {
             boxShadow: contentTokens.cardShadow,
@@ -79,6 +93,7 @@ function AppContent() {
           Table: {
             rowExpandedBg: contentTokens.tableExpandedRowBg,
             headerBg: contentTokens.tableHeaderBg,
+            rowHoverBg: contentTokens.tableRowHoverBg,
           },
         },
       }}
@@ -111,11 +126,15 @@ function AppContent() {
               <Route path="data-agent/schema" element={<SchemaPage />} />
               <Route path="data-agent/intents" element={<IntentsPage />} />
               <Route path="data-agent/playground" element={<QueryPlayground />} />
+              <Route path="data-agent/datalake" element={<DataLakePage />} />
+              <Route path="knowledge/ontology" element={<OntologyList />} />
+              <Route path="knowledge/management" element={<KnowledgeBaseManagement />} />
             </Route>
           </Routes>
         </AntApp>
       </BrowserRouter>
     </ConfigProvider>
+    </div>
   );
 }
 

@@ -296,7 +296,7 @@ export default function SystemParamsModels() {
          open={modalVisible}
          onOk={handleModalOk}
          onCancel={handleModalCancel}
-         destroyOnClose
+          destroyOnHidden
          forceRender
        >
          <Form form={form} layout="vertical">

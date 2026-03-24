@@ -1,18 +1,11 @@
-import { useEffect, useState } from 'react';
-import { paramsApi } from '../services/api';
-import { useContentTokens } from '../contexts/AppThemeProvider';
+import { useContentTokens, useEffectiveTheme } from '../contexts/AppThemeProvider';
+import logoLight from '../assets/logo-light.png';
+import logoDark from '../assets/logo.png';
 
 export default function Home() {
-  const [appLogo, setAppLogo] = useState('');
   const contentTokens = useContentTokens();
-
-  useEffect(() => {
-    paramsApi.list().then((res: any) => {
-      const params = res.data.data || [];
-      const logo = params.find((p: any) => p.param_key === 'app.logo');
-      if (logo?.param_value) setAppLogo(logo.param_value);
-    }).catch(() => {});
-  }, []);
+  const effectiveTheme = useEffectiveTheme();
+  const logoSrc = effectiveTheme === 'dark' ? logoDark : logoLight;
 
   return (
     <div style={{
@@ -21,9 +14,9 @@ export default function Home() {
       alignItems: 'center',
       justifyContent: 'center',
     }}>
-      {appLogo ? (
+      {logoSrc ? (
         <img
-          src={appLogo}
+          src={logoSrc}
           alt="logo"
           style={{
             width: 400,

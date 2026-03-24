@@ -6,33 +6,28 @@
  * @version     1.0.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Checkbox, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { authApi, paramsApi } from '../services/api';
+import { authApi } from '../services/api';
 import { authStore } from '../stores/auth';
 import { useEffectiveTheme, useContentTokens } from '../contexts/AppThemeProvider';
+import logoLight from '../assets/logo-light.png';
+import logoDark from '../assets/logo.png';
 
 const { Title, Text } = Typography;
 
 export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [appLogo, setAppLogo] = useState('');
   const { message } = App.useApp();
 
-  useEffect(() => {
-    paramsApi.list().then((res: any) => {
-      const params = res.data.data || [];
-      const logo = params.find((p: any) => p.param_key === 'app.logo');
-      if (logo?.param_value) setAppLogo(logo.param_value);
-    }).catch(() => {});
-  }, []);
-  
-  const isDark = useEffectiveTheme() === 'dark';
+  const effectiveTheme = useEffectiveTheme();
+  const isDark = effectiveTheme === 'dark';
+  const logoSrc = isDark ? logoDark : logoLight;
   const contentTokens = useContentTokens();
-  const bgColor = contentTokens.colorBgBase;
+  const pageBg = contentTokens.contentBg || contentTokens.colorBgBase;
   const cardBg = isDark ? contentTokens.chatInputBg : contentTokens.colorBgBase;
   const textColor = contentTokens.colorTextBase;
   const secondaryColor = contentTokens.textSecondary;
@@ -60,7 +55,7 @@ export default function Login() {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      background: bgColor,
+      background: pageBg,
       transition: 'background 0.3s',
     }}>
       <div style={{
@@ -72,9 +67,9 @@ export default function Login() {
         transition: 'all 0.3s',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          {appLogo && (
+          {logoSrc && (
             <img
-              src={appLogo}
+              src={logoSrc}
               alt="logo"
               style={{
                 width: 80,

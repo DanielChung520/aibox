@@ -1,7 +1,7 @@
 /**
  * @file        Data Agent Query Playground
  * @description 用於測試和執行自然語言查詢的互動式介面
- * @lastUpdate  2026-03-24 17:00:20
+ * @lastUpdate  2026-03-24 19:01:41
  * @author      Daniel Chung
  */
 
@@ -197,7 +197,7 @@ export default function QueryPlayground() {
 
     return (
       <Card title="Generate SQL 分析" style={{ marginBottom: 16 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
           <Row>
             <Col span={8}><Text type="secondary">意圖分類</Text></Col>
             <Col span={16}><Tag color="purple">{intent.intent_type}</Tag></Col>
@@ -331,7 +331,7 @@ const renderResultTabs = () => {
               )
             }
           >
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Space orientation="vertical" style={{ width: '100%' }} size="middle">
               <TextArea
                 value={query}
                 onChange={e => setQuery(e.target.value)}
@@ -491,7 +491,7 @@ const renderResultTabs = () => {
                   key: module,
                   label: <Tag color="blue">{module}</Tag>,
                   children: (
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space orientation="vertical" style={{ width: '100%' }}>
                       {tables.filter(t => t.module === module).map(t => (
                         <div key={t.table_id} style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Text>{t.table_name}</Text>

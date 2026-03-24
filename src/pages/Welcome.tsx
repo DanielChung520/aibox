@@ -11,8 +11,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Typography } from 'antd';
-import { paramsApi } from '../services/api';
-import { useContentTokens } from '../contexts/AppThemeProvider';
+import { useContentTokens, useEffectiveTheme } from '../contexts/AppThemeProvider';
+import logoLight from '../assets/logo-light.png';
+import logoDark from '../assets/logo.png';
 
 const { Title, Text } = Typography;
 
@@ -20,17 +21,10 @@ export default function Welcome() {
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(3);
   const [appName] = useState('管理系统');
-  const [appLogo, setAppLogo] = useState<string>('');
   const navigatedRef = useRef(false);
   const contentTokens = useContentTokens();
-
-  useEffect(() => {
-    paramsApi.list().then((res: any) => {
-      const params = res.data.data || [];
-      const logo = params.find((p: any) => p.param_key === 'app.logo');
-      if (logo?.param_value) setAppLogo(logo.param_value);
-    }).catch(() => {});
-  }, []);
+  const effectiveTheme = useEffectiveTheme();
+  const logoSrc = effectiveTheme === 'dark' ? logoDark : logoLight;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -65,17 +59,17 @@ export default function Welcome() {
       <div style={{
         textAlign: 'center',
         padding: '40px',
-        background: 'rgba(30, 41, 59, 0.8)',
+        background: effectiveTheme === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.85)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         borderRadius: '16px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+        border: effectiveTheme === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.08)',
+        boxShadow: contentTokens.cardShadow,
         minWidth: '320px',
       }}>
-        {appLogo ? (
-          <img 
-            src={appLogo} 
+        {logoSrc ? (
+          <img
+            src={logoSrc} 
             alt="logo" 
             style={{ 
               width: 128, 

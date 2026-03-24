@@ -5,9 +5,9 @@ Defines all data models for the NL→SQL pipeline:
 PipelineConfig, PipelineResult, IntentMatch, QueryPlan,
 SchemaContext, SQLResult, ValidationResult.
 
-# Last Update: 2026-03-24 16:17:53
+# Last Update: 2026-03-24 19:27:14
 # Author: Daniel Chung
-# Version: 1.1.0
+# Version: 1.2.0
 """
 
 from enum import Enum
@@ -41,6 +41,7 @@ class PipelineConfig(BaseModel):
     s3_secret_key: str = Field(default="")
     match_threshold: float = Field(default=0.58)
     max_retries: int = Field(default=1)
+    generate_timeout: float = Field(default=60.0)
 
 
 class IntentMatch(BaseModel):

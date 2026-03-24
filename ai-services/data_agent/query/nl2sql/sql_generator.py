@@ -1,11 +1,12 @@
 """
 NL→SQL Pipeline - 3-Tier Hybrid SQL Generator
 
-# Last Update: 2026-03-24 16:17:53
+# Last Update: 2026-03-24 19:27:14
 # Author: Daniel Chung
-# Version: 1.3.0
+# Version: 1.4.0
 """
 
+import asyncio
 import re
 
 import httpx
@@ -169,18 +170,21 @@ async def _generate_sql_with_llm(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{config.ollama_base_url}/api/chat",
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "stream": False,
-                    "temperature": 0.1,
-                },
+        async with httpx.AsyncClient(timeout=config.generate_timeout + 5.0) as client:
+            response = await asyncio.wait_for(
+                client.post(
+                    f"{config.ollama_base_url}/api/chat",
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "stream": False,
+                        "temperature": 0.1,
+                    },
+                ),
+                timeout=config.generate_timeout,
             )
             response.raise_for_status()
             data = response.json()
@@ -188,6 +192,8 @@ async def _generate_sql_with_llm(
 
         return _extract_sql(content)
 
+    except asyncio.TimeoutError:
+        raise SQLGenerationError(f"LLM generation timed out after {config.generate_timeout}s")
     except httpx.HTTPError as e:
         raise SQLGenerationError(f"LLM service unavailable: {str(e)}")
 

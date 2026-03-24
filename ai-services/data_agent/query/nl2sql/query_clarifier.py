@@ -7,9 +7,9 @@ clarification questions so the frontend can prompt the user.
 
 Rule-based pre-filter skips LLM for queries containing business keywords.
 
-# Last Update: 2026-03-24 16:36:01
+# Last Update: 2026-03-24 19:50:39
 # Author: Daniel Chung
-# Version: 1.1.0
+# Version: 1.3.0
 """
 
 import json
@@ -30,8 +30,6 @@ _BUSINESS_KEYWORDS: set[str] = {
     "採購", "訂單", "物料", "供應商", "庫存", "收貨", "發貨", "入庫", "出庫",
     "PO", "PR", "GR", "MARA", "EKKO", "EKPO", "LFA1", "MARD", "MSEG", "MKPF",
     "金額", "數量", "價格", "成本", "排名", "統計", "彙總", "明細",
-    "查詢", "列出", "顯示", "搜尋", "找出", "篩選", "比較", "分析",
-    "本月", "上個月", "今年", "去年", "本季", "上季", "近期",
     "vendor", "material", "purchase", "inventory", "stock", "order",
     "MAKT", "MCHB", "T001", "EBAN",
 }
@@ -42,6 +40,7 @@ _KEYWORD_PATTERN = re.compile(
 )
 
 _MIN_LENGTH_FOR_SKIP = 4
+_MAX_LENGTH_FOR_FORCE_CLARIFY = 10
 
 
 def _is_likely_valid(query: str) -> bool:
@@ -50,6 +49,13 @@ def _is_likely_valid(query: str) -> bool:
     if len(stripped) < _MIN_LENGTH_FOR_SKIP:
         return False
     return bool(_KEYWORD_PATTERN.search(stripped))
+
+
+def _is_too_short_without_keywords(query: str) -> bool:
+    stripped = query.strip()
+    if len(stripped) > _MAX_LENGTH_FOR_FORCE_CLARIFY:
+        return False
+    return not bool(_KEYWORD_PATTERN.search(stripped))
 
 CLARIFY_SYSTEM = (
     "你是一個資料查詢助手。使用者會用自然語言描述想查詢的資料。\n"
@@ -79,6 +85,19 @@ async def check_query_clarity(
     if _is_likely_valid(query):
         logger.debug("Clarifier skipped (rule-based pass): %s", query[:60])
         return ClarificationResponse(needs_clarification=False)
+
+    if _is_too_short_without_keywords(query):
+        logger.debug("Clarifier forced (short + no keywords): %s", query[:60])
+        return ClarificationResponse(
+            needs_clarification=True,
+            reason="查詢過於簡短且缺乏業務關鍵詞，無法確定查詢目標",
+            questions=[
+                ClarificationQuestion(
+                    field="query_target",
+                    question="請說明您想查詢哪類資料（採購訂單、物料、供應商、庫存或收發貨）？",
+                )
+            ],
+        )
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

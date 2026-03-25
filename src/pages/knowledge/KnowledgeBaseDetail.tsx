@@ -107,7 +107,7 @@ export default function KnowledgeBaseDetail() {
         backgroundColor: token.colorBgContainer, flexShrink: 0,
       }}>
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/app/knowledge/management')} />
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Title level={4} style={{ margin: 0, color: token.colorText }}>知識庫</Title>
           <Text style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }}>ID: {id}</Text>
         </Space>

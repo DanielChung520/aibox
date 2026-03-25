@@ -3,12 +3,13 @@
 //! # Description
 //! API 路由定義
 //!
-//! # Last Update: 2026-03-17 15:00:00
+//! # Last Update: 2026-03-25 20:35:00
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use reqwest;
 use crate::auth::verify_jwt;
+use crate::middleware::auth::jwt_auth_middleware;
 use crate::db::{
     get_db, CreateAgentRequest, CreateRoleRequest, Function, FunctionRoleAuth, Role, RoleFunction, SystemParam, UpdateParamRequest, User, Agent, ModelProvider, LLMModel,
 };
@@ -17,8 +18,9 @@ use axum::{
     extract::{Path, Query},
     http::{header::AUTHORIZATION, HeaderMap, Method, StatusCode},
     response::IntoResponse,
-    routing::{get, post, put, delete, patch},
+    routing::{get, post, put, patch},
     Json, Router,
+    middleware,
 };
 use tower_http::cors::{Any, CorsLayer};
 
@@ -62,8 +64,21 @@ pub fn create_router() -> Router {
         .route("/api/v1/model-providers", get(list_model_providers).post(create_model_provider))
         .route("/api/v1/model-providers/{key}", get(get_model_provider).put(update_model_provider).delete(delete_model_provider))
         .route("/api/v1/model-providers/{key}/sync", post(sync_model_provider))
-        .route("/api/v1/theme-templates", get(themes::list_theme_templates).post(themes::create_theme_template))
-        .route("/api/v1/theme-templates/{key}", get(themes::get_theme_template).put(themes::update_theme_template).delete(themes::delete_theme_template))
+        .route("/api/v1/theme-templates", get(themes::list_theme_templates))
+        .route("/api/v1/theme-templates", 
+            post(themes::create_theme_template)
+                .route_layer(middleware::from_fn(jwt_auth_middleware))
+        )
+        .route("/api/v1/theme-templates/{key}", get(themes::get_theme_template))
+        .route("/api/v1/theme-templates/{key}", 
+            put(themes::update_theme_template)
+                .delete(themes::delete_theme_template)
+                .route_layer(middleware::from_fn(jwt_auth_middleware))
+        )
+        .route("/api/v1/theme-templates/{key}/activate", 
+            put(themes::activate_theme_template)
+                .route_layer(middleware::from_fn(jwt_auth_middleware))
+        )
         .route("/api/v1/knowledge/roots", get(knowledge::list_roots).post(knowledge::create_root))
         .route("/api/v1/knowledge/roots/{key}", get(knowledge::get_root).put(knowledge::update_root).delete(knowledge::delete_root))
         .route("/api/v1/knowledge/roots/{key}/copy", post(knowledge::copy_root))

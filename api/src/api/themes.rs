@@ -1,8 +1,8 @@
 //! Theme Templates API
 //!
-//! # Last Update: 2026-03-23 21:04:59
+//! # Last Update: 2026-03-25 20:30:00
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use crate::db::{get_db, themes::ThemeTemplate};
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
@@ -52,7 +52,7 @@ pub async fn get_theme_template(
 }
 
 pub async fn create_theme_template(
-    Json(payload): Json<ThemeTemplate>,
+    Json(payload): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let db = get_db();
     let col = db.collection("theme_templates").await.map_err(|_| {
@@ -63,11 +63,16 @@ pub async fn create_theme_template(
     })?;
 
     let now = chrono::Utc::now().to_rfc3339();
-    let template = ThemeTemplate {
-        created_at: now.clone(),
-        updated_at: now,
-        ..payload
-    };
+    let mut template = payload;
+    if let Some(obj) = template.as_object_mut() {
+        obj.insert("created_at".to_string(), json!(now.clone()));
+        obj.insert("updated_at".to_string(), json!(now));
+    } else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "code": 400, "message": "invalid payload" })),
+        ));
+    }
 
     col.create_document(template, Default::default())
         .await
@@ -145,10 +150,17 @@ pub async fn delete_theme_template(
             )
         })?;
 
-    if existing.is_empty() {
-        return Err((
+    let template = existing.into_iter().next().ok_or_else(|| {
+        (
             StatusCode::NOT_FOUND,
             Json(json!({ "code": 404, "message": "not found" })),
+        )
+    })?;
+
+    if template.is_default {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "code": 400, "message": "cannot delete default template" })),
         ));
     }
 
@@ -166,4 +178,65 @@ pub async fn delete_theme_template(
         })?;
 
     Ok(Json(json!({ "code": 200, "message": "deleted" })))
+}
+
+pub async fn activate_theme_template(
+    Path(key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let db = get_db();
+
+    let mut templates: Vec<ThemeTemplate> = db
+        .aql_bind_vars(
+            "FOR t IN theme_templates FILTER t._key == @key LIMIT 1 RETURN t",
+            [("key", json!(key.clone()))].into(),
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "code": 500, "message": "internal server error" })),
+            )
+        })?;
+
+    let template = templates.pop().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "code": 404, "message": "not found" })),
+        )
+    })?;
+
+    if template.template_type == "shell" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "code": 400, "message": "cannot activate shell template" })),
+        ));
+    }
+
+    let _: Vec<serde_json::Value> = db
+        .aql_bind_vars(
+            "FOR t IN theme_templates FILTER t.template_type == @type UPDATE t WITH { is_default: false } IN theme_templates",
+            [("type", json!(template.template_type.clone()))].into(),
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "code": 500, "message": "internal server error" })),
+            )
+        })?;
+
+    let _: Vec<serde_json::Value> = db
+        .aql_bind_vars(
+            "UPDATE @key WITH { is_default: true } IN theme_templates",
+            [("key", json!(key))].into(),
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "code": 500, "message": "internal server error" })),
+            )
+        })?;
+
+    Ok(Json(json!({ "code": 200, "message": "activated" })))
 }

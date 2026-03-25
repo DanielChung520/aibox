@@ -127,7 +127,7 @@ export default function MainLayout() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: contentTokens.pageBg || shellTokens.headerBg }}>
+    <Layout style={{ minHeight: '100vh', background: contentTokens.pageBg || shellTokens.headerBg, display: 'flex', flexDirection: 'row' }}>
       <ConfigProvider
         theme={{
           algorithm: theme.darkAlgorithm,
@@ -199,21 +199,21 @@ export default function MainLayout() {
               onToggleTheme={toggleTheme}
             />
           </Header>
+
+          <Content style={{
+            margin: '16px',
+            padding: '24px',
+            background: contentBg,
+            borderRadius: '10px',
+            height: 'calc(100vh - 96px)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <Outlet />
+          </Content>
         </Layout>
       </ConfigProvider>
-
-      <Content style={{
-        margin: '16px',
-        padding: '24px',
-        background: contentBg,
-        borderRadius: '10px',
-        height: 'calc(100vh - 96px)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        <Outlet />
-      </Content>
     </Layout>
   );
 }

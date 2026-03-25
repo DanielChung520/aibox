@@ -275,6 +275,7 @@ export interface ThemeTemplate {
   template_type: 'shell' | 'content';
   tokens: ShellTokens | ContentTokens;
   is_default: boolean;
+  is_active?: boolean;
   status: string;
   created_at: string;
   updated_at: string;

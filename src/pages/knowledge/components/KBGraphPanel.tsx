@@ -1,18 +1,21 @@
 /**
  * @file        知識庫圖譜面板元件
- * @description 顯示文件解析出的知識圖譜節點與關聯
- * @lastUpdate  2026-03-24 23:08:24
+ * @description 使用 @antv/g6 v5 力導向圖視覺化知識圖譜節點與關聯
+ * @lastUpdate  2026-03-25 16:03:03
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     2.0.0
  */
 
-import { Typography, Space, Table, Tag, theme } from 'antd';
+import { useEffect, useRef } from 'react';
+import { theme } from 'antd';
+import { Graph, NodeEvent, CanvasEvent } from '@antv/g6';
+import type { IElementEvent, IPointerEvent } from '@antv/g6';
 import { GraphNode, GraphEdge } from '../../../services/api';
-
-const { Title, Text } = Typography;
 
 interface KBGraphPanelProps {
   fileId: string;
+  onNodeSelect?: (nodeId: string | null) => void;
+  onGraphReady?: (graph: Graph) => void;
 }
 
 const MOCK_GRAPH_NODES: GraphNode[] = [
@@ -28,77 +31,99 @@ const MOCK_GRAPH_EDGES: GraphEdge[] = [
   { source: 'n1', target: 'n4', label: '屬於' },
 ];
 
-export default function KBGraphPanel({ fileId }: KBGraphPanelProps) {
+export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBGraphPanelProps) {
   const { token } = theme.useToken();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const graphRef = useRef<Graph | null>(null);
 
-  const nodeColumns = [
-    { title: '節點名稱', dataIndex: 'label', key: 'label', render: (text: string) => <Text strong>{text}</Text> },
-    { title: '類型', dataIndex: 'type', key: 'type', render: (type: string) => <Tag color="geekblue">{type}</Tag> },
-    { title: '屬性', dataIndex: 'properties', key: 'properties', render: (props: Record<string, string>) => (
-      <Space wrap>
-        {Object.entries(props).map(([k, v]) => <Tag key={k} bordered={false}>{k}: {v}</Tag>)}
-      </Space>
-    )}
-  ];
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  const edgeColumns = [
-    { title: '起點', dataIndex: 'source', key: 'source', render: (src: string) => <Text>{MOCK_GRAPH_NODES.find(n => n.id === src)?.label || src}</Text> },
-    { title: '關係', dataIndex: 'label', key: 'label', render: (text: string) => <Tag color="purple">{text}</Tag> },
-    { title: '終點', dataIndex: 'target', key: 'target', render: (tgt: string) => <Text>{MOCK_GRAPH_NODES.find(n => n.id === tgt)?.label || tgt}</Text> },
-  ];
+    const graphNodes = MOCK_GRAPH_NODES.map((n) => ({
+      id: n.id,
+      data: { label: n.label, type: n.type, properties: n.properties },
+    }));
+
+    const graphEdges = MOCK_GRAPH_EDGES.map((e, idx) => ({
+      id: `edge-${idx}`,
+      source: e.source,
+      target: e.target,
+      data: { label: e.label },
+    }));
+
+    const graph = new Graph({
+      container: containerRef.current,
+      autoResize: true,
+      data: { nodes: graphNodes, edges: graphEdges },
+      node: {
+        style: {
+          size: 32,
+          labelText: (d) => (d.data?.label as string) || d.id,
+          labelPlacement: 'bottom',
+          fill: token.colorPrimary,
+          stroke: token.colorBorder,
+          labelFill: token.colorText,
+          labelFontSize: 12,
+        },
+        state: {
+          selected: {
+            fill: token.colorPrimaryActive,
+            stroke: token.colorPrimary,
+            lineWidth: 3,
+          },
+        },
+      },
+      edge: {
+        style: {
+          labelText: (d) => (d.data?.label as string) || '',
+          stroke: token.colorBorderSecondary,
+          endArrow: true,
+          labelFill: token.colorTextSecondary,
+          labelFontSize: 11,
+        },
+      },
+      layout: {
+        type: 'force',
+        preventOverlap: true,
+        linkDistance: 150,
+        animated: true,
+      },
+      behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
+    });
+
+    graph.on(NodeEvent.CLICK, (evt: IElementEvent) => {
+      onNodeSelect?.(evt.target.id);
+    });
+
+    graph.on(CanvasEvent.CLICK, (_evt: IPointerEvent) => {
+      onNodeSelect?.(null);
+    });
+
+    graph.render().then(() => {
+      onGraphReady?.(graph);
+    });
+
+    graphRef.current = graph;
+
+    return () => {
+      graphRef.current = null;
+      graph.destroy();
+    };
+    // fileId 變更時重新初始化圖譜
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: token.marginLG }}>
-      {/* Visual Placeholder for Force Graph */}
-      <div style={{
-        height: 300,
-        backgroundColor: token.colorBgContainer,
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: 400,
         borderRadius: token.borderRadiusLG,
         border: `1px solid ${token.colorBorderSecondary}`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundImage: `radial-gradient(${token.colorBorder} 1px, transparent 1px)`,
-        backgroundSize: '20px 20px'
-      }}>
-        <Title level={4} style={{ color: token.colorText, margin: 0 }}>Knowledge Graph 預覽 ({fileId})</Title>
-        <Text style={{ color: token.colorTextSecondary, marginTop: token.margin }}>力導向圖將在後續版本實現</Text>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: token.marginLG }}>
-        <div style={{ 
-          padding: token.padding, 
-          backgroundColor: token.colorBgContainer, 
-          borderRadius: token.borderRadiusLG,
-          border: `1px solid ${token.colorBorderSecondary}`
-        }}>
-          <Title level={5} style={{ color: token.colorText, marginTop: 0 }}>節點列表 (Nodes)</Title>
-          <Table 
-            dataSource={MOCK_GRAPH_NODES} 
-            columns={nodeColumns} 
-            rowKey="id" 
-            pagination={false} 
-            size="small"
-          />
-        </div>
-
-        <div style={{ 
-          padding: token.padding, 
-          backgroundColor: token.colorBgContainer, 
-          borderRadius: token.borderRadiusLG,
-          border: `1px solid ${token.colorBorderSecondary}`
-        }}>
-          <Title level={5} style={{ color: token.colorText, marginTop: 0 }}>關係列表 (Edges)</Title>
-          <Table 
-            dataSource={MOCK_GRAPH_EDGES} 
-            columns={edgeColumns} 
-            rowKey={(record) => `${record.source}-${record.target}`}
-            pagination={false} 
-            size="small"
-          />
-        </div>
-      </div>
-    </div>
+        backgroundColor: token.colorBgContainer,
+      }}
+    />
   );
 }

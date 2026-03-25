@@ -1,29 +1,26 @@
 /**
  * @file        主佈局元件
  * @description 應用主佈局，包含側邊欄導航、Header、使用者資訊下拉選單
- * @lastUpdate  2026-03-25 15:54:25
+ * @lastUpdate  2026-03-25 17:30:00
  * @author      Daniel Chung
  * @version     1.0.1
  */
 
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Avatar, Dropdown, ConfigProvider, theme } from 'antd';
+import { Layout, Menu, Button, ConfigProvider, theme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  UserOutlined,
   SettingOutlined,
-  LogoutOutlined,
-  SunOutlined,
-  MoonOutlined,
   LoadingOutlined,
 } from '@ant-design/icons';
 import { authStore } from '../stores/auth';
 import { authApi, functionApi, paramsApi, Function } from '../services/api';
 import { iconMap } from '../utils/icons';
 import { useThemeMode, useShellTokens, useContentTokens, useEffectiveTheme } from '../contexts/AppThemeProvider';
-import ServiceStatusBar from '../components/ServiceStatusBar';
+import AppLogo from '../components/AppLogo';
+import HeaderControls from '../components/HeaderControls';
 
 const { Header, Sider, Content } = Layout;
 
@@ -54,9 +51,7 @@ export default function MainLayout() {
     });
     if (!authStore.getState().user && authStore.getState().token) {
       authApi.me().then((res: any) => {
-        if (res.data.code === 200) {
-          setUser(res.data.data);
-        }
+        if (res.data.code === 200) setUser(res.data.data);
       }).catch(() => {});
     }
     return unsubscribe;
@@ -83,12 +78,7 @@ export default function MainLayout() {
 
   const menuItems = (() => {
     if (functions.length === 0) {
-      return [{
-        key: 'loading',
-        icon: <LoadingOutlined />,
-        label: '載入中...',
-        disabled: true,
-      }];
+      return [{ key: 'loading', icon: <LoadingOutlined />, label: '載入中...', disabled: true }];
     }
 
     const topGroups = functions
@@ -100,17 +90,10 @@ export default function MainLayout() {
         .filter(f => f.function_type === 'sub_function' && f.parent_key === group.code && f.status === 'enabled')
         .sort((a, b) => a.sort_order - b.sort_order);
 
-      const item: any = {
-        key: group.path || group.code,
-        icon: buildIcon(group.icon),
-        label: group.name,
-      };
+      const item: any = { key: group.path || group.code, icon: buildIcon(group.icon), label: group.name };
 
       if (subs.length > 0) {
-        item.children = subs.map(sub => ({
-          key: sub.path || sub.code,
-          label: sub.name,
-        }));
+        item.children = subs.map(sub => ({ key: sub.path || sub.code, label: sub.name }));
       } else if (group.path) {
         item.onClick = () => navigate(group.path!);
       }
@@ -133,15 +116,6 @@ export default function MainLayout() {
     setThemeMode(isDark ? 'light' : 'dark');
   };
 
-  const userMenuItems = [
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: '退出登录',
-      onClick: handleLogout,
-    },
-  ];
-
   const getPageTitle = () => {
     const path = location.pathname;
     const func = functions.find(f => f.path === path);
@@ -157,9 +131,7 @@ export default function MainLayout() {
       <ConfigProvider
         theme={{
           algorithm: theme.darkAlgorithm,
-          token: {
-            colorPrimary: contentTokens.colorPrimary,
-          },
+          token: { colorPrimary: contentTokens.colorPrimary },
           components: {
             Menu: {
               darkItemBg: shellTokens.siderBg,
@@ -171,13 +143,7 @@ export default function MainLayout() {
           },
         }}
       >
-        <Sider 
-          trigger={null} 
-          collapsible 
-          collapsed={collapsed}
-          width={200}
-          style={{ background: siderBg }}
-        >
+        <Sider trigger={null} collapsible collapsed={collapsed} width={200} style={{ background: siderBg }}>
           <div style={{
             height: 65,
             display: 'flex',
@@ -186,54 +152,26 @@ export default function MainLayout() {
             borderBottom: `1px solid ${shellTokens.siderBorder}`,
             color: textColor,
           }}>
-            {appLogo && appLogo.length > 0 ? (
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-                onClick={() => navigate('/app/home')}
-              >
-                <img
-                  src={appLogo}
-                  alt="logo"
-                  style={{ height: 50, width: 'auto', objectFit: 'contain' }}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                {!collapsed && <strong>AI- BOX</strong>}
-              </div>
-            ) : !collapsed ? (
-              <div
-                style={{ cursor: 'pointer' }}
-                onClick={() => navigate('/app/home')}
-              >
-                <strong>AI-BOX</strong>
-              </div>
-            ) : null}
+            <AppLogo logo={appLogo} collapsed={collapsed} textColor={textColor} borderColor={shellTokens.siderBorder} />
           </div>
-          
+
           <Menu
             mode="inline"
             theme="dark"
             selectedKeys={[location.pathname]}
             items={menuItems}
             onClick={({ key }) => handleMenuClick({ key })}
-            style={{
-              borderRight: 0,
-              background: 'transparent',
-            }}
+            style={{ borderRight: 0, background: 'transparent' }}
           />
-          
+
           <div style={{
-            position: 'absolute',
-            bottom: 16,
-            left: 0,
-            right: 0,
-            textAlign: 'center',
-            color: contentTokens.textSecondary,
-            fontSize: '12px',
+            position: 'absolute', bottom: 16, left: 0, right: 0,
+            textAlign: 'center', color: contentTokens.textSecondary, fontSize: '12px',
           }}>
             v1.0.0
           </div>
         </Sider>
-        
+
         <Layout>
           <Header style={{
             padding: '0 16px',
@@ -250,31 +188,20 @@ export default function MainLayout() {
                 onClick={() => setCollapsed(!collapsed)}
                 style={{ fontSize: '16px', color: textColor }}
               />
-              <span style={{ color: textColor, fontSize: 16, fontWeight: 500 }}>
-                {getPageTitle()}
-              </span>
+              <span style={{ color: textColor, fontSize: 16, fontWeight: 500 }}>{getPageTitle()}</span>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <ServiceStatusBar />
-              <Button
-                type="text"
-                icon={isDark ? <SunOutlined /> : <MoonOutlined />}
-                onClick={toggleTheme}
-                style={{ color: textColor }}
-              />
-              <span style={{ color: textColor }}>{user?.name || user?.username}</span>
-              <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-                <Avatar
-                  style={{ cursor: 'pointer', background: primaryColor }}
-                  icon={<UserOutlined />}
-                />
-              </Dropdown>
-            </div>
+            <HeaderControls
+              user={user}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              textColor={textColor}
+              onLogout={handleLogout}
+              onToggleTheme={toggleTheme}
+            />
           </Header>
         </Layout>
       </ConfigProvider>
-      
+
       <Layout>
         <Content style={{
           margin: '16px',

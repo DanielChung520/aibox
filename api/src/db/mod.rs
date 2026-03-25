@@ -3,9 +3,9 @@
 //! # Description
 //! ArangoDB 數據庫連接與操作
 //!
-//! # Last Update: 2026-03-25 11:30:00
+//! # Last Update: 2026-03-25 15:07:58
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use arangors::client::reqwest::ReqwestClient;
 use arangors::{Connection as ArangoConnection, Database};

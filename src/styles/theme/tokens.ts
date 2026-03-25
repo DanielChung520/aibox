@@ -1,7 +1,7 @@
 /**
  * @file        設計令牌
  * @description 全域設計令牌，定義亮色/暗色主題的顏色、陰影、字體等
- * @lastUpdate  2026-03-25 15:03:28
+ * @lastUpdate  2026-03-25 15:07:58
  * @author      Daniel Chung
  * @version     1.2.0
  */

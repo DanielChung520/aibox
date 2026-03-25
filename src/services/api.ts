@@ -1,10 +1,11 @@
 /**
  * @file        API 服務層
  * @description Axios 實例配置、API 請求封裝、所有業務 API 接口定義
- * @lastUpdate  2026-03-24 23:01:20
+ * @lastUpdate  2026-03-25 15:07:58
  * @author      Daniel Chung
- * @version     1.3.0
+ * @version     1.4.0
  * @history
+ * - 2026-03-25 15:07:58 | Daniel Chung | 1.4.0 | 新增 activate() 方法到 themeTemplateApi
  * - 2026-03-24 23:01:20 | Daniel Chung | 1.3.0 | 新增 Knowledge Base 介面定義與 API 方法
  * - 2026-03-24 20:58:11 | Daniel Chung | 1.2.0 | 新增 Ontology 介面定義與 API 方法
  * - 2026-03-22 19:11:57 | Daniel Chung | 1.1.0 | 新增 ThemeTemplate 介面定義

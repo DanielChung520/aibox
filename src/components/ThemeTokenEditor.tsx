@@ -1,8 +1,8 @@
 /**
  * @file        主題標記編輯器
  * @description 渲染外殼與內容的 tokens 表單，用於 ThemeTemplateManagement
- * @lastUpdate  2026-03-25 10:00:00
- * @author      Sisyphus
+ * @lastUpdate  2026-03-25 15:07:58
+ * @author      Daniel Chung
  * @version     1.0.0
  */
 

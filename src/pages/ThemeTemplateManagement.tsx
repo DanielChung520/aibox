@@ -1,8 +1,8 @@
 /**
  * @file        樣板維護頁面
  * @description 主題樣板 CRUD 管理，支持外殼(shell)與內容(content)兩類樣板
- * @lastUpdate  2026-03-25 10:00:00
- * @author      Sisyphus
+ * @lastUpdate  2026-03-25 15:07:58
+ * @author      Daniel Chung
  * @version     1.2.0
  */
 

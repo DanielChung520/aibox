@@ -74,7 +74,7 @@ export default function KnowledgeBaseDetail() {
           icon={<ArrowLeftOutlined />} 
           onClick={() => navigate('/app/knowledge/management')}
         />
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Title level={4} style={{ margin: 0, color: token.colorText }}>MM-Agent 知識庫</Title>
           <Text style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }}>
             ID: {id || 'kb1'}

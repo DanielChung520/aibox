@@ -13,6 +13,8 @@ use chrono::Utc;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+pub mod knowledge;
+pub mod ontology;
 pub mod themes;
 
 static DB: OnceCell<Database<ReqwestClient>> = OnceCell::new();
@@ -67,7 +69,7 @@ async fn ensure_collections(db: &Database<ReqwestClient>) -> Result<(), String> 
         .map(|c| c.name)
         .collect();
 
-    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers", "theme_templates"] {
+    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers", "theme_templates", "knowledge_roots", "knowledge_files", "ontologies"] {
         if !existing.contains(&name.to_string()) {
             db.create_collection(name)
                 .await
@@ -94,6 +96,8 @@ async fn seed_defaults(db: &Database<ReqwestClient>) -> Result<(), String> {
     seed_functions(db).await?;
     seed_model_providers(db).await?;
     themes::seed_theme_templates(db).await?;
+    knowledge::seed_knowledge(db).await?;
+    ontology::seed_ontologies(db).await?;
     ensure_agent_defaults(db).await?;
     Ok(())
 }

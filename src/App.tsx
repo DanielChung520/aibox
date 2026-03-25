@@ -1,9 +1,9 @@
 /**
  * @file        應用入口
  * @description 路由配置、ConfigProvider、主題供應
- * @lastUpdate  2026-03-24 23:01:20
+ * @lastUpdate  2026-03-25 13:03:52
  * @author      Daniel Chung
- * @version     2.0.0
+ * @version     2.1.0
  */
 
 import { useState, useEffect, ReactNode } from 'react';
@@ -32,6 +32,7 @@ import OntologyList from './pages/knowledge/OntologyList';
 import KnowledgeBaseManagement from './pages/knowledge/KnowledgeBaseManagement';
 import KnowledgeBaseDetail from './pages/knowledge/KnowledgeBaseDetail';
 import { authStore } from './stores/auth';
+import AppUpdater from './components/AppUpdater';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(authStore.getState().isAuthenticated);
@@ -101,6 +102,7 @@ function AppContent() {
     >
       <BrowserRouter>
         <AntApp>
+          <AppUpdater />
           <Routes>
             <Route path="/" element={<Welcome />} />
             <Route path="/login" element={<Login />} />

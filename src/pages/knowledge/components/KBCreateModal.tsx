@@ -1,22 +1,25 @@
 /**
  * @file        新增知識庫 Modal
  * @description 建立新知識庫的表單 Modal，含領域選擇與專業主題多選
- * @lastUpdate  2026-03-24 23:06:11
+ * @lastUpdate  2026-03-25 12:56:08
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.2.0
  */
 
-import { Modal, Form, Input, Select, App } from 'antd';
+import { Modal, Form, Input, Select } from 'antd';
 import { KnowledgeRoot } from '../../../services/api';
 
 const { Option } = Select;
 const { TextArea } = Input;
+
+const TAG_SEPARATORS = [' ', '，', ',', '/', '；', ';'];
 
 export interface KBCreateModalProps {
   open: boolean;
   onCancel: () => void;
   onSuccess: (id: string, values: Partial<KnowledgeRoot>) => void;
   domains: { label: string; value: string }[];
+  majors: { label: string; value: string }[];
 }
 
 export default function KBCreateModal({
@@ -24,15 +27,13 @@ export default function KBCreateModal({
   onCancel,
   onSuccess,
   domains,
+  majors,
 }: KBCreateModalProps) {
-  const { message } = App.useApp();
   const [form] = Form.useForm();
 
   const handleOk = () => {
     form.validateFields().then((values) => {
-      message.success('知識庫建立成功');
-      const mockKey = `kb_${Date.now()}`;
-      onSuccess(mockKey, values);
+      onSuccess('', values);
       form.resetFields();
     }).catch(() => { /* validation error handled by Form */ });
   };
@@ -42,14 +43,6 @@ export default function KBCreateModal({
     onCancel();
   };
 
-  const mockMajors = [
-    { label: 'Inventory Control', value: 'Inventory_Control' },
-    { label: 'Quality Management', value: 'Quality_Management' },
-    { label: 'Semantic Mapping', value: 'Semantic_Mapping' },
-    { label: 'Budget Control', value: 'Budget_Control' },
-    { label: 'Clinical Data Management', value: 'Clinical_Data_Management' },
-  ];
-
   return (
     <Modal
       title="建立新知識庫"
@@ -58,7 +51,7 @@ export default function KBCreateModal({
       onCancel={handleCancel}
       okText="建立"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}
@@ -82,6 +75,18 @@ export default function KBCreateModal({
         </Form.Item>
 
         <Form.Item
+          name="tags"
+          label="標籤"
+          tooltip="輸入標籤後按 Enter 確認，支援空格、逗號、斜線、分號作為分隔符號"
+        >
+          <Select
+            mode="tags"
+            tokenSeparators={TAG_SEPARATORS}
+            placeholder="輸入標籤，例如: 財務 預算 庫存"
+          />
+        </Form.Item>
+
+        <Form.Item
           name="ontology_domain"
           label="知識領域 (Domain)"
           rules={[{ required: true, message: '請選擇一個知識領域!' }]}
@@ -101,7 +106,7 @@ export default function KBCreateModal({
             mode="multiple"
             allowClear
             placeholder="選擇相關專業主題"
-            options={mockMajors}
+            options={majors}
           />
         </Form.Item>
       </Form>

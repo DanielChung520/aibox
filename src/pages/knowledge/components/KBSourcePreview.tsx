@@ -108,7 +108,7 @@ export default function KBSourcePreview({ fileId, fileName, fileType }: KBSource
         borderRadius: token.borderRadiusLG,
         border: `1px solid ${token.colorBorderSecondary}`
       }}>
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="small" style={{ width: '100%' }}>
           <Space>
             {getIcon()}
             <Text strong style={{ color: token.colorText }}>{fileName}</Text>

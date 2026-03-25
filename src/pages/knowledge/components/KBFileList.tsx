@@ -49,7 +49,7 @@ export default function KBFileList({ files, selectedFileId, onSelectFile, onUplo
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: token.padding, borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space orientation="vertical" style={{ width: '100%' }} size="middle">
           <Button type="primary" icon={<UploadOutlined />} block onClick={onUpload}>
             上傳文件
           </Button>

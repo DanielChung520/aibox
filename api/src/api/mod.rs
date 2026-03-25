@@ -31,12 +31,14 @@ pub mod health;
 pub mod da;
 pub mod da_intents;
 pub mod da_query;
+pub mod knowledge;
+pub mod ontology;
 pub mod themes;
 
 pub fn create_router() -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::PATCH])
         .allow_headers(Any);
 
     Router::new()
@@ -62,6 +64,15 @@ pub fn create_router() -> Router {
         .route("/api/v1/model-providers/{key}/sync", post(sync_model_provider))
         .route("/api/v1/theme-templates", get(themes::list_theme_templates).post(themes::create_theme_template))
         .route("/api/v1/theme-templates/{key}", get(themes::get_theme_template).put(themes::update_theme_template).delete(themes::delete_theme_template))
+        .route("/api/v1/knowledge/roots", get(knowledge::list_roots).post(knowledge::create_root))
+        .route("/api/v1/knowledge/roots/{key}", get(knowledge::get_root).put(knowledge::update_root).delete(knowledge::delete_root))
+        .route("/api/v1/knowledge/roots/{key}/copy", post(knowledge::copy_root))
+        .route("/api/v1/knowledge/roots/{key}/favorite", patch(knowledge::toggle_favorite))
+        .route("/api/v1/knowledge/roots/{root_id}/files", get(knowledge::list_files))
+        .route("/api/v1/knowledge/files/{key}", get(knowledge::get_file).delete(knowledge::delete_file))
+        .route("/api/v1/ontologies", get(ontology::list_ontologies).post(ontology::create_ontology))
+        .route("/api/v1/ontologies/import", post(ontology::import_ontology))
+        .route("/api/v1/ontologies/{key}", get(ontology::get_ontology).put(ontology::update_ontology).delete(ontology::delete_ontology))
         .merge(sse::create_sse_router())
         .merge(ws::create_ws_router())
         .merge(ai::create_ai_router())

@@ -54,7 +54,7 @@ export default function KBVectorPanel({ fileId }: KBVectorPanelProps) {
           key: String(index),
           label: <Text strong style={{ color: token.colorText }}>Chunk #{index + 1}</Text>,
           children: (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ 
                 padding: token.paddingSM, 
                 backgroundColor: token.colorBgLayout, 

@@ -2,9 +2,9 @@
 # ============================================================================
 # @file        start.sh
 # @description ABC Desktop 服務管理腳本 — Rust API + Static + Python AI Services
-# @lastUpdate  2026-03-24 00:25:10
+# @lastUpdate  2026-03-25 12:41:00
 # @author      Daniel Chung
-# @version     2.0.0
+# @version     2.1.0
 # ============================================================================
 set -e
 
@@ -209,6 +209,47 @@ stop_all_ai() {
   done
 }
 
+find_ai_service() {
+  local target=$1
+  for entry in "${AI_SERVICES[@]}"; do
+    IFS=':' read -r name port module <<< "$entry"
+    if [ "$name" = "$target" ]; then
+      echo "$name:$port:$module"
+      return 0
+    fi
+  done
+  return 1
+}
+
+do_single() {
+  local action=$1 target=$2
+
+  case "$target" in
+    api)
+      [ "$action" = "stop" ] || [ "$action" = "restart" ] && stop_api
+      [ "$action" = "start" ] || [ "$action" = "restart" ] && start_api
+      ;;
+    static)
+      [ "$action" = "stop" ] || [ "$action" = "restart" ] && stop_static
+      [ "$action" = "start" ] || [ "$action" = "restart" ] && start_static
+      ;;
+    *)
+      local entry
+      entry=$(find_ai_service "$target") || {
+        echo "❌ Unknown service: $target"
+        echo "   Available: api, static, $(printf '%s' "${AI_SERVICES[*]}" | tr ' ' '\n' | cut -d: -f1 | tr '\n' ' ')"
+        return 1
+      }
+      IFS=':' read -r name port module <<< "$entry"
+      [ "$action" = "stop" ] || [ "$action" = "restart" ] && stop_ai_service "$name" "$port"
+      if [ "$action" = "start" ] || [ "$action" = "restart" ]; then
+        cd "$AI_DIR"
+        start_ai_service "$name" "$port" "$module"
+      fi
+      ;;
+  esac
+}
+
 # ─── Status ──────────────────────────────────────────────────────────────────
 
 status() {
@@ -319,31 +360,43 @@ logs() {
 
 case "${1:-status}" in
   start)
-    start_api
-    start_static
-    start_all_ai
-    echo ""
-    echo "═══════════════════════════════════════"
-    echo " All services started!"
-    echo "═══════════════════════════════════════"
-    status
+    if [ -n "${2:-}" ]; then
+      do_single start "$2"
+    else
+      start_api
+      start_static
+      start_all_ai
+      echo ""
+      echo "═══════════════════════════════════════"
+      echo " All services started!"
+      echo "═══════════════════════════════════════"
+      status
+    fi
     ;;
   stop)
-    stop_api
-    stop_static
-    stop_all_ai
-    echo "  ✅ All services stopped"
+    if [ -n "${2:-}" ]; then
+      do_single stop "$2"
+    else
+      stop_api
+      stop_static
+      stop_all_ai
+      echo "  ✅ All services stopped"
+    fi
     ;;
   restart)
-    stop_api
-    stop_static
-    stop_all_ai
-    sleep 2
-    start_api
-    start_static
-    start_all_ai
-    echo ""
-    status
+    if [ -n "${2:-}" ]; then
+      do_single restart "$2"
+    else
+      stop_api
+      stop_static
+      stop_all_ai
+      sleep 2
+      start_api
+      start_static
+      start_all_ai
+      echo ""
+      status
+    fi
     ;;
   start-ai)
     start_all_ai
@@ -366,19 +419,41 @@ case "${1:-status}" in
   logs)
     logs "$@"
     ;;
-  *)
-    echo "Usage: $0 {start|stop|restart|status|build|logs|start-ai|stop-ai|restart-ai}"
+  help|*)
+    echo "Usage: $0 <command> [service]"
     echo ""
-    echo "Commands:"
-    echo "  start       Start all services (API + Static + AI)"
-    echo "  stop        Stop all services"
-    echo "  restart     Restart all services"
-    echo "  start-ai    Start only Python AI services"
-    echo "  stop-ai     Stop only Python AI services"
-    echo "  restart-ai  Restart only Python AI services"
-    echo "  status      Show all service status"
-    echo "  build       Build Tauri desktop app"
-    echo "  logs [name] Show service logs (default: all)"
+    echo "Batch Commands:"
+    echo "  start           Start all services (API + Static + AI)"
+    echo "  stop            Stop all services"
+    echo "  restart         Restart all services"
+    echo "  start-ai        Start all Python AI services"
+    echo "  stop-ai         Stop all Python AI services"
+    echo "  restart-ai      Restart all Python AI services"
+    echo ""
+    echo "Single Service Commands:"
+    echo "  start   <name>  Start a single service"
+    echo "  stop    <name>  Stop a single service"
+    echo "  restart <name>  Restart a single service"
+    echo ""
+    echo "Available services:"
+    echo "  api               Rust API Gateway (port $API_PORT)"
+    echo "  static            Static File Server (port 6000)"
+    for entry in "${AI_SERVICES[@]}"; do
+      IFS=':' read -r name port module <<< "$entry"
+      printf "  %-18s  Python AI service (port %s)\n" "$name" "$port"
+    done
+    echo ""
+    echo "Other Commands:"
+    echo "  status          Show all service status"
+    echo "  build           Build Tauri desktop app"
+    echo "  logs [name]     Show service logs (default: all)"
+    echo "  help            Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 restart api          Restart only Rust API"
+    echo "  $0 start aitask         Start only aitask service"
+    echo "  $0 stop data_agent      Stop only data_agent"
+    echo "  $0 logs aitask          Show aitask logs"
     exit 1
     ;;
 esac

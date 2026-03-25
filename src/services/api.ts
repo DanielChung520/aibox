@@ -380,6 +380,7 @@ export interface KnowledgeRoot {
   description?: string;
   ontology_domain: string;
   ontology_majors: string[];
+  tags: string[];
   source_count: number;
   vector_status: 'pending' | 'processing' | 'completed' | 'failed';
   graph_status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -418,6 +419,12 @@ export interface GraphEdge {
   label: string;
 }
 
+export interface KnowledgeRoleAuth {
+  root_key: string;
+  role_keys: string[];
+  inherited_role_keys: string[];
+}
+
 interface ApiResponse<T> { code: number; data: T }
 interface ApiMessage { code: number; message: string }
 
@@ -434,6 +441,8 @@ export const knowledgeApi = {
     api.delete<ApiMessage>(`/api/v1/knowledge/roots/${id}`),
   copyRoot: (id: string) =>
     api.post<ApiResponse<{ _key: string }>>(`/api/v1/knowledge/roots/${id}/copy`),
+  toggleFavorite: (id: string) =>
+    api.patch<ApiResponse<{ is_favorite: boolean }>>(`/api/v1/knowledge/roots/${id}/favorite`),
   listFiles: (rootId: string) =>
     api.get<ApiResponse<KnowledgeFile[]>>(`/api/v1/knowledge/roots/${rootId}/files`),
   uploadFile: (rootId: string, formData: FormData) =>
@@ -448,6 +457,10 @@ export const knowledgeApi = {
     api.get<ApiResponse<{ chunks: VectorChunk[]; total: number }>>(`/api/v1/knowledge/files/${fileId}/vectors`, { params }),
   getGraph: (fileId: string) =>
     api.get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(`/api/v1/knowledge/files/${fileId}/graph`),
+  getRoles: (rootId: string) =>
+    api.get<ApiResponse<KnowledgeRoleAuth>>(`/api/v1/knowledge/roots/${rootId}/roles`),
+  setRoles: (rootId: string, role_keys: string[], inherited_role_keys: string[]) =>
+    api.put<ApiMessage>(`/api/v1/knowledge/roots/${rootId}/roles`, { role_keys, inherited_role_keys }),
 };
 
 export default api;

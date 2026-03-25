@@ -6,8 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "VITE_API_URL=https://abcapi.k84.org npm run build",
-    "frontendDist": "../dist"
+    "frontendDist": "https://abc.k84.org"
   },
   "app": {
     "withGlobalTauri": true,
@@ -27,6 +26,7 @@
       }
     ],
     "security": {
+      "csp": "default-src 'self' https://abc.k84.org https://abcapi.k84.org; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://abc.k84.org; style-src 'self' 'unsafe-inline' https://abc.k84.org; img-src 'self' data: https://abc.k84.org https://abcapi.k84.org; connect-src 'self' https://abc.k84.org https://abcapi.k84.org wss://abcapi.k84.org; font-src 'self' https://abc.k84.org",
       "assetProtocol": {
         "enable": true,
         "scope": [
@@ -37,16 +37,28 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
-    "resources": {
-      "../dist": ""
-    },
+    "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://abcapi.k84.org/api/v1/updater/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "dialog": false
+    }
   }
 }

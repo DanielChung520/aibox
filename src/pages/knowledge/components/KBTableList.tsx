@@ -1,14 +1,24 @@
 /**
  * @file        知識庫表格列表視圖
  * @description Table 列表式佈局，展示知識庫結構化資訊與多欄位排序
- * @lastUpdate  2026-03-24 23:06:11
+ * @lastUpdate  2026-03-25 13:00:17
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.1.0
+ * @history
+ * - 2026-03-25 13:00:17 | Daniel Chung | 1.1.0 | 新增 onAuthorize 授權、tags 標籤欄位；移除向量/圖譜狀態欄位
  */
 
-import { Table, Button, Space, Tag, Popconfirm } from 'antd';
+import { Table, Button, Space, Tag, Popconfirm, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { HeartFilled, HeartOutlined } from '@ant-design/icons';
+import {
+  HeartFilled,
+  HeartOutlined,
+  FileSearchOutlined,
+  EditOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  SafetyOutlined,
+} from '@ant-design/icons';
 import { KnowledgeRoot } from '../../../services/api';
 import { useContentTokens } from '../../../contexts/AppThemeProvider';
 
@@ -16,38 +26,22 @@ export interface KBTableListProps {
   data: KnowledgeRoot[];
   loading: boolean;
   onEdit: (id: string) => void;
+  onEditMeta: (id: string) => void;
   onCopy: (id: string) => void;
   onDelete: (id: string) => void;
   onFavoriteToggle: (id: string) => void;
+  onAuthorize: (id: string) => void;
 }
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'completed': return 'success';
-    case 'processing': return 'processing';
-    case 'failed': return 'error';
-    case 'pending':
-    default: return 'default';
-  }
-};
-
-const getStatusText = (status: string) => {
-  switch (status) {
-    case 'completed': return '已完成';
-    case 'processing': return '處理中';
-    case 'failed': return '失敗';
-    case 'pending':
-    default: return '待處理';
-  }
-};
 
 export default function KBTableList({
   data,
   loading,
   onEdit,
+  onEditMeta,
   onCopy,
   onDelete,
   onFavoriteToggle,
+  onAuthorize,
 }: KBTableListProps) {
   const contentTokens = useContentTokens();
 
@@ -89,7 +83,21 @@ export default function KBTableList({
       title: '領域',
       dataIndex: 'ontology_domain',
       key: 'ontology_domain',
+      width: 120,
       render: (text: string) => <Tag color={contentTokens.colorPrimary}>{text}</Tag>,
+    },
+    {
+      title: '標籤',
+      dataIndex: 'tags',
+      key: 'tags',
+      width: 200,
+      render: (tags: string[]) => (
+        <Space size={[4, 4]} wrap>
+          {tags?.map((tag) => (
+            <Tag key={tag}>{tag}</Tag>
+          ))}
+        </Space>
+      ),
     },
     {
       title: '來源數量',
@@ -98,35 +106,23 @@ export default function KBTableList({
       width: 100,
     },
     {
-      title: '向量狀態',
-      dataIndex: 'vector_status',
-      key: 'vector_status',
-      width: 100,
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>{getStatusText(status)}</Tag>
-      ),
-    },
-    {
-      title: '圖譜狀態',
-      dataIndex: 'graph_status',
-      key: 'graph_status',
-      width: 100,
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>{getStatusText(status)}</Tag>
-      ),
-    },
-    {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 210,
       render: (_, record) => (
-        <Space size="middle">
-          <Button type="link" size="small" onClick={() => onEdit(record._key)} style={{ padding: 0 }}>
-            詳情
-          </Button>
-          <Button type="link" size="small" onClick={() => onCopy(record._key)} style={{ padding: 0 }}>
-            複製
-          </Button>
+        <Space size="small">
+          <Tooltip title="詳情">
+            <Button type="text" icon={<FileSearchOutlined />} onClick={() => onEdit(record._key)} />
+          </Tooltip>
+          <Tooltip title="編輯">
+            <Button type="text" icon={<EditOutlined />} onClick={() => onEditMeta(record._key)} />
+          </Tooltip>
+          <Tooltip title="複製">
+            <Button type="text" icon={<CopyOutlined />} onClick={() => onCopy(record._key)} />
+          </Tooltip>
+          <Tooltip title="授權">
+            <Button type="text" icon={<SafetyOutlined />} onClick={() => onAuthorize(record._key)} />
+          </Tooltip>
           <Popconfirm
             title="確定要刪除此知識庫嗎？"
             description="刪除後將無法恢復"
@@ -134,9 +130,9 @@ export default function KBTableList({
             okText="確定"
             cancelText="取消"
           >
-            <Button type="link" danger size="small" style={{ padding: 0 }}>
-              刪除
-            </Button>
+            <Tooltip title="刪除">
+              <Button type="text" danger icon={<DeleteOutlined />} />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -150,6 +146,10 @@ export default function KBTableList({
       rowKey="_key"
       loading={loading}
       pagination={{ pageSize: 10 }}
+      onRow={(record) => ({
+        onDoubleClick: () => onEdit(record._key),
+        style: { cursor: 'pointer' },
+      })}
       style={{ boxShadow: contentTokens.tableShadow, borderRadius: contentTokens.borderRadius }}
     />
   );

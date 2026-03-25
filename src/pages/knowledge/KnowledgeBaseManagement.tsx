@@ -1,14 +1,14 @@
 /**
  * @file        知識庫管理頁面
  * @description 知識管理 - 知識庫的建立、設定與管理
- * @lastUpdate  2026-03-24 23:01:20
+ * @lastUpdate  2026-03-25 12:56:08
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     3.0.0
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Typography, Button, Input, Radio, Space, App } from 'antd';
+import { Typography, Button, Input, Radio, Space, App, Modal, Form, Select, Switch, Tag } from 'antd';
 import {
   AppstoreOutlined,
   BarsOutlined,
@@ -16,106 +16,221 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import { useContentTokens } from '../../contexts/AppThemeProvider';
-import { KnowledgeRoot } from '../../services/api';
+import {
+  KnowledgeRoot, KnowledgeRoleAuth,
+  knowledgeApi, ontologyApi, roleApi, Ontology, Role,
+} from '../../services/api';
 import KBCardGrid from './components/KBCardGrid';
 import KBTableList from './components/KBTableList';
 import KBCreateModal from './components/KBCreateModal';
 
+const { TextArea } = Input;
 const { Title } = Typography;
 
-const MOCK_KNOWLEDGE_ROOTS: KnowledgeRoot[] = [
-  { _key: 'kb1', name: 'MM-Agent 知識庫', description: '物料管理規範與流程文件集', ontology_domain: 'Material_Management', ontology_majors: ['Inventory_Control', 'Quality_Management'], source_count: 12, vector_status: 'completed', graph_status: 'completed', is_favorite: true, created_at: '2026-03-01T10:00:00Z' },
-  { _key: 'kb2', name: 'KA-Agent 知識庫', description: '核心知識對齊與語義標準化', ontology_domain: 'Knowledge_Alignment', ontology_majors: ['Semantic_Mapping'], source_count: 45, vector_status: 'processing', graph_status: 'pending', is_favorite: false, created_at: '2026-03-10T14:30:00Z' },
-  { _key: 'kb3', name: '財務規範 2026', description: '預算編列準則與財務流程', ontology_domain: 'Financial_Standards', ontology_majors: ['Budget_Control'], source_count: 8, vector_status: 'completed', graph_status: 'completed', is_favorite: false, created_at: '2026-02-15T09:00:00Z' },
-  { _key: 'kb4', name: '醫療知識庫', description: '臨床數據與醫療照護知識', ontology_domain: 'Medical_Healthcare', ontology_majors: ['Clinical_Data_Management'], source_count: 23, vector_status: 'failed', graph_status: 'pending', is_favorite: true, created_at: '2026-03-20T16:45:00Z' },
-];
-
-const MOCK_DOMAINS = [
-  { label: 'Material Management', value: 'Material_Management' },
-  { label: 'Knowledge Alignment', value: 'Knowledge_Alignment' },
-  { label: 'Financial Standards', value: 'Financial_Standards' },
-  { label: 'Medical Healthcare', value: 'Medical_Healthcare' },
-];
+const TAG_SEPARATORS = [' ', '，', ',', '/', '；', ';'];
 
 export default function KnowledgeBaseManagement() {
   const contentTokens = useContentTokens();
   const navigate = useNavigate();
   const { message } = App.useApp();
 
-  const [data, setData] = useState<KnowledgeRoot[]>(MOCK_KNOWLEDGE_ROOTS);
+  const [data, setData] = useState<KnowledgeRoot[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [searchText, setSearchText] = useState('');
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingKb, setEditingKb] = useState<KnowledgeRoot | null>(null);
+  const [editForm] = Form.useForm();
+
+  const [domainOptions, setDomainOptions] = useState<{ label: string; value: string }[]>([]);
+  const [majorOptions, setMajorOptions] = useState<{ label: string; value: string }[]>([]);
+
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [authKb, setAuthKb] = useState<KnowledgeRoot | null>(null);
+  const [authData, setAuthData] = useState<KnowledgeRoleAuth | null>(null);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [authForm] = Form.useForm();
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await knowledgeApi.listRoots();
+      setData(res.data.data || []);
+    } catch {
+      message.error('載入知識庫列表失敗');
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  const loadOntologyOptions = useCallback(async () => {
+    try {
+      const res = await ontologyApi.list();
+      const all: Ontology[] = res.data.data || [];
+      setDomainOptions(
+        all.filter(o => o.type === 'domain').map(o => ({ label: o.name, value: o.name }))
+      );
+      setMajorOptions(
+        all.filter(o => o.type === 'major').map(o => ({ label: o.name, value: o.name }))
+      );
+    } catch {
+      // noop
+    }
+  }, []);
+
+  const loadRoles = useCallback(async () => {
+    try {
+      const res = await roleApi.list();
+      setRoles(res.data.data || []);
+    } catch {
+      // noop
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    loadOntologyOptions();
+    loadRoles();
+  }, [loadData, loadOntologyOptions, loadRoles]);
 
   const filteredData = useMemo(() => {
-    if (!searchText) return data;
-    const lowerSearch = searchText.toLowerCase();
-    return data.filter(
-      (item) =>
-        item.name.toLowerCase().includes(lowerSearch) ||
-        (item.description && item.description.toLowerCase().includes(lowerSearch))
-    );
-  }, [data, searchText]);
+    let result = data;
+    if (favoriteOnly) {
+      result = result.filter((item) => item.is_favorite);
+    }
+    if (searchText) {
+      const lowerSearch = searchText.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.name.toLowerCase().includes(lowerSearch) ||
+          (item.description && item.description.toLowerCase().includes(lowerSearch))
+      );
+    }
+    return result;
+  }, [data, searchText, favoriteOnly]);
 
   const handleCreate = () => {
     setCreateModalVisible(true);
   };
 
-  const handleCreateSuccess = (id: string, values: Partial<KnowledgeRoot>) => {
-    const newKb: KnowledgeRoot = {
-      _key: id,
-      name: values.name || '未命名知識庫',
-      description: values.description || '',
-      ontology_domain: values.ontology_domain || 'Unknown',
-      ontology_majors: values.ontology_majors || [],
-      source_count: 0,
-      vector_status: 'pending',
-      graph_status: 'pending',
-      is_favorite: false,
-      created_at: new Date().toISOString(),
-    };
-    setData([newKb, ...data]);
-    setCreateModalVisible(false);
+  const handleCreateSuccess = async (_id: string, values: Partial<KnowledgeRoot>) => {
+    try {
+      await knowledgeApi.createRoot(values);
+      message.success('知識庫建立成功');
+      setCreateModalVisible(false);
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '建立失敗');
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setLoading(true);
-    setTimeout(() => {
-      setData((prev) => prev.filter((item) => item._key !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await knowledgeApi.deleteRoot(id);
       message.success('知識庫已刪除');
-      setLoading(false);
-    }, 500);
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '刪除失敗');
+    }
   };
 
-  const handleFavoriteToggle = (id: string) => {
-    setData((prev) =>
-      prev.map((item) =>
-        item._key === id ? { ...item, is_favorite: !item.is_favorite } : item
-      )
-    );
+  const handleFavoriteToggle = async (id: string) => {
+    try {
+      const res = await knowledgeApi.toggleFavorite(id);
+      setData((prev) =>
+        prev.map((item) =>
+          item._key === id ? { ...item, is_favorite: res.data.data.is_favorite } : item
+        )
+      );
+    } catch {
+      message.error('收藏切換失敗');
+    }
   };
 
-  const handleCopy = (id: string) => {
-    const source = data.find((item) => item._key === id);
-    if (!source) return;
-    
-    const newKb: KnowledgeRoot = {
-      ...source,
-      _key: `kb_copy_${Date.now()}`,
-      name: `${source.name} - 副本`,
-      is_favorite: false,
-      created_at: new Date().toISOString(),
-      vector_status: 'pending',
-      graph_status: 'pending',
-    };
-    setData([newKb, ...data]);
-    message.success('知識庫複製成功');
+  const handleCopy = async (id: string) => {
+    try {
+      await knowledgeApi.copyRoot(id);
+      message.success('知識庫複製成功');
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '複製失敗');
+    }
   };
 
   const handleEdit = (id: string) => {
     navigate(`/app/knowledge/management/${id}`);
   };
+
+  const handleEditMeta = useCallback((id: string) => {
+    const kb = data.find((item) => item._key === id);
+    if (!kb) return;
+    setEditingKb(kb);
+    editForm.setFieldsValue({
+      name: kb.name,
+      description: kb.description,
+      tags: kb.tags || [],
+      ontology_domain: kb.ontology_domain,
+      ontology_majors: kb.ontology_majors,
+    });
+    setEditModalVisible(true);
+  }, [data, editForm]);
+
+  const handleEditMetaOk = useCallback(async () => {
+    try {
+      const values = await editForm.validateFields();
+      if (!editingKb) return;
+      await knowledgeApi.updateRoot(editingKb._key, values);
+      message.success('知識庫資訊已更新');
+      setEditModalVisible(false);
+      setEditingKb(null);
+      editForm.resetFields();
+      loadData();
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        message.error(error.response.data.message);
+      }
+    }
+  }, [editingKb, editForm, message, loadData]);
+
+  const handleEditMetaCancel = useCallback(() => {
+    setEditModalVisible(false);
+    setEditingKb(null);
+    editForm.resetFields();
+  }, [editForm]);
+
+  const handleAuthorize = useCallback(async (id: string) => {
+    const kb = data.find((item) => item._key === id);
+    if (!kb) return;
+    setAuthKb(kb);
+    try {
+      const res = await knowledgeApi.getRoles(id);
+      setAuthData(res.data.data);
+      authForm.setFieldsValue({
+        role_keys: res.data.data?.role_keys || [],
+      });
+      setAuthModalVisible(true);
+    } catch {
+      message.error('獲取授權資料失敗');
+    }
+  }, [data, authForm, message]);
+
+  const handleAuthSubmit = useCallback(async () => {
+    if (!authKb?._key) return;
+    try {
+      const values = await authForm.validateFields();
+      await knowledgeApi.setRoles(
+        authKb._key,
+        values.role_keys || [],
+        authData?.inherited_role_keys || []
+      );
+      message.success('授權更新成功');
+      setAuthModalVisible(false);
+    } catch {
+      message.error('授權更新失敗');
+    }
+  }, [authKb, authForm, authData, message]);
 
   return (
     <div style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -132,6 +247,16 @@ export default function KnowledgeBaseManagement() {
             style={{ width: 250 }}
             allowClear
           />
+          <Space size="small">
+            <Switch
+              checked={favoriteOnly}
+              onChange={setFavoriteOnly}
+              size="small"
+            />
+            <span style={{ color: contentTokens.textSecondary, fontSize: 13, whiteSpace: 'nowrap' }}>
+              我的收藏
+            </span>
+          </Space>
           <Radio.Group
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value)}
@@ -157,18 +282,22 @@ export default function KnowledgeBaseManagement() {
             data={filteredData}
             loading={loading}
             onEdit={handleEdit}
+            onEditMeta={handleEditMeta}
             onCopy={handleCopy}
             onDelete={handleDelete}
             onFavoriteToggle={handleFavoriteToggle}
+            onAuthorize={handleAuthorize}
           />
         ) : (
           <KBTableList
             data={filteredData}
             loading={loading}
             onEdit={handleEdit}
+            onEditMeta={handleEditMeta}
             onCopy={handleCopy}
             onDelete={handleDelete}
             onFavoriteToggle={handleFavoriteToggle}
+            onAuthorize={handleAuthorize}
           />
         )}
       </div>
@@ -177,8 +306,92 @@ export default function KnowledgeBaseManagement() {
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
         onSuccess={handleCreateSuccess}
-        domains={MOCK_DOMAINS}
+        domains={domainOptions}
+        majors={majorOptions}
       />
+
+      <Modal
+        title="編輯知識庫資訊"
+        open={editModalVisible}
+        onOk={handleEditMetaOk}
+        onCancel={handleEditMetaCancel}
+        okText="儲存"
+        cancelText="取消"
+        destroyOnHidden
+      >
+        <Form form={editForm} layout="vertical" name="kb_edit_form">
+          <Form.Item
+            name="name"
+            label="知識庫名稱"
+            rules={[{ required: true, message: '請輸入知識庫名稱!' }]}
+          >
+            <Input placeholder="例如: 產品文件庫" />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <TextArea rows={3} placeholder="簡單描述此知識庫的用途..." />
+          </Form.Item>
+          <Form.Item
+            name="tags"
+            label="標籤"
+            tooltip="輸入標籤後按 Enter 確認，支援空格、逗號、斜線、分號作為分隔符號"
+          >
+            <Select
+              mode="tags"
+              tokenSeparators={TAG_SEPARATORS}
+              placeholder="輸入標籤，例如: 財務 預算 庫存"
+            />
+          </Form.Item>
+          <Form.Item
+            name="ontology_domain"
+            label="知識領域 (Domain)"
+            rules={[{ required: true, message: '請選擇一個知識領域!' }]}
+          >
+            <Select placeholder="選擇領域" options={domainOptions} />
+          </Form.Item>
+          <Form.Item name="ontology_majors" label="專業主題 (Majors)">
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="選擇相關專業主題"
+              options={majorOptions}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`授權管理 - ${authKb?.name || ''}`}
+        open={authModalVisible}
+        onCancel={() => setAuthModalVisible(false)}
+        onOk={handleAuthSubmit}
+        okText="儲存"
+        cancelText="取消"
+        width={500}
+        destroyOnHidden
+      >
+        <Form form={authForm} layout="vertical">
+          {authData?.inherited_role_keys && authData.inherited_role_keys.length > 0 && (
+            <Form.Item label="繼承的角色">
+              <div>
+                {authData.inherited_role_keys.map((key) => {
+                  const role = roles.find((r) => r._key === key);
+                  return <Tag key={key} color="blue">{role?.name || key}</Tag>;
+                })}
+              </div>
+            </Form.Item>
+          )}
+          <Form.Item
+            name="role_keys"
+            label={authData?.inherited_role_keys?.length ? '額外授權角色' : '授權角色'}
+          >
+            <Select
+              mode="multiple"
+              placeholder="選擇角色"
+              options={roles.map((r) => ({ value: r._key, label: r.name }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

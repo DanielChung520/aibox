@@ -480,7 +480,7 @@ export default function IntentsPage() {
       <Modal
         title={editingIntent ? '編輯意圖' : '新增意圖'}
         open={modalVisible} onOk={handleModalSubmit} onCancel={() => setModalVisible(false)}
-        width={800} okText="儲存" cancelText="取消" destroyOnClose
+        width={800} okText="儲存" cancelText="取消" destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Row gutter={16}>

@@ -3,7 +3,7 @@
 //! # Description
 //! ArangoDB 數據庫連接與操作
 //!
-//! # Last Update: 2026-03-19 10:00:00
+//! # Last Update: 2026-03-25 11:30:00
 //! # Author: Daniel Chung
 //! # Version: 1.0.0
 
@@ -186,6 +186,10 @@ async fn seed_params(db: &Database<ReqwestClient>) -> Result<(), String> {
         .await
         .map_err(|e| format!("system_params collection: {e}"))?;
 
+    // NOTE: theme.mode and theme.primaryColor params have been migrated to the
+    // theme_templates collection (see db/themes.rs). Theme configuration is now
+    // DB-driven and managed through the ThemeTemplate struct with active template
+    // activation via PUT /api/v1/theme-templates/{key}/activate.
     let defaults: &[(&str, &str, &str, bool, &str)] = &[
         ("app.name", "管理系统", "string", true, "basic"),
         ("app.logo", "", "string", true, "basic"),

@@ -1,35 +1,23 @@
 /**
  * @file        知識庫圖譜面板元件
  * @description 使用 @antv/g6 v5 力導向圖視覺化知識圖譜節點與關聯
- * @lastUpdate  2026-03-25 16:03:03
+ * @lastUpdate  2026-03-25 18:00:00
  * @author      Daniel Chung
- * @version     2.0.0
+ * @version     2.0.1
  */
 
 import { useEffect, useRef } from 'react';
-import { theme } from 'antd';
+import { Empty, Typography, theme } from 'antd';
 import { Graph, NodeEvent, CanvasEvent } from '@antv/g6';
 import type { IElementEvent, IPointerEvent } from '@antv/g6';
-import { GraphNode, GraphEdge } from '../../../services/api';
+
+const { Text } = Typography;
 
 interface KBGraphPanelProps {
   fileId: string;
   onNodeSelect?: (nodeId: string | null) => void;
   onGraphReady?: (graph: Graph) => void;
 }
-
-const MOCK_GRAPH_NODES: GraphNode[] = [
-  { id: 'n1', label: '物料', type: '核心實體', properties: { category: '原材料', status: '使用中' } },
-  { id: 'n2', label: '倉庫', type: '地點', properties: { location: 'A 區', capacity: '5000' } },
-  { id: 'n3', label: '供應商', type: '組織', properties: { rating: 'A', region: '華東' } },
-  { id: 'n4', label: '分類', type: '概念', properties: { method: 'ABC', level: 'A' } },
-];
-
-const MOCK_GRAPH_EDGES: GraphEdge[] = [
-  { source: 'n1', target: 'n2', label: '存放於' },
-  { source: 'n3', target: 'n1', label: '供應' },
-  { source: 'n1', target: 'n4', label: '屬於' },
-];
 
 export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBGraphPanelProps) {
   const { token } = theme.useToken();
@@ -39,22 +27,13 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const graphNodes = MOCK_GRAPH_NODES.map((n) => ({
-      id: n.id,
-      data: { label: n.label, type: n.type, properties: n.properties },
-    }));
-
-    const graphEdges = MOCK_GRAPH_EDGES.map((e, idx) => ({
-      id: `edge-${idx}`,
-      source: e.source,
-      target: e.target,
-      data: { label: e.label },
-    }));
+    graphRef.current?.destroy();
+    graphRef.current = null;
 
     const graph = new Graph({
       container: containerRef.current,
       autoResize: true,
-      data: { nodes: graphNodes, edges: graphEdges },
+      data: { nodes: [], edges: [] },
       node: {
         style: {
           size: 32,
@@ -82,12 +61,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
           labelFontSize: 11,
         },
       },
-      layout: {
-        type: 'force',
-        preventOverlap: true,
-        linkDistance: 150,
-        animated: true,
-      },
+      layout: { type: 'force', preventOverlap: true, linkDistance: 150, animated: true },
       behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
     });
 
@@ -109,9 +83,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
       graphRef.current = null;
       graph.destroy();
     };
-    // fileId 變更時重新初始化圖譜
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId]);
+  }, [fileId, onNodeSelect, onGraphReady, token]);
 
   return (
     <div
@@ -119,11 +91,26 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
       style={{
         width: '100%',
         height: '100%',
-        minHeight: 400,
         borderRadius: token.borderRadiusLG,
         border: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
+        position: 'relative',
       }}
-    />
+    >
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 10, pointerEvents: 'none',
+      }}>
+        <Empty
+          description={
+            <Text style={{ color: token.colorTextSecondary }}>
+              圖譜待生成（請等待後端向量化工序完成）
+            </Text>
+          }
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      </div>
+    </div>
   );
 }

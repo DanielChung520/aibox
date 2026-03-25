@@ -1,9 +1,9 @@
 /**
  * @file        統一主題供應器
  * @description DB 驅動的主題系統，分離 Shell（固定深色）與 Content（可切換）兩層
- * @lastUpdate  2026-03-22 19:11:57
+ * @lastUpdate  2026-03-25 14:42:53
  * @author      Daniel Chung
- * @version     2.0.0
+ * @version     2.1.0
  */
 
 import { createContext, useState, useEffect, useContext, useCallback, ReactNode } from 'react';
@@ -12,8 +12,6 @@ import {
   DEFAULT_SHELL_TOKENS,
   DEFAULT_CONTENT_LIGHT_TOKENS,
   DEFAULT_CONTENT_DARK_TOKENS,
-  lightColors,
-  darkColors,
 } from '../styles/theme/tokens';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -143,7 +141,6 @@ export function useReloadTemplates(): () => Promise<void> {
   return useContext(ThemeContext).reloadTemplates;
 }
 
-export function useColors(): typeof lightColors {
-  const { effectiveTheme } = useContext(ThemeContext);
-  return effectiveTheme === 'dark' ? darkColors : lightColors;
+export function useTheme(): ThemeContextValue {
+  return useContext(ThemeContext);
 }

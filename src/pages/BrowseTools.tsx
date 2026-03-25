@@ -1,9 +1,9 @@
 /**
  * @file        效率工具代理頁面
  * @description 效率工具代理功能，展示各種效率提升的 AI 代理工具
- * @lastUpdate  2026-03-22 19:56:42
+ * @lastUpdate  2026-03-25 15:54:25
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.0.1
  */
 
 import { useState, useEffect } from 'react';
@@ -64,7 +64,7 @@ export default function BrowseTools() {
     name: agent.name,
     description: agent.description || '',
     icon: agent.icon || 'RobotOutlined',
-    status: (agent.status as any) || 'online',
+    status: agent.status || 'online',
     usageCount: agent.usage_count || 0,
     groupKey: agent.group_key || 'productivity',
   });
@@ -255,16 +255,16 @@ export default function BrowseTools() {
           style={{ marginTop: -8 }}
         />
       </Spin>
-      <AgentFormModal
-        open={modalOpen}
-        agent={editingAgent ? {
-          id: editingAgent._key || '',
-          name: editingAgent.name,
-          description: editingAgent.description || '',
-          icon: editingAgent.icon || 'RobotOutlined',
-          status: (editingAgent.status as any) || 'online',
-          usageCount: editingAgent.usage_count || 0,
-          groupKey: editingAgent.group_key || 'productivity',
+       <AgentFormModal
+         open={modalOpen}
+         agent={editingAgent ? {
+           id: editingAgent._key || '',
+           name: editingAgent.name,
+           description: editingAgent.description || '',
+           icon: editingAgent.icon || 'RobotOutlined',
+           status: editingAgent.status || 'online',
+           usageCount: editingAgent.usage_count || 0,
+           groupKey: editingAgent.group_key || 'productivity',
           agentType: editingAgent.agent_type,
           source: editingAgent.source,
           endpointUrl: editingAgent.endpoint_url,

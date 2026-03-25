@@ -1,14 +1,14 @@
 /**
  * @file        主佈局元件
  * @description 應用主佈局，包含側邊欄導航、Header、使用者資訊下拉選單
- * @lastUpdate  2026-03-22 19:23:12
+ * @lastUpdate  2026-03-25 15:54:25
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.0.1
  */
 
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Button, Avatar, Dropdown, ConfigProvider, theme } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -154,108 +154,128 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh', background: contentTokens.pageBg || shellTokens.headerBg }}>
-      <Sider 
-        trigger={null} 
-        collapsible 
-        collapsed={collapsed}
-        width={200}
-        style={{ background: siderBg }}
+      <ConfigProvider
+        theme={{
+          algorithm: theme.darkAlgorithm,
+          token: {
+            colorPrimary: contentTokens.colorPrimary,
+          },
+          components: {
+            Menu: {
+              darkItemBg: shellTokens.siderBg,
+              darkItemColor: shellTokens.menuItemColor,
+              darkItemHoverBg: shellTokens.menuItemHoverBg,
+              darkItemSelectedBg: shellTokens.menuItemSelectedBg,
+              darkItemSelectedColor: shellTokens.menuItemSelectedColor,
+            },
+          },
+        }}
       >
-        <div style={{
-          height: 65,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderBottom: `1px solid ${shellTokens.siderBorder}`,
-          color: textColor,
-        }}>
-          {appLogo && appLogo.length > 0 ? (
-            <div
-              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
-              onClick={() => navigate('/app/home')}
-            >
-              <img
-                src={appLogo}
-                alt="logo"
-                style={{ height: 50, width: 'auto', objectFit: 'contain' }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        <Sider 
+          trigger={null} 
+          collapsible 
+          collapsed={collapsed}
+          width={200}
+          style={{ background: siderBg }}
+        >
+          <div style={{
+            height: 65,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderBottom: `1px solid ${shellTokens.siderBorder}`,
+            color: textColor,
+          }}>
+            {appLogo && appLogo.length > 0 ? (
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                onClick={() => navigate('/app/home')}
+              >
+                <img
+                  src={appLogo}
+                  alt="logo"
+                  style={{ height: 50, width: 'auto', objectFit: 'contain' }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+                {!collapsed && <strong>AI- BOX</strong>}
+              </div>
+            ) : !collapsed ? (
+              <div
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate('/app/home')}
+              >
+                <strong>AI-BOX</strong>
+              </div>
+            ) : null}
+          </div>
+          
+          <Menu
+            mode="inline"
+            theme="dark"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            onClick={({ key }) => handleMenuClick({ key })}
+            style={{
+              borderRight: 0,
+              background: 'transparent',
+            }}
+          />
+          
+          <div style={{
+            position: 'absolute',
+            bottom: 16,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            color: contentTokens.textSecondary,
+            fontSize: '12px',
+          }}>
+            v1.0.0
+          </div>
+        </Sider>
+        
+        <Layout>
+          <Header style={{
+            padding: '0 16px',
+            background: headerBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: `1px solid ${shellTokens.siderBorder}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <Button
+                type="text"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed(!collapsed)}
+                style={{ fontSize: '16px', color: textColor }}
               />
-              {!collapsed && <strong>AI- BOX</strong>}
+              <span style={{ color: textColor, fontSize: 16, fontWeight: 500 }}>
+                {getPageTitle()}
+              </span>
             </div>
-          ) : !collapsed ? (
-            <div
-              style={{ cursor: 'pointer' }}
-              onClick={() => navigate('/app/home')}
-            >
-              <strong>AI-BOX</strong>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <ServiceStatusBar />
+              <Button
+                type="text"
+                icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+                onClick={toggleTheme}
+                style={{ color: textColor }}
+              />
+              <span style={{ color: textColor }}>{user?.name || user?.username}</span>
+              <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+                <Avatar
+                  style={{ cursor: 'pointer', background: primaryColor }}
+                  icon={<UserOutlined />}
+                />
+              </Dropdown>
             </div>
-          ) : null}
-        </div>
-        
-        <Menu
-          mode="inline"
-          theme="dark"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={({ key }) => handleMenuClick({ key })}
-          style={{
-            borderRight: 0,
-            background: 'transparent',
-          }}
-        />
-        
-        <div style={{
-          position: 'absolute',
-          bottom: 16,
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          color: contentTokens.textSecondary,
-          fontSize: '12px',
-        }}>
-          v1.0.0
-        </div>
-      </Sider>
+          </Header>
+        </Layout>
+      </ConfigProvider>
       
       <Layout>
-        <Header style={{
-          padding: '0 16px',
-          background: headerBg,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: `1px solid ${shellTokens.siderBorder}`,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ fontSize: '16px', color: textColor }}
-            />
-            <span style={{ color: textColor, fontSize: 16, fontWeight: 500 }}>
-              {getPageTitle()}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <ServiceStatusBar />
-            <Button
-              type="text"
-              icon={isDark ? <SunOutlined /> : <MoonOutlined />}
-              onClick={toggleTheme}
-              style={{ color: textColor }}
-            />
-            <span style={{ color: textColor }}>{user?.name || user?.username}</span>
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-              <Avatar
-                style={{ cursor: 'pointer', background: primaryColor }}
-                icon={<UserOutlined />}
-              />
-            </Dropdown>
-          </div>
-        </Header>
-        
         <Content style={{
           margin: '16px',
           padding: '24px',

@@ -1,9 +1,9 @@
 /**
  * @file        企業流程代理頁面
  * @description 企業流程代理功能，展示各種企業經營相關的 AI 代理
- * @lastUpdate  2026-03-22 19:56:42
+ * @lastUpdate  2026-03-25 15:54:25
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.0.1
  */
 
 import { useState, useEffect } from 'react';
@@ -64,7 +64,7 @@ export default function BrowseAgent() {
     name: agent.name,
     description: agent.description || '',
     icon: agent.icon || 'RobotOutlined',
-    status: (agent.status as any) || 'online',
+    status: agent.status || 'online',
     usageCount: agent.usage_count || 0,
     groupKey: agent.group_key || 'productivity',
   });
@@ -273,16 +273,16 @@ export default function BrowseAgent() {
           style={{ marginTop: -8 }}
         />
       </Spin>
-      <AgentFormModal
-        open={modalOpen}
-        agent={editingAgent ? {
-          id: editingAgent._key || '',
-          name: editingAgent.name,
-          description: editingAgent.description || '',
-          icon: editingAgent.icon || 'RobotOutlined',
-          status: (editingAgent.status as any) || 'online',
-          usageCount: editingAgent.usage_count || 0,
-          groupKey: editingAgent.group_key || 'productivity',
+       <AgentFormModal
+         open={modalOpen}
+         agent={editingAgent ? {
+           id: editingAgent._key || '',
+           name: editingAgent.name,
+           description: editingAgent.description || '',
+           icon: editingAgent.icon || 'RobotOutlined',
+           status: editingAgent.status || 'online',
+           usageCount: editingAgent.usage_count || 0,
+           groupKey: editingAgent.group_key || 'productivity',
           agentType: editingAgent.agent_type,
           source: editingAgent.source,
           endpointUrl: editingAgent.endpoint_url,

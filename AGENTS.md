@@ -1,7 +1,7 @@
 ---
-lastUpdate: 2026-03-19 13:00:00
+lastUpdate: 2026-03-25 15:20:55
 author: Daniel Chung
-version: 1.4.0
+version: 1.4.1
 ---
 # AGENTS.md - Daniel Chung Guide for ABC Desktop
 
@@ -51,8 +51,9 @@ version: 1.4.0
 | 刪除檔案                           | 刪除任何程式碼或設定檔   | 可能造成功能損失           |
 | 大規模重寫                         | 一次性重寫整個檔案或模組 | 風險高且難以追蹤變更       |
 | `git reset` / `git stash drop` | 丟棄 commit 或 stash     | 不可逆，會丟失程式碼       |
+| 修改資料庫資料                     | INSERT / UPDATE / DELETE 任何集合資料 | 可能影響線上資料或破壞資料完整性 |
 
-**正確做法**：先問「我可以 revert 這個檔案嗎？」，等待回覆後再執行。
+**正確做法**：先問「我可以 revert 這個檔案嗎？」或「我可以修改 XX 集合的資料嗎？」，等待回覆後再執行。
 
 ---
 
@@ -971,6 +972,7 @@ npm run tauri build -- --target x86_64-apple-darwin
 
 | 日期       | 版本  | 更新者       | 變更內容                                                             |
 | ---------- | ----- | ------------ | -------------------------------------------------------------------- |
+| 2026-03-25 | 1.4.1 | Daniel Chung | 新增資料庫資料修改必須事先確認規則                                    |
 | 2026-03-19 | 1.4.0 | Daniel Chung | 新增 Safe Operation Rules，破壞性操作必須事先取得同意                |
 | 2026-03-18 | 1.3.0 | Daniel Chung | 新增 Tauri Desktop 桌面殼開發規範                                    |
 | 2026-03-18 | 1.2.0 | Daniel Chung | 新增 API 開發規範章節，強制要求遵循 API Specification                |

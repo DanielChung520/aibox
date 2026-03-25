@@ -35,6 +35,9 @@ class Pipeline:
 
     def vectorize(self, file_id: str, local_path: str, root_id: str) -> VectorizeResult:
         self.arango.update_status(file_id, vector_status="processing")
+        self.arango.log_event(
+            file_id, "vectorize", "start", f"Starting vectorization for {file_id}"
+        )
         try:
             raw_text = self.arango.read_file(file_id)
             if raw_text is None:
@@ -50,17 +53,34 @@ class Pipeline:
             text = raw_text.strip()
             if not text:
                 self.arango.update_status(file_id, vector_status="completed")
+                self.arango.log_event(
+                    file_id, "vectorize", "end", "No content to vectorize"
+                )
                 return VectorizeResult(chunks=0, status="no_content")
 
             chunks = chunk_text(text)
+            self.arango.log_event(
+                file_id, "vectorize", "step", f"Chunked into {len(chunks)} pieces"
+            )
             embeddings = []
-            for chunk in chunks:
+            for i, chunk in enumerate(chunks):
                 emb = self.embedder.embed(chunk)
                 if emb:
                     embeddings.append(emb)
+                if i % 10 == 0:
+                    self.arango.log_event(
+                        file_id,
+                        "vectorize",
+                        "step",
+                        f"Embedded {i + 1}/{len(chunks)} chunks",
+                    )
 
             if not embeddings:
-                self.arango.update_status(file_id, vector_status="failed")
+                reason = "vectorize: no embeddings generated (embedding service returned empty)"
+                self.arango.update_status(
+                    file_id, vector_status="failed", failed_reason=reason
+                )
+                self.arango.log_event(file_id, "vectorize", "error", reason)
                 return VectorizeResult(chunks=0, status="embedding_failed")
 
             collection = f"knowledge_{root_id}"
@@ -79,15 +99,27 @@ class Pipeline:
             ]
             count = self.qdrant.upsert(collection, points)
             self.arango.update_status(file_id, vector_status="completed")
+            self.arango.log_event(
+                file_id,
+                "vectorize",
+                "end",
+                f"Completed: {count} vectors indexed in collection '{collection}'",
+            )
             return VectorizeResult(chunks=count, status="completed")
 
         except Exception as exc:
             reason = f"vectorize: {type(exc).__name__}: {exc}"
-            self.arango.update_status(file_id, vector_status="failed", failed_reason=reason)
+            self.arango.update_status(
+                file_id, vector_status="failed", failed_reason=reason
+            )
+            self.arango.log_error(file_id, "vectorize", reason, exc)
             return VectorizeResult(chunks=0, status="failed")
 
     def extract_graph(self, file_id: str, local_path: str) -> GraphResult:
         self.arango.update_status(file_id, graph_status="processing")
+        self.arango.log_event(
+            file_id, "graph", "start", f"Starting graph extraction for {file_id}"
+        )
         try:
             raw_text = self.arango.read_file(file_id)
             if raw_text is None:
@@ -103,13 +135,31 @@ class Pipeline:
             text = raw_text.strip()
             if not text:
                 self.arango.update_status(file_id, graph_status="completed")
+                self.arango.log_event(
+                    file_id, "graph", "end", "No content to extract graph from"
+                )
                 return GraphResult(entities=0, relations=0, status="no_content")
 
+            self.arango.log_event(
+                file_id, "graph", "step", "Calling LLM for entity/relation extraction"
+            )
             entities, relations = self.graph.extract(text)
+            self.arango.log_event(
+                file_id,
+                "graph",
+                "step",
+                f"LLM returned {len(entities)} entities, {len(relations)} relations",
+            )
             if entities or relations:
                 self.arango.upsert_graph(file_id, entities, relations)
 
             self.arango.update_status(file_id, graph_status="completed")
+            self.arango.log_event(
+                file_id,
+                "graph",
+                "end",
+                f"Completed: {len(entities)} entities, {len(relations)} relations stored",
+            )
             return GraphResult(
                 entities=len(entities),
                 relations=len(relations),
@@ -118,5 +168,8 @@ class Pipeline:
 
         except Exception as exc:
             reason = f"graph: {type(exc).__name__}: {exc}"
-            self.arango.update_status(file_id, graph_status="failed", failed_reason=reason)
+            self.arango.update_status(
+                file_id, graph_status="failed", failed_reason=reason
+            )
+            self.arango.log_error(file_id, "graph", reason, exc)
             return GraphResult(entities=0, relations=0, status="failed")

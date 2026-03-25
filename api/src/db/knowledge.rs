@@ -65,6 +65,10 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
         .collection("knowledge_files")
         .await
         .map_err(|e| format!("knowledge_files collection: {e}"))?;
+    let _job_logs_col = db
+        .collection("job_logs")
+        .await
+        .map_err(|_| ());
 
     let now = Utc::now().to_rfc3339();
 

@@ -298,3 +298,12 @@ async def abort_pipeline(file_id: str) -> dict[str, object]:
         failed_reason="任務已被使用者中止",
     )
     return {"status": "aborted", "file_id": file_id, "revoked": revoked}
+
+
+@app.get("/pipeline/logs")
+async def get_pipeline_logs(file_id: str) -> dict[str, object]:
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    logs = arango.get_job_logs(file_id)
+    return {"file_id": file_id, "logs": logs, "count": len(logs)}

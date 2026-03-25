@@ -237,6 +237,15 @@ export interface KbJobFile {
   graph_task_id?: string;
 }
 
+export interface JobLog {
+  file_id: string;
+  task_type: string;
+  event: string;
+  message: string;
+  detail?: string;
+  timestamp: string;
+}
+
 export const jobsApi = {
   list: (status?: 'active' | 'failed' | 'completed') =>
     api.get<{ code: number; data: KbJobFile[] }>(
@@ -250,6 +259,10 @@ export const jobsApi = {
   abort: (fileKey: string) =>
     api.post<{ code: number; data: { status: string; revoked: string[] } }>(
       `/api/v1/jobs/${fileKey}/abort`,
+    ),
+  logs: (fileKey: string) =>
+    api.get<{ code: number; data: { file_id: string; logs: JobLog[]; count: number } }>(
+      `/api/v1/jobs/${fileKey}/logs`,
     ),
 };
 

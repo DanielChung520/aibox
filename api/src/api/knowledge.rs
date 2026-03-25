@@ -501,6 +501,26 @@ pub async fn clear_jobs(
         .await
         .map_err(|_| err_500())?;
 
+    let keys: Vec<&str> = deleted
+        .iter()
+        .filter_map(|f| f._key.as_deref())
+        .collect();
+    if !keys.is_empty() {
+        let log_filter = keys
+            .iter()
+            .map(|k| format!("'{}'", k))
+            .collect::<Vec<_>>()
+            .join(",");
+        let log_query = format!(
+            "FOR log IN job_logs FILTER log.file_id IN [{}] REMOVE log IN job_logs RETURN log",
+            log_filter
+        );
+        let _logs: Vec<serde_json::Value> = db
+            .aql_str(&log_query)
+            .await
+            .unwrap_or_default();
+    }
+
     Ok(Json(json!({ "code": 200, "message": format!("已清除 {} 筆記錄", deleted.len()) })))
 }
 
@@ -532,6 +552,31 @@ pub async fn abort_job(
         Err(e) => Err((
             StatusCode::BAD_GATEWAY,
             Json(json!({ "code": 502, "message": format!("failed to abort task: {}", e) })),
+        )),
+    }
+}
+
+pub async fn job_logs(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/logs?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to fetch logs: {}", e) })),
         )),
     }
 }

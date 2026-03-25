@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Badge, Button, Dropdown, Modal, Segmented, Tooltip, message } from 'antd';
-import { CloudOutlined, DeleteOutlined, StopOutlined, WarningOutlined } from '@ant-design/icons';
-import { jobsApi, KbJobFile } from '../services/api';
+import { Badge, Button, Drawer, Dropdown, Modal, Segmented, Tooltip, message } from 'antd';
+import {
+  CloudOutlined, DeleteOutlined, FileTextOutlined, StopOutlined,
+  WarningOutlined,
+} from '@ant-design/icons';
+import { jobsApi, JobLog, KbJobFile } from '../services/api';
 import { useContentTokens, useShellTokens } from '../contexts/AppThemeProvider';
 
 type JobStatus = 'active' | 'failed' | 'completed';
@@ -17,6 +20,10 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
   const [tab, setTab] = useState<JobStatus>('active');
   const [clearing, setClearing] = useState(false);
   const [abortingKey, setAbortingKey] = useState<string | null>(null);
+  const [logDrawerOpen, setLogDrawerOpen] = useState(false);
+  const [logJob, setLogJob] = useState<KbJobFile | null>(null);
+  const [logs, setLogs] = useState<JobLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const tokens = useContentTokens();
   const shellTokens = useShellTokens();
 
@@ -85,6 +92,23 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
     });
   };
 
+  const handleViewLogs = async (job: KbJobFile) => {
+    if (!job._key) return;
+    setLogJob(job);
+    setLogDrawerOpen(true);
+    setLogs([]);
+    setLoadingLogs(true);
+    try {
+      const response = await jobsApi.logs(job._key);
+      setLogs(response.data.data?.logs || []);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      message.error(err.response?.data?.message || '取得日誌失敗');
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
   const getOverallStatus = (job: KbJobFile) => {
     if (job.vector_status === 'failed' || job.graph_status === 'failed') return 'failed';
     if (job.vector_status === 'processing' || job.graph_status === 'processing') return 'processing';
@@ -140,6 +164,7 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
   const showClear = tab !== 'active';
 
   return (
+    <>
     <Dropdown
       placement="bottomRight"
       trigger={['click']}
@@ -250,21 +275,34 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
                       <div style={{ fontSize: 11, color: tokens.textSecondary, marginTop: 2 }}>
                         {job.knowledge_root_id} | {formatSize(job.file_size)}
                       </div>
-                      {overall === 'failed' && job.failed_reason && (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: tokens.colorError,
-                            marginTop: 3,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            maxWidth: 280,
-                          }}
-                          title={job.failed_reason}
-                        >
-                          <WarningOutlined style={{ marginRight: 3 }} />
-                          {job.failed_reason}
+                      {overall === 'failed' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                          {job.failed_reason && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: tokens.colorError,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flex: 1,
+                                maxWidth: 220,
+                              }}
+                              title={job.failed_reason}
+                            >
+                              <WarningOutlined style={{ marginRight: 3 }} />
+                              {job.failed_reason}
+                            </div>
+                          )}
+                          <Tooltip title="查看日誌">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<FileTextOutlined />}
+                              onClick={() => handleViewLogs(job)}
+                              style={{ color: tokens.colorInfo, padding: '0 2px', height: 18, minWidth: 0, fontSize: 11 }}
+                            />
+                          </Tooltip>
                         </div>
                       )}
                     </div>
@@ -280,5 +318,104 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
         <Button type="text" icon={<CloudOutlined />} style={{ color: textColor }} />
       </Badge>
     </Dropdown>
+    <Drawer
+      title={`任務日誌 — ${logJob?.filename ?? ''}`}
+      placement="right"
+      width={440}
+      open={logDrawerOpen}
+      onClose={() => setLogDrawerOpen(false)}
+      styles={{ body: { padding: 0 } }}
+    >
+      {loadingLogs ? (
+        <div style={{ padding: 20, textAlign: 'center', color: tokens.textSecondary }}>
+          載入中...
+        </div>
+      ) : logs.length === 0 ? (
+        <div style={{ padding: 20, textAlign: 'center', color: tokens.textSecondary }}>
+          尚無日誌記錄
+        </div>
+      ) : (
+        <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {logs.map((log, i) => {
+            const isError = log.event === 'error';
+            const isEnd = log.event === 'end';
+            return (
+              <div
+                key={i}
+                style={{
+                  padding: '8px 16px',
+                  borderBottom: '1px solid rgba(0,0,0,0.06)',
+                  background: isError
+                    ? 'rgba(255,0,0,0.04)'
+                    : isEnd
+                    ? 'rgba(0,200,83,0.04)'
+                    : 'transparent',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      background: log.task_type === 'vectorize'
+                        ? '#e6f4ff'
+                        : '#fff7e6',
+                      color: log.task_type === 'vectorize'
+                        ? tokens.colorPrimary
+                        : tokens.colorWarning,
+                    }}
+                  >
+                    {log.task_type}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      background: isError
+                        ? 'rgba(255,0,0,0.1)'
+                        : isEnd
+                        ? 'rgba(0,200,83,0.1)'
+                        : 'rgba(0,0,0,0.04)',
+                      color: isError
+                        ? tokens.colorError
+                        : isEnd
+                        ? tokens.colorSuccess
+                        : '#999',
+                    }}
+                  >
+                    {log.event}
+                  </span>
+                  <span style={{ color: tokens.textSecondary, fontSize: 10, marginLeft: 'auto' }}>
+                    {new Date(log.timestamp).toLocaleTimeString('zh-TW')}
+                  </span>
+                </div>
+                <div style={{ color: tokens.colorTextBase, lineHeight: 1.5 }}>{log.message}</div>
+                {isError && log.detail && (
+                  <pre
+                    style={{
+                      marginTop: 6,
+                      padding: '6px 8px',
+                      background: 'rgba(255,0,0,0.06)',
+                      borderRadius: 4,
+                      color: tokens.colorError,
+                      fontSize: 11,
+                      overflowX: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {log.detail}
+                  </pre>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Drawer>
+    </>
   );
 }

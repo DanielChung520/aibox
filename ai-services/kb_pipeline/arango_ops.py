@@ -1,6 +1,8 @@
 """ArangoDB operations for knowledge base files."""
 
 import os
+import traceback as tb_module
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -147,3 +149,69 @@ class ArangoOps:
                     f"{self.url}/_db/{self.db}/_api/document/knowledge_graph_edges",
                     json=edge,
                 )
+
+    def ensure_job_logs_collection(self) -> None:
+        with self._client() as client:
+            resp = client.get(f"{self.url}/_db/{self.db}/_api/collection/job_logs")
+            if resp.status_code == 404:
+                client.post(
+                    f"{self.url}/_db/{self.db}/_api/collection",
+                    json={"name": "job_logs"},
+                )
+
+    def log_event(
+        self,
+        file_id: str,
+        task_type: str,
+        event: str,
+        message: str,
+        detail: str | None = None,
+    ) -> None:
+        self.ensure_job_logs_collection()
+        doc: dict[str, object] = {
+            "file_id": file_id,
+            "task_type": task_type,
+            "event": event,
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        if detail:
+            doc["detail"] = detail
+        with self._client() as client:
+            client.post(
+                f"{self.url}/_db/{self.db}/_api/document/job_logs",
+                json=doc,
+            )
+
+    def log_error(
+        self,
+        file_id: str,
+        task_type: str,
+        message: str,
+        exc: BaseException,
+    ) -> None:
+        self.log_event(
+            file_id=file_id,
+            task_type=task_type,
+            event="error",
+            message=message,
+            detail=tb_module.format_exc(),
+        )
+
+    def get_job_logs(self, file_id: str) -> list[dict[str, object]]:
+        with self._client() as client:
+            resp = client.post(
+                f"{self.url}/_db/{self.db}/_api/cursor",
+                json={
+                    "query": """
+                        FOR log IN job_logs
+                        FILTER log.file_id == @file_id
+                        SORT log.timestamp ASC
+                        RETURN log
+                    """,
+                    "bindVars": {"file_id": file_id},
+                },
+            )
+            if resp.status_code == 200:
+                return resp.json().get("result", [])
+            return []

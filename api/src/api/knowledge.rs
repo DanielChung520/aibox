@@ -13,7 +13,7 @@ use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    routing::post,
+    routing::{delete, post},
     Json, Router,
 };
 use serde_json::json;
@@ -348,16 +348,34 @@ pub async fn upload_file(
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("bin");
-    let local_dir = format!("data/uploads/{}", root_id);
-    let local_path = format!("{}/{}.{}", local_dir, file_key, ext);
+    let local_dir = std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("data/uploads")
+        .join(&root_id);
+    let local_path = local_dir.join(format!("{}.{}", file_key, ext));
+    let s3_path = format!("bucket-aibox-assets/{}/{}.{}", root_id, file_key, ext);
 
-    // Save to local disk
+    // Save to local disk (for Celery pipeline to read)
     tokio::fs::create_dir_all(&local_dir).await.map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "code": 500, "message": e.to_string() })))
     })?;
     tokio::fs::write(&local_path, &bytes).await.map_err(|e| {
         (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "code": 500, "message": e.to_string() })))
     })?;
+
+    // Upload to SeaweedFS ai-box cluster (backup / long-term storage)
+    let seaweed_user = std::env::var("SEAWEED_USER").unwrap_or_else(|_| "admin".to_string());
+    let seaweed_pass = std::env::var("SEAWEED_PASS").unwrap_or_else(|_| "admin123".to_string());
+    let seaweed_base = std::env::var("SEAWEED_AIBOX_URL").unwrap_or_else(|_| "http://localhost:8888".to_string());
+    let seaweed_url = format!("{}/{}", seaweed_base, s3_path);
+    let client = reqwest::Client::new();
+    let _ = client
+        .put(&seaweed_url)
+        .basic_auth(&seaweed_user, Some(&seaweed_pass))
+        .body(bytes.clone())
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await;
 
     // Create ArangoDB record
     let now = chrono::Utc::now().to_rfc3339();
@@ -371,6 +389,7 @@ pub async fn upload_file(
         "graph_status": "pending",
         "knowledge_root_id": root_id,
         "local_path": local_path,
+        "s3_path": s3_path,
     });
 
     let col = db.collection("knowledge_files").await.map_err(|_| err_500())?;
@@ -390,7 +409,6 @@ pub async fn upload_file(
     // Trigger Celery task via knowledge_agent
     let agent_url = std::env::var("KNOWLEDGE_AGENT_URL").unwrap_or_else(|_| "http://localhost:8007".to_string());
     let trigger_url = format!("{}/pipeline/trigger", agent_url);
-    let client = reqwest::Client::new();
     let payload = serde_json::json!({
         "task": "process_file",
         "file_id": file_key,
@@ -412,11 +430,110 @@ pub fn create_upload_router() -> Router {
     Router::new().route("/api/v1/knowledge/roots/{root_id}/files/upload", post(upload_file))
 }
 
+pub async fn list_jobs(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let db = get_db();
+
+    let filter = match params.get("status").map(|s| s.as_str()) {
+        Some("failed") => {
+            let jobs: Vec<KnowledgeFile> = db
+                .aql_bind_vars(
+                    "FOR f IN knowledge_files \
+                     FILTER f.vector_status == 'failed' OR f.graph_status == 'failed' \
+                     SORT f.upload_time DESC LIMIT 50 RETURN f",
+                    [].into(),
+                )
+                .await
+                .map_err(|_| err_500())?;
+            return Ok(Json(json!({ "code": 200, "data": jobs })));
+        }
+        Some("completed") => {
+            let jobs: Vec<KnowledgeFile> = db
+                .aql_bind_vars(
+                    "FOR f IN knowledge_files \
+                     FILTER f.vector_status == 'completed' AND f.graph_status == 'completed' \
+                     SORT f.upload_time DESC LIMIT 50 RETURN f",
+                    [].into(),
+                )
+                .await
+                .map_err(|_| err_500())?;
+            return Ok(Json(json!({ "code": 200, "data": jobs })));
+        }
+        _ => "f.vector_status IN ['pending', 'processing']",
+    };
+
+    let query = format!(
+        "FOR f IN knowledge_files FILTER {} SORT f.upload_time DESC LIMIT 50 RETURN f",
+        filter
+    );
+
+    let jobs: Vec<KnowledgeFile> = db
+        .aql_str(&query)
+        .await
+        .map_err(|_| err_500())?;
+
+    Ok(Json(json!({ "code": 200, "data": jobs })))
+}
+
+pub async fn clear_jobs(
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let db = get_db();
+    let status = params.get("status").map(|s| s.as_str()).unwrap_or("failed");
+
+    let filter = match status {
+        "completed" => {
+            "f.vector_status == 'completed' AND f.graph_status == 'completed'"
+        }
+        _ => {
+            "f.vector_status == 'failed' OR f.graph_status == 'failed'"
+        }
+    };
+
+    let query = format!(
+        "FOR f IN knowledge_files FILTER {} SORT f.upload_time DESC LIMIT 200 REMOVE f IN knowledge_files RETURN f",
+        filter
+    );
+
+    let deleted: Vec<KnowledgeFile> = db
+        .aql_str(&query)
+        .await
+        .map_err(|_| err_500())?;
+
+    Ok(Json(json!({ "code": 200, "message": format!("已清除 {} 筆記錄", deleted.len()) })))
+}
+
 fn err_400(msg: &str) -> (StatusCode, Json<serde_json::Value>) {
     (
         StatusCode::BAD_REQUEST,
         Json(json!({ "code": 400, "message": msg })),
     )
+}
+
+pub async fn abort_job(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/abort?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .post(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to abort task: {}", e) })),
+        )),
+    }
 }
 
 fn err_500() -> (StatusCode, Json<serde_json::Value>) {

@@ -221,6 +221,38 @@ export const modelProviderApi = {
   sync: (key: string) => api.post(`/api/v1/model-providers/${key}/sync`),
 };
 
+export interface KbJobFile {
+  _key: string;
+  filename: string;
+  file_size: number;
+  file_type: string;
+  upload_time: string;
+  vector_status: string;
+  graph_status: string;
+  knowledge_root_id: string;
+  s3_path?: string;
+  local_path?: string;
+  failed_reason?: string;
+  vector_task_id?: string;
+  graph_task_id?: string;
+}
+
+export const jobsApi = {
+  list: (status?: 'active' | 'failed' | 'completed') =>
+    api.get<{ code: number; data: KbJobFile[] }>(
+      '/api/v1/jobs',
+      status ? { params: { status } } : undefined,
+    ),
+  clear: (status: 'failed' | 'completed') =>
+    api.delete<{ code: number; message: string }>('/api/v1/jobs/clear', {
+      params: { status },
+    }),
+  abort: (fileKey: string) =>
+    api.post<{ code: number; data: { status: string; revoked: string[] } }>(
+      `/api/v1/jobs/${fileKey}/abort`,
+    ),
+};
+
 export interface ShellTokens {
   siderBg: string;
   headerBg: string;

@@ -36,6 +36,12 @@ pub struct KnowledgeFile {
     pub vector_status: String,
     pub graph_status: String,
     pub knowledge_root_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vector_task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graph_task_id: Option<String>,
 }
 
 pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> {
@@ -126,7 +132,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
 
     let files = vec![
         // kb1 files
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_mm_001".into()),
             filename: "物料管理作業規範_v3.2.pdf".into(),
             file_size: 2_457_600,
@@ -136,7 +142,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "completed".into(),
             knowledge_root_id: "kb1".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_mm_002".into()),
             filename: "庫存盤點流程.docx".into(),
             file_size: 845_000,
@@ -146,7 +152,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "completed".into(),
             knowledge_root_id: "kb1".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_mm_003".into()),
             filename: "品質管理手冊_2026.pdf".into(),
             file_size: 3_200_000,
@@ -157,7 +163,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             knowledge_root_id: "kb1".into(),
         },
         // kb2 files
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_ka_001".into()),
             filename: "語義對齊規範說明.pdf".into(),
             file_size: 1_120_000,
@@ -167,7 +173,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "pending".into(),
             knowledge_root_id: "kb2".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_ka_002".into()),
             filename: "知識分類體系_v2.xlsx".into(),
             file_size: 567_000,
@@ -177,7 +183,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "pending".into(),
             knowledge_root_id: "kb2".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_ka_003".into()),
             filename: "Ontology_Mapping_Guide.md".into(),
             file_size: 234_000,
@@ -187,7 +193,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "pending".into(),
             knowledge_root_id: "kb2".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_ka_004".into()),
             filename: "實體關係定義表.csv".into(),
             file_size: 89_000,
@@ -198,7 +204,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             knowledge_root_id: "kb2".into(),
         },
         // kb3 files
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_fin_001".into()),
             filename: "2026年度預算編列準則.pdf".into(),
             file_size: 1_890_000,
@@ -208,7 +214,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "completed".into(),
             knowledge_root_id: "kb3".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_fin_002".into()),
             filename: "財務審核流程圖.pdf".into(),
             file_size: 456_000,
@@ -219,7 +225,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             knowledge_root_id: "kb3".into(),
         },
         // kb4 files
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_med_001".into()),
             filename: "臨床數據管理標準作業程序.pdf".into(),
             file_size: 4_500_000,
@@ -229,7 +235,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "pending".into(),
             knowledge_root_id: "kb4".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_med_002".into()),
             filename: "病患資料隱私規範.docx".into(),
             file_size: 678_000,
@@ -239,7 +245,7 @@ pub async fn seed_knowledge(db: &Database<ReqwestClient>) -> Result<(), String> 
             graph_status: "pending".into(),
             knowledge_root_id: "kb4".into(),
         },
-        KnowledgeFile {
+        KnowledgeFile { failed_reason: None, vector_task_id: None, graph_task_id: None,
             _key: Some("kf_med_003".into()),
             filename: "醫療照護知識圖譜設計.pptx".into(),
             file_size: 2_100_000,

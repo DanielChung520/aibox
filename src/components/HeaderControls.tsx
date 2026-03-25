@@ -10,6 +10,7 @@ import { Button, Avatar, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { UserOutlined, LogoutOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import ServiceStatusBar from './ServiceStatusBar';
+import JobMonitor from './JobMonitor';
 import type { LoginResponse } from '../services/api';
 
 interface HeaderControlsProps {
@@ -36,6 +37,7 @@ export default function HeaderControls({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <ServiceStatusBar />
+      <JobMonitor isDark={isDark} primaryColor={primaryColor} textColor={textColor} />
       <Button
         type="text"
         icon={isDark ? <SunOutlined /> : <MoonOutlined />}

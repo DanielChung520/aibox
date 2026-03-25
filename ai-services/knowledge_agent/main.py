@@ -46,6 +46,7 @@ ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "abc_desktop_2026")
 
 class KnowledgeRequest(BaseModel):
     """Knowledge search request."""
+
     query: str
     collection: Optional[str] = "knowledge"
     limit: Optional[int] = 5
@@ -53,6 +54,7 @@ class KnowledgeRequest(BaseModel):
 
 class Document(BaseModel):
     """A knowledge document."""
+
     key: str = ""
     content: str
     source: Optional[str] = None
@@ -61,6 +63,7 @@ class Document(BaseModel):
 
 class KnowledgeResponse(BaseModel):
     """Knowledge search response."""
+
     query: str
     results: list[Document]
     context: str
@@ -83,9 +86,7 @@ async def get_embedding(text: str) -> list[float]:
         return []
 
 
-async def search_similar(
-    collection: str, limit: int
-) -> list[dict[str, object]]:
+async def search_similar(collection: str, limit: int) -> list[dict[str, object]]:
     """Search similar documents in ArangoDB collection."""
     aql = f"FOR doc IN {collection} SORT BM25(doc) DESC LIMIT {limit} RETURN doc"
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -185,9 +186,7 @@ async def search(request: KnowledgeRequest) -> KnowledgeResponse:
         )
 
     except httpx.HTTPError as e:
-        raise HTTPException(
-            status_code=502, detail=f"Service unavailable: {str(e)}"
-        )
+        raise HTTPException(status_code=502, detail=f"Service unavailable: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -224,3 +223,78 @@ async def list_collections() -> dict[str, object]:
         response.raise_for_status()
         result: dict[str, object] = response.json()
         return result
+
+
+class PipelineTriggerRequest(BaseModel):
+    task: str
+    file_id: str
+    local_path: str
+    root_id: str
+
+
+@app.post("/pipeline/vector")
+async def trigger_vector(file_id: str, root_id: str) -> dict[str, object]:
+    from celery_app.tasks import vectorize_task
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    local_path = file_doc.get("local_path") if file_doc else None
+    if not local_path:
+        return {"error": "file not found or local_path missing"}
+    result = vectorize_task.delay(file_id, local_path, root_id)
+    arango.set_task_id(file_id, vector_task_id=result.id)
+    return {
+        "status": "queued",
+        "file_id": file_id,
+        "type": "vectorize",
+        "task_id": result.id,
+    }
+
+
+@app.post("/pipeline/graph")
+async def trigger_graph(file_id: str) -> dict[str, object]:
+    from celery_app.tasks import graph_task
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    local_path = file_doc.get("local_path") if file_doc else None
+    if not local_path:
+        return {"error": "file not found or local_path missing"}
+    result = graph_task.delay(file_id, local_path)
+    arango.set_task_id(file_id, graph_task_id=result.id)
+    return {
+        "status": "queued",
+        "file_id": file_id,
+        "type": "graph",
+        "task_id": result.id,
+    }
+
+
+@app.post("/pipeline/abort")
+async def abort_pipeline(file_id: str) -> dict[str, object]:
+    from celery_app.app import app as celery_app
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    revoked: list[str] = []
+    vector_task_id = file_doc.get("vector_task_id")
+    graph_task_id = file_doc.get("graph_task_id")
+
+    for tid in [vector_task_id, graph_task_id]:
+        if tid and isinstance(tid, str):
+            celery_app.control.revoke(tid, terminate=True)
+            revoked.append(tid)
+
+    arango.update_status(
+        file_id,
+        vector_status="aborted",
+        graph_status="aborted",
+        failed_reason="任務已被使用者中止",
+    )
+    return {"status": "aborted", "file_id": file_id, "revoked": revoked}

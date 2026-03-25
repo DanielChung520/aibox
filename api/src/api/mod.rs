@@ -18,7 +18,7 @@ use axum::{
     extract::{Path, Query},
     http::{header::AUTHORIZATION, HeaderMap, Method, StatusCode},
     response::IntoResponse,
-    routing::{get, post, put, patch},
+    routing::{get, post, put, patch, delete},
     Json, Router,
     middleware,
 };
@@ -85,6 +85,9 @@ pub fn create_router() -> Router {
         .route("/api/v1/knowledge/roots/{key}/favorite", patch(knowledge::toggle_favorite))
         .route("/api/v1/knowledge/roots/{root_id}/files", get(knowledge::list_files))
         .route("/api/v1/knowledge/files/{key}", get(knowledge::get_file).delete(knowledge::delete_file))
+        .route("/api/v1/jobs", get(knowledge::list_jobs))
+        .route("/api/v1/jobs/clear", delete(knowledge::clear_jobs))
+        .route("/api/v1/jobs/{key}/abort", post(knowledge::abort_job))
         .merge(knowledge::create_upload_router())
         .route("/api/v1/ontologies", get(ontology::list_ontologies).post(ontology::create_ontology))
         .route("/api/v1/ontologies/import", post(ontology::import_ontology))

@@ -8,6 +8,7 @@
 
 import { Upload, App, theme } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
+import { knowledgeApi } from '../../../services/api';
 
 const { Dragger } = Upload;
 
@@ -16,16 +17,32 @@ interface KBFileUploadProps {
   onUploadComplete: () => void;
 }
 
-export default function KBFileUpload({ onUploadComplete }: KBFileUploadProps) {
+export default function KBFileUpload({ rootId, onUploadComplete }: KBFileUploadProps) {
   const { message } = App.useApp();
   const { token } = theme.useToken();
 
-  const customRequest = (options: { onSuccess?: (res: string) => void }) => {
-    setTimeout(() => {
+  const customRequest = async (options: {
+    file: Blob | File | string;
+    onSuccess?: (res: string) => void;
+    onError?: (err: Error) => void;
+    onProgress?: (event: { percent: number }) => void;
+  }) => {
+    try {
+      options.onProgress?.({ percent: 50 });
+      const formData = new FormData();
+      if (options.file instanceof Blob) {
+        formData.append('file', options.file);
+      }
+      await knowledgeApi.uploadFile(rootId, formData);
+      options.onProgress?.({ percent: 100 });
       options.onSuccess?.('ok');
-      message.success('文件上傳成功 (Mock)');
+      message.success('文件上傳成功，正在處理中...');
       onUploadComplete();
-    }, 1000);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      message.error(err.response?.data?.message || '文件上傳失敗');
+      options.onError?.(error as Error);
+    }
   };
 
   return (
@@ -43,7 +60,7 @@ export default function KBFileUpload({ onUploadComplete }: KBFileUploadProps) {
           點擊或拖曳文件至此區域進行上傳
         </p>
         <p className="ant-upload-hint" style={{ color: token.colorTextSecondary, marginTop: 8 }}>
-          支援 .txt, .md, .pdf 等格式文件 (Mock 模式)
+          支援 .txt, .md, .pdf 等格式文件
         </p>
       </Dragger>
     </div>

@@ -202,20 +202,18 @@ export default function MainLayout() {
         </Layout>
       </ConfigProvider>
 
-      <Layout>
-        <Content style={{
-          margin: '16px',
-          padding: '24px',
-          background: contentBg,
-          borderRadius: '10px',
-          height: 'calc(100vh - 96px)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          <Outlet />
-        </Content>
-      </Layout>
+      <Content style={{
+        margin: '16px',
+        padding: '24px',
+        background: contentBg,
+        borderRadius: '10px',
+        height: 'calc(100vh - 96px)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <Outlet />
+      </Content>
     </Layout>
   );
 }

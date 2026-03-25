@@ -4,6 +4,7 @@
 //! # Author: Daniel Chung
 //! # Version: 1.0.0
 
+
 use crate::db::{
     get_db,
     knowledge::{KnowledgeFile, KnowledgeRoot},
@@ -12,10 +13,12 @@ use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    routing::post,
+    Json, Router,
 };
 use serde_json::json;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 pub async fn list_roots(
     Query(params): Query<HashMap<String, String>>,
@@ -311,6 +314,109 @@ pub async fn delete_file(
         .map_err(|_| err_500())?;
 
     Ok(Json(json!({ "code": 200, "message": "deleted" })))
+}
+
+pub async fn upload_file(
+    Path(root_id): Path<String>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let db = get_db();
+
+    // Verify root exists
+    let roots: Vec<KnowledgeRoot> = db
+        .aql_bind_vars(
+            "FOR r IN knowledge_roots FILTER r._key == @key LIMIT 1 RETURN r",
+            [("key", json!(&root_id))].into(),
+        )
+        .await
+        .map_err(|_| err_500())?;
+    if roots.is_empty() {
+        return Err(err_400("knowledge root not found"));
+    }
+
+    // Extract file from multipart
+    let field = multipart.next_field().await.map_err(|_| err_400("no file provided"))?;
+    let field = field.ok_or_else(|| err_400("no file provided"))?;
+
+    let filename = field.file_name().unwrap_or("unknown").to_string();
+    let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+    let bytes = field.bytes().await.map_err(|_| err_500())?;
+
+    // Generate unique file key and local path
+    let file_key = Uuid::new_v4().to_string();
+    let ext = std::path::Path::new(&filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("bin");
+    let local_dir = format!("data/uploads/{}", root_id);
+    let local_path = format!("{}/{}.{}", local_dir, file_key, ext);
+
+    // Save to local disk
+    tokio::fs::create_dir_all(&local_dir).await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "code": 500, "message": e.to_string() })))
+    })?;
+    tokio::fs::write(&local_path, &bytes).await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "code": 500, "message": e.to_string() })))
+    })?;
+
+    // Create ArangoDB record
+    let now = chrono::Utc::now().to_rfc3339();
+    let doc: serde_json::Value = json!({
+        "_key": file_key,
+        "filename": filename,
+        "file_size": bytes.len() as i64,
+        "file_type": content_type,
+        "upload_time": now,
+        "vector_status": "pending",
+        "graph_status": "pending",
+        "knowledge_root_id": root_id,
+        "local_path": local_path,
+    });
+
+    let col = db.collection("knowledge_files").await.map_err(|_| err_500())?;
+    col.create_document(doc.clone(), Default::default())
+        .await
+        .map_err(|_| err_500())?;
+
+    // Update root source_count
+    let _: Vec<serde_json::Value> = db
+        .aql_bind_vars(
+            "FOR r IN knowledge_roots FILTER r._key == @key UPDATE r WITH { source_count: r.source_count + 1, updated_at: @now } IN knowledge_roots",
+            [("key", json!(&root_id)), ("now", json!(&now))].into(),
+        )
+        .await
+        .map_err(|_| err_500())?;
+
+    // Trigger Celery task via knowledge_agent
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL").unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let trigger_url = format!("{}/pipeline/trigger", agent_url);
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "task": "process_file",
+        "file_id": file_key,
+        "local_path": local_path,
+        "root_id": root_id,
+    });
+    let _ = client
+        .post(&trigger_url)
+        .json(&payload)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await;
+
+    let file_id = file_key;
+    Ok(Json(json!({ "code": 0, "data": { "fileId": file_id } })))
+}
+
+pub fn create_upload_router() -> Router {
+    Router::new().route("/api/v1/knowledge/roots/{root_id}/files/upload", post(upload_file))
+}
+
+fn err_400(msg: &str) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(json!({ "code": 400, "message": msg })),
+    )
 }
 
 fn err_500() -> (StatusCode, Json<serde_json::Value>) {

@@ -286,6 +286,7 @@ export const themeTemplateApi = {
   create: (data: Partial<ThemeTemplate>) => api.post('/api/v1/theme-templates', data),
   update: (key: string, data: Partial<ThemeTemplate>) => api.put(`/api/v1/theme-templates/${key}`, data),
   delete: (key: string) => api.delete(`/api/v1/theme-templates/${key}`),
+  activate: (key: string) => api.put<{ code: number; message: string }>(`/api/v1/theme-templates/${key}/activate`, {}),
 };
 
 // ===== Ontology (知識本體) =====

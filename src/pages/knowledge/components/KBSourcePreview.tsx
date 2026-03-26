@@ -37,6 +37,20 @@ export default function KBSourcePreview({ fileId, fileName, fileType }: KBSource
 
   const [pdfData, setPdfData] = useState<string | ArrayBuffer | null>(null);
 
+  const [tableHeight, setTableHeight] = useState(300);
+  useEffect(() => {
+    const el = document.getElementById(`table-wrap-${fileId}`);
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableHeight(Math.max(100, entry.contentRect.height));
+      }
+    });
+    ro.observe(el);
+    setTableHeight(Math.max(100, el.clientHeight));
+    return () => ro.disconnect();
+  }, [fileId]);
+
   useEffect(() => {
     let active = true;
     const fetchPreview = async () => {
@@ -219,12 +233,12 @@ export default function KBSourcePreview({ fileId, fileName, fileType }: KBSource
           </div>
           <Text type="secondary" style={{ marginLeft: 'auto' }}>{tableData.length} 筆資料</Text>
         </div>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div id={`table-wrap-${fileId}`} style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           <Table<TableRow>
             columns={tableColumns}
             dataSource={tableData}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50', '100', '200'] }}
-            scroll={{ x: 'max-content', y: '100%' }}
+            scroll={{ x: 'max-content', y: tableHeight }}
             size="small"
           />
         </div>

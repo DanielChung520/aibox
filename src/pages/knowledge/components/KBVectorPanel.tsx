@@ -3,10 +3,10 @@
  * @description 顯示文件的向量分塊結果
  * @lastUpdate  2026-03-26 00:00:00
  * @author      Daniel Chung
- * @version     1.1.0
+ * @version     1.2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Empty, Spin, Alert, Table, Button, message, Typography, theme } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { knowledgeApi, VectorChunk } from '../../../services/api';
@@ -24,6 +24,19 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tableHeight, setTableHeight] = useState(300);
+
+  const wrapperRef = useCallbackRef((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableHeight(Math.max(100, entry.contentRect.height));
+      }
+    });
+    ro.observe(el);
+    setTableHeight(Math.max(100, el.clientHeight));
+    return () => ro.disconnect();
+  });
 
   const fetchChunks = async () => {
     setLoading(true);
@@ -81,8 +94,8 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
   ];
 
   return (
-    <div style={{ padding: token.padding }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: token.margin }}>
+    <div ref={wrapperRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: token.padding, gap: token.margin }}>
+      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
         {(!vectorStatus || !['pending', 'processing', 'queued'].includes(vectorStatus)) ? (
           <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate} size="small">
             重新產生
@@ -93,36 +106,52 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
       </div>
 
       {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Spin description="載入向量..." />
         </div>
       )}
 
       {!loading && error && (
-        <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />
+        <Alert type="error" message={error} showIcon />
       )}
 
       {!loading && !error && chunks.length === 0 && (
-        <Empty
-          description={
-            <Text style={{ color: token.colorTextSecondary }}>
-              向量分塊待生成
-            </Text>
-          }
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Empty
+            description={
+              <Text style={{ color: token.colorTextSecondary }}>
+                向量分塊待生成
+              </Text>
+            }
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </div>
       )}
 
       {!loading && !error && chunks.length > 0 && (
-        <Table
-          dataSource={chunks}
-          rowKey="chunk_id"
-          columns={columns}
-          size="small"
-          pagination={{ pageSize: 10, size: 'small' }}
-          scroll={{ y: 400 }}
-        />
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          <Table
+            dataSource={chunks}
+            rowKey="chunk_id"
+            columns={columns}
+            size="small"
+            pagination={{ pageSize: 10, size: 'small' }}
+            scroll={{ y: tableHeight }}
+          />
+        </div>
       )}
     </div>
   );
+}
+
+function useCallbackRef<T>(setup: (el: T) => (() => void) | void): React.RefCallback<T> {
+  const [ref, setRef] = useState<T | null>(null);
+  const cleanupRef = useRef<(() => void) | void>(() => {});
+  return (el: T | null) => {
+    if (ref !== el) {
+      cleanupRef.current?.();
+      setRef(el);
+      if (el) cleanupRef.current = setup(el) ?? (() => {});
+    }
+  };
 }

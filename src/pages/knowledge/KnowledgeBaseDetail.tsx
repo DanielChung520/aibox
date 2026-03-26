@@ -30,7 +30,7 @@ export default function KnowledgeBaseDetail() {
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<string>('graph');
+  const [activeTab, setActiveTab] = useState<string>('source');
   const [uploadMode, setUploadMode] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
@@ -58,8 +58,16 @@ export default function KnowledgeBaseDetail() {
     loadFiles();
   }, [loadFiles]);
 
+  useEffect(() => {
+    if (!selectedFileId && files.length > 0) {
+      setSelectedFileId(files[0]._key);
+      setActiveTab('source');
+    }
+  }, [files, selectedFileId]);
+
   const handleSelectFile = (fileId: string) => {
     setSelectedFileId(fileId);
+    setActiveTab('source');
     setUploadMode(false);
   };
 

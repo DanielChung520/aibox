@@ -26,7 +26,10 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
   const [error, setError] = useState<string | null>(null);
   const [tableHeight, setTableHeight] = useState(300);
 
-  const wrapperRef = useCallbackRef((el: HTMLDivElement | null) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -36,7 +39,7 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
     ro.observe(el);
     setTableHeight(Math.max(100, el.clientHeight));
     return () => ro.disconnect();
-  });
+  }, []);
 
   const fetchChunks = async () => {
     setLoading(true);
@@ -94,7 +97,7 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
   ];
 
   return (
-    <div ref={wrapperRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: token.padding, gap: token.margin }}>
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: token.padding, gap: token.margin }}>
       <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
         {(!vectorStatus || !['pending', 'processing', 'queued'].includes(vectorStatus)) ? (
           <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate} size="small">
@@ -142,16 +145,4 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
       )}
     </div>
   );
-}
-
-function useCallbackRef<T>(setup: (el: T) => (() => void) | void): React.RefCallback<T> {
-  const [ref, setRef] = useState<T | null>(null);
-  const cleanupRef = useRef<(() => void) | void>(() => {});
-  return (el: T | null) => {
-    if (ref !== el) {
-      cleanupRef.current?.();
-      setRef(el);
-      if (el) cleanupRef.current = setup(el) ?? (() => {});
-    }
-  };
 }

@@ -3,10 +3,10 @@
  * @description 顯示文件的向量分塊結果
  * @lastUpdate  2026-03-26 00:00:00
  * @author      Daniel Chung
- * @version     1.2.0
+ * @version     1.3.0
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Empty, Spin, Alert, Table, Button, message, Typography, theme } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { knowledgeApi, VectorChunk } from '../../../services/api';
@@ -24,22 +24,6 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tableHeight, setTableHeight] = useState(300);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setTableHeight(Math.max(100, entry.contentRect.height));
-      }
-    });
-    ro.observe(el);
-    setTableHeight(Math.max(100, el.clientHeight));
-    return () => ro.disconnect();
-  }, []);
 
   const fetchChunks = async () => {
     setLoading(true);
@@ -78,26 +62,31 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
       title: '#',
       dataIndex: 'chunk_index',
       key: 'chunk_index',
-      width: 60,
+      width: 56,
       render: (v: number) => <Text type="secondary">{v + 1}</Text>,
     },
     {
       title: '文字內容',
       dataIndex: 'text',
       key: 'text',
-      ellipsis: true,
+      ellipsis: { rows: 2, showTitle: false },
+      render: (text: string) => (
+        <span style={{ WebkitLineClamp: 2, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {text}
+        </span>
+      ),
     },
     {
       title: '相似度',
       dataIndex: 'score',
       key: 'score',
-      width: 80,
+      width: 72,
       render: (v: number) => <Text type="secondary">{v?.toFixed(3) ?? '—'}</Text>,
     },
   ];
 
   return (
-    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: token.padding, gap: token.margin }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: token.padding, gap: token.margin }}>
       <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
         {(!vectorStatus || !['pending', 'processing', 'queued'].includes(vectorStatus)) ? (
           <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate} size="small">
@@ -132,14 +121,13 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
       )}
 
       {!loading && !error && chunks.length > 0 && (
-        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <Table
             dataSource={chunks}
             rowKey="chunk_id"
             columns={columns}
             size="small"
-            pagination={{ pageSize: 10, size: 'small' }}
-            scroll={{ y: tableHeight }}
+            pagination={{ pageSize: 50, size: 'small', showSizeChanger: true, pageSizeOptions: ['20', '50', '100'] }}
           />
         </div>
       )}

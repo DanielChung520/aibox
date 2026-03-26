@@ -1,4 +1,10 @@
-"""Knowledge graph extraction using LLM."""
+"""
+Knowledge graph extraction using LLM.
+
+@lastUpdate  2026-03-26 22:07:24
+@author      Daniel Chung
+@version     1.1.0
+"""
 
 from __future__ import annotations
 
@@ -68,7 +74,7 @@ class GraphExtractor:
                         "model": self.model,
                         "prompt": prompt,
                         "stream": False,
-                        "options": {"temperature": 0.1, "num_predict": 512},
+                        "options": {"temperature": 0.1, "num_predict": 2048},
                     },
                 )
                 response.raise_for_status()

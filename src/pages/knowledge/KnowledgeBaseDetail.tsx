@@ -157,7 +157,7 @@ export default function KnowledgeBaseDetail() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: token.padding }}>
-              <Card style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <Card style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
                 <div style={{ paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
                   <Tabs
                     activeKey={activeTab} onChange={setActiveTab}

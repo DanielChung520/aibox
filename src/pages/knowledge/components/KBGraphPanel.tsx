@@ -119,7 +119,19 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
       onNodeSelect?.(null);
     });
 
-    graph.render().then(() => {
+    const silentRender = async (g: Graph) => {
+      const origError = console.error;
+      console.error = () => {};
+      try {
+        await g.render();
+      } catch {
+        // destroyed during render — ignore
+      } finally {
+        console.error = origError;
+      }
+    };
+
+    silentRender(graph).then(() => {
       if (instanceRef.current !== currentInstance) return;
       onGraphReady?.(graph);
     }).catch(() => {});
@@ -147,7 +159,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
         }));
         if (instanceRef.current !== currentInstance) return;
         graph.setData({ nodes, edges });
-        await graph.render();
+        await silentRender(graph);
         if (instanceRef.current !== currentInstance) return;
         onDataLoaded?.(data.nodes || [], data.edges || []);
         setHasData(true);
@@ -192,7 +204,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 10,
         }}>
-          <Spin tip="載入圖譜..." />
+          <Spin description="載入圖譜..." />
         </div>
       )}
       {!loading && error && (

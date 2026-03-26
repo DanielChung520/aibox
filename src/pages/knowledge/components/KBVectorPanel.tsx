@@ -94,7 +94,7 @@ export default function KBVectorPanel({ fileId }: KBVectorPanelProps) {
 
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-          <Spin tip="載入向量..." />
+          <Spin description="載入向量..." />
         </div>
       )}
 

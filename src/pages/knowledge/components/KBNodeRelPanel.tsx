@@ -102,6 +102,7 @@ export default function KBNodeRelPanel({
         flexDirection: 'column',
         borderLeft: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
+        borderRadius: `0 ${token.borderRadius} ${token.borderRadius} 0`,
         overflow: 'hidden',
       }}
     >

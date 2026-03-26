@@ -39,9 +39,9 @@ export default function FileContentViewer({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
       <Card
         style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-        styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
+        styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: token.padding } }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <Tabs
             activeKey={currentTab} onChange={onActiveTabChange}
             items={[

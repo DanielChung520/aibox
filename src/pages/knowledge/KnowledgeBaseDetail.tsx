@@ -118,6 +118,7 @@ export default function KnowledgeBaseDetail() {
         borderRight: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        borderRadius: `${token.borderRadius} 0 0 ${token.borderRadius}`,
       }}>
         <div style={{
           padding: token.padding,

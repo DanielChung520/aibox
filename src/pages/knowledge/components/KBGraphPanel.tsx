@@ -44,7 +44,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
   const [error, setError] = useState<string | null>(null);
   const [hasData, setHasData] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const mountedRef = useRef(true);
+  const instanceRef = useRef(0);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -62,7 +62,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
   useEffect(() => {
     if (!containerRef.current) return;
 
-    mountedRef.current = true;
+    const currentInstance = ++instanceRef.current;
     graphRef.current?.destroy();
     graphRef.current = null;
     setLoading(true);
@@ -120,9 +120,8 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
     });
 
     graph.render().then(() => {
-      if (mountedRef.current) {
-        onGraphReady?.(graph);
-      }
+      if (instanceRef.current !== currentInstance) return;
+      onGraphReady?.(graph);
     });
 
     graphRef.current = graph;
@@ -131,7 +130,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
       try {
         const res = await knowledgeApi.getGraph(fileId);
         const data = res.data.data;
-        if (!mountedRef.current) return;
+        if (instanceRef.current !== currentInstance) return;
         if (!data || (!data.nodes?.length && !data.edges?.length)) {
           setHasData(false);
           setLoading(false);
@@ -146,19 +145,19 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
           target: e.target,
           data: { label: e.label },
         }));
-        if (!mountedRef.current) return;
+        if (instanceRef.current !== currentInstance) return;
         graph.setData({ nodes, edges });
         await graph.render();
-        if (!mountedRef.current) return;
+        if (instanceRef.current !== currentInstance) return;
         onDataLoaded?.(data.nodes || [], data.edges || []);
         setHasData(true);
       } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
-        if (mountedRef.current) {
+        if (instanceRef.current === currentInstance) {
           setError(e.response?.data?.message || '載入圖譜失敗');
         }
       } finally {
-        if (mountedRef.current) {
+        if (instanceRef.current === currentInstance) {
           setLoading(false);
         }
       }
@@ -167,9 +166,11 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
     fetchGraph();
 
     return () => {
-    graphRef.current = null;
-    graph.destroy();
-    mountedRef.current = false;
+      if (instanceRef.current === currentInstance) {
+        instanceRef.current = -1;
+        graphRef.current = null;
+        graph.destroy();
+      }
     };
   }, [fileId, onNodeSelect, onGraphReady, onDataLoaded, token]);
 

@@ -57,7 +57,7 @@ class ArangoOps:
                     "bindVars": {"file_id": file_id},
                 },
             )
-            if resp.status_code == 200:
+            if resp.status_code in (200, 201):
                 result: list[str] = resp.json().get("result", [])
                 return result
             return []
@@ -121,12 +121,25 @@ class ArangoOps:
                 return str(resp.json().get("param_value", ""))
             return None
 
+    def ensure_graph_collections(self) -> None:
+        with self._client() as client:
+            for name, edge_type in [("knowledge_graphs", 3), ("knowledge_graph_edges", 2)]:
+                resp = client.get(
+                    f"{self.url}/_db/{self.db}/_api/collection/{name}"
+                )
+                if resp.status_code == 404:
+                    client.post(
+                        f"{self.url}/_db/{self.db}/_api/collection",
+                        json={"name": name, "type": edge_type},
+                    )
+
     def upsert_graph(
         self,
         file_id: str,
         nodes: list[dict[str, object]],
         edges: list[dict[str, object]],
     ) -> None:
+        self.ensure_graph_collections()
         nodes_data = [
             {
                 "_key": f"{file_id}_node_{i}",
@@ -144,20 +157,54 @@ class ArangoOps:
                 "_to": f"knowledge_graphs/{file_id}_node_{edges[i]['target']}",
                 "file_id": file_id,
                 "relation": edges[i].get("relation", "related_to"),
+                "source": f"{file_id}_node_{edges[i]['source']}",
+                "target": f"{file_id}_node_{edges[i]['target']}",
             }
             for i, e in enumerate(edges)
         ]
         with self._client() as client:
             for node in nodes_data:
-                client.post(
+                resp = client.post(
                     f"{self.url}/_db/{self.db}/_api/document/knowledge_graphs",
                     json=node,
                 )
+                if resp.status_code not in (200, 201, 202, 409):
+                    raise RuntimeError(
+                        f"Failed to insert node {node['_key']}: "
+                        f"{resp.status_code} {resp.text}"
+                    )
             for edge in edges_data:
-                client.post(
-                    f"{self.url}/_db/{self.db}/_api/document/knowledge_graph_edges",
-                    json=edge,
+                aql_resp = client.post(
+                    f"{self.url}/_db/{self.db}/_api/cursor",
+                    json={
+                        "query": """
+                            INSERT {
+                                _key: @key,
+                                _from: @from,
+                                _to: @to,
+                                file_id: @file_id,
+                                relation: @relation,
+                                source: @source,
+                                target: @target
+                            } INTO knowledge_graph_edges
+                            OPTIONS { ignoreErrors: true }
+                        """,
+                        "bindVars": {
+                            "key": edge["_key"],
+                            "from": edge["_from"],
+                            "to": edge["_to"],
+                            "file_id": edge["file_id"],
+                            "relation": edge["relation"],
+                            "source": edge["source"],
+                            "target": edge["target"],
+                        },
+                    },
                 )
+                if aql_resp.status_code not in (200, 201):
+                    raise RuntimeError(
+                        f"Failed to insert edge {edge['_key']}: "
+                        f"{aql_resp.status_code} {aql_resp.text}"
+                    )
 
     def ensure_job_logs_collection(self) -> None:
         with self._client() as client:
@@ -221,7 +268,7 @@ class ArangoOps:
                     "bindVars": {"file_id": file_id},
                 },
             )
-            if resp.status_code == 200:
+            if resp.status_code in (200, 201):
                 return resp.json().get("result", [])
             return []
 
@@ -236,7 +283,7 @@ class ArangoOps:
                 },
             )
             raw_nodes: list[dict[str, object]] = []
-            if nodes_resp.status_code == 200:
+            if nodes_resp.status_code in (200, 201):
                 raw_nodes = nodes_resp.json().get("result", [])
 
             # Fetch edges from knowledge_graph_edges collection
@@ -248,7 +295,7 @@ class ArangoOps:
                 },
             )
             raw_edges: list[dict[str, object]] = []
-            if edges_resp.status_code == 200:
+            if edges_resp.status_code in (200, 201):
                 raw_edges = edges_resp.json().get("result", [])
 
         nodes: list[dict[str, object]] = []
@@ -264,22 +311,16 @@ class ArangoOps:
                 },
             })
 
-        def extract_index(key: str, prefix: str) -> int | None:
-            if prefix in key:
-                try:
-                    return int(key.split(prefix)[1])
-                except ValueError:
-                    return None
-            return None
-
         edges: list[dict[str, object]] = []
         for e in raw_edges:
-            src = extract_index(str(e.get("_from", "")), "_node_")
-            tgt = extract_index(str(e.get("_to", "")), "_node_")
-            if src is not None and src in node_id_map and tgt is not None and tgt in node_id_map:
+            source_key = str(e.get("source", ""))
+            target_key = str(e.get("target", ""))
+            src_node_id = node_id_map.get(int(source_key.split("_node_")[-1]) if "_node_" in source_key else -1)
+            tgt_node_id = node_id_map.get(int(target_key.split("_node_")[-1]) if "_node_" in target_key else -1)
+            if src_node_id and tgt_node_id:
                 edges.append({
-                    "source": node_id_map[src],
-                    "target": node_id_map[tgt],
+                    "source": src_node_id,
+                    "target": tgt_node_id,
                     "label": str(e.get("relation", "related_to")),
                 })
 

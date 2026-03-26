@@ -7,6 +7,11 @@ Celery app configuration for AIBox file processing pipeline.
 """
 
 import os
+import sys
+
+_AISERVICES_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _AISERVICES_DIR not in sys.path:
+    sys.path.insert(0, _AISERVICES_DIR)
 
 os.environ.setdefault("API_ROOT", "/Users/daniel/GitHub/AIBox/api")
 

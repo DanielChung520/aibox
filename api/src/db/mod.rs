@@ -69,7 +69,7 @@ async fn ensure_collections(db: &Database<ReqwestClient>) -> Result<(), String> 
         .map(|c| c.name)
         .collect();
 
-    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers", "theme_templates", "knowledge_roots", "knowledge_files", "ontologies"] {
+    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers", "theme_templates", "knowledge_roots", "knowledge_files", "ontologies", "job_logs", "knowledge_graphs", "knowledge_graph_edges"] {
         if !existing.contains(&name.to_string()) {
             db.create_collection(name)
                 .await

@@ -85,9 +85,10 @@ class Pipeline:
 
             collection = f"knowledge_{root_id}"
             self.qdrant.ensure_collection(collection)
+            import hashlib
             points = [
                 Point(
-                    id=int(f"{file_id}_{i}".encode().hex()[:12], 16),
+                    id=int(hashlib.md5(f"{file_id}_{i}".encode()).hexdigest()[:12], 16),
                     vector=embeddings[i],
                     file_id=file_id,
                     root_id=root_id,

@@ -143,6 +143,8 @@ export default function KnowledgeBaseDetail() {
         backgroundColor: token.colorBgLayout,
         display: 'flex', flexDirection: 'column',
         height: '100%', alignItems: 'stretch',
+        paddingLeft: token.padding,
+        paddingRight: token.padding,
       }}>
         {uploadMode ? (
           <div style={{ padding: token.paddingXL, maxWidth: 600, margin: '0 auto', width: '100%' }}>

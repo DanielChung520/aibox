@@ -253,6 +253,30 @@ async def trigger_vector(file_id: str, root_id: str) -> dict[str, object]:
     }
 
 
+class TriggerRequest(BaseModel):
+    task: str
+    file_id: str
+    local_path: str
+    root_id: str
+
+
+@app.post("/pipeline/trigger")
+async def trigger_pipeline(body: TriggerRequest) -> dict[str, object]:
+    from celery_app.tasks import graph_task, vectorize_task
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    vector_result = vectorize_task.delay(body.file_id, body.local_path, body.root_id)
+    graph_result = graph_task.delay(body.file_id, body.local_path)
+    arango.set_task_id(body.file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id)
+    return {
+        "status": "queued",
+        "file_id": body.file_id,
+        "vector_task_id": vector_result.id,
+        "graph_task_id": graph_result.id,
+    }
+
+
 @app.post("/pipeline/graph")
 async def trigger_graph(file_id: str) -> dict[str, object]:
     from celery_app.tasks import graph_task

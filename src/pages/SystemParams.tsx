@@ -125,6 +125,7 @@ export default function SystemParams() {
     behavior: '行为设置',
     update: '更新设置',
     backup: '备份设置',
+    knowledge: '知識庫參數',
   };
 
   const renderParamInput = (param: SystemParam) => {

@@ -9,13 +9,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Space, Typography, Empty, App, theme } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, SettingOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/g6';
 import { GraphNode, GraphEdge, KnowledgeFile, knowledgeApi } from '../../services/api';
 import FileContentViewer from '../../components/FileContentViewer';
 import KBFileList from './components/KBFileList';
 import KBFileUpload from './components/KBFileUpload';
 import KBNodeRelPanel from './components/KBNodeRelPanel';
+import KBSettingsModal from './components/KBSettingsModal';
 
 const { Title, Text } = Typography;
 
@@ -30,6 +31,7 @@ export default function KnowledgeBaseDetail() {
   const [selectedFileId, setSelectedFileId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState('source');
   const [uploadMode, setUploadMode] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
@@ -150,18 +152,28 @@ export default function KnowledgeBaseDetail() {
             <Empty description={<Text style={{ color: token.colorTextSecondary }}>請在左側選擇文件以查看詳情</Text>} />
           </div>
         ) : (
-          <FileContentViewer
-            fileId={selectedFile._key}
-            fileName={selectedFile.filename}
-            fileType={selectedFile.file_type}
-            activeTab={activeTab}
-            graphStatus={selectedFile.graph_status}
-            vectorStatus={selectedFile.vector_status}
-            onActiveTabChange={setActiveTab}
-            onGraphReady={handleGraphReady}
-            onNodeSelect={handleNodeSelect}
-            onDataLoaded={handleDataLoaded}
-          />
+          <>
+            <div style={{
+              padding: `${token.padding}px ${token.padding}px 0`,
+              display: 'flex', justifyContent: 'flex-end', flexShrink: 0,
+            }}>
+              <Button icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
+                設置
+              </Button>
+            </div>
+            <FileContentViewer
+              fileId={selectedFile._key}
+              fileName={selectedFile.filename}
+              fileType={selectedFile.file_type}
+              activeTab={activeTab}
+              graphStatus={selectedFile.graph_status}
+              vectorStatus={selectedFile.vector_status}
+              onActiveTabChange={setActiveTab}
+              onGraphReady={handleGraphReady}
+              onNodeSelect={handleNodeSelect}
+              onDataLoaded={handleDataLoaded}
+            />
+          </>
         )}
       </div>
 
@@ -172,6 +184,8 @@ export default function KnowledgeBaseDetail() {
           collapsed={rightPanelCollapsed} onCollapse={setRightPanelCollapsed}
         />
       )}
+
+      <KBSettingsModal open={settingsOpen} onCancel={() => setSettingsOpen(false)} />
     </div>
   );
 }

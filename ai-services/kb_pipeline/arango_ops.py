@@ -112,6 +112,15 @@ class ArangoOps:
                 return dict(resp.json())
             return None
 
+    def get_system_param(self, key: str) -> str | None:
+        with self._client() as client:
+            resp = client.get(
+                f"{self.url}/_db/{self.db}/_api/document/system_params/{key}"
+            )
+            if resp.status_code == 200:
+                return str(resp.json().get("param_value", ""))
+            return None
+
     def upsert_graph(
         self,
         file_id: str,

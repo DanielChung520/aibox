@@ -9,6 +9,19 @@ import httpx
 
 
 class GraphExtractor:
+    _cache: dict[str, str] = {}
+
+    def _get_model(self) -> str:
+        if "graph_model" in GraphExtractor._cache:
+            return GraphExtractor._cache["graph_model"]
+        from kb_pipeline.arango_ops import ArangoOps
+        arango = ArangoOps()
+        db_model = arango.get_system_param("knowledge.graph_model")
+        if db_model:
+            GraphExtractor._cache["graph_model"] = db_model
+            return db_model
+        import os
+        return os.getenv("OLLAMA_LLM_MODEL", "llama3.2:latest")
     EXTRACT_PROMPT = """你是一個知識圖譜提取專家。請從以下文本中提取實體和關係。
 
 文本：
@@ -40,8 +53,12 @@ class GraphExtractor:
         self.ollama_url = ollama_url or os.getenv(
             "OLLAMA_BASE_URL", "http://localhost:11434"
         )
-        self.model = model or os.getenv("OLLAMA_LLM_MODEL", "llama3.2:latest")
         self.timeout = timeout
+        self._model = model or self._get_model()
+
+    @property
+    def model(self) -> str:
+        return self._model
 
     def extract(
         self, text: str

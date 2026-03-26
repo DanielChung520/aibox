@@ -11,7 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Tabs, Space, Typography, Empty, App, theme } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/g6';
-import { KnowledgeFile, knowledgeApi } from '../../services/api';
+import { GraphNode, GraphEdge, KnowledgeFile, knowledgeApi } from '../../services/api';
 import KBFileList from './components/KBFileList';
 import KBSourcePreview from './components/KBSourcePreview';
 import KBVectorPanel from './components/KBVectorPanel';
@@ -34,6 +34,8 @@ export default function KnowledgeBaseDetail() {
   const [uploadMode, setUploadMode] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [graphNodes, setGraphNodes] = useState<GraphNode[]>([]);
+  const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
   const graphInstanceRef = useRef<Graph | null>(null);
 
   const selectedFile = files.find(f => f._key === selectedFileId);
@@ -84,6 +86,11 @@ export default function KnowledgeBaseDetail() {
 
   const handleNodeSelect = useCallback((nodeId: string | null) => {
     setSelectedNodeId(nodeId);
+  }, []);
+
+  const handleDataLoaded = useCallback((nodes: GraphNode[], edges: GraphEdge[]) => {
+    setGraphNodes(nodes);
+    setGraphEdges(edges);
   }, []);
 
   const handleRightPanelNodeClick = useCallback((nodeId: string) => {
@@ -146,15 +153,15 @@ export default function KnowledgeBaseDetail() {
                 <Tabs
                   activeKey={activeTab} onChange={setActiveTab}
                   items={[
-                    { key: 'graph', label: '圖譜' },
                     { key: 'source', label: '源文件' },
+                    { key: 'graph', label: '圖譜' },
                     { key: 'vector', label: '向量' },
                   ]}
                 />
               </div>
               <div style={{ flex: 1, overflow: activeTab === 'graph' ? 'hidden' : 'auto', padding: activeTab === 'graph' ? 0 : token.padding }}>
                 {activeTab === 'graph' && (
-                  <KBGraphPanel fileId={selectedFile._key} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} />
+                  <KBGraphPanel fileId={selectedFile._key} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} onDataLoaded={handleDataLoaded} />
                 )}
                 {activeTab === 'source' && (
                   <KBSourcePreview fileId={selectedFile._key} fileName={selectedFile.filename} fileType={selectedFile.file_type} />
@@ -167,7 +174,7 @@ export default function KnowledgeBaseDetail() {
 
         {showRightPanel && (
           <KBNodeRelPanel
-            nodes={[]} edges={[]}
+            nodes={graphNodes} edges={graphEdges}
             selectedNodeId={selectedNodeId} onNodeClick={handleRightPanelNodeClick}
             collapsed={rightPanelCollapsed} onCollapse={setRightPanelCollapsed}
           />

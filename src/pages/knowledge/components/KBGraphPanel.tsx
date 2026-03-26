@@ -1,15 +1,16 @@
 /**
  * @file        知識庫圖譜面板元件
  * @description 使用 @antv/g6 v5 力導向圖視覺化知識圖譜節點與關聯
- * @lastUpdate  2026-03-25 18:00:00
+ * @lastUpdate  2026-03-26 00:00:00
  * @author      Daniel Chung
- * @version     2.0.1
+ * @version     2.1.0
  */
 
-import { useEffect, useRef } from 'react';
-import { Empty, Typography, theme } from 'antd';
+import { useEffect, useRef, useState } from 'react';
+import { Empty, Spin, Alert, Typography, theme } from 'antd';
 import { Graph, NodeEvent, CanvasEvent } from '@antv/g6';
-import type { IElementEvent, IPointerEvent } from '@antv/g6';
+import type { IElementEvent, IPointerEvent, NodeData, EdgeData } from '@antv/g6';
+import { knowledgeApi, GraphNode, GraphEdge } from '../../../services/api';
 
 const { Text } = Typography;
 
@@ -17,18 +18,39 @@ interface KBGraphPanelProps {
   fileId: string;
   onNodeSelect?: (nodeId: string | null) => void;
   onGraphReady?: (graph: Graph) => void;
+  onDataLoaded?: (nodes: GraphNode[], edges: GraphEdge[]) => void;
 }
 
-export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBGraphPanelProps) {
+type G6Node = {
+  id: string;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type G6Edge = {
+  source: string;
+  target: string;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDataLoaded }: KBGraphPanelProps) {
   const { token } = theme.useToken();
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasData, setHasData] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     graphRef.current?.destroy();
     graphRef.current = null;
+    setLoading(true);
+    setError(null);
+    setHasData(false);
 
     const graph = new Graph({
       container: containerRef.current,
@@ -36,13 +58,17 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
       data: { nodes: [], edges: [] },
       node: {
         style: {
-          size: 32,
-          labelText: (d) => (d.data?.label as string) || d.id,
+          size: 36,
+          labelText: (d: NodeData): string => {
+            const rec = d.data as Record<string, unknown> | undefined;
+            return rec && typeof rec['label'] === 'string' ? rec['label'] : String(d.id);
+          },
+          labelFill: token.colorText,
+          labelFontSize: 12,
           labelPlacement: 'bottom',
           fill: token.colorPrimary,
           stroke: token.colorBorder,
-          labelFill: token.colorText,
-          labelFontSize: 12,
+          lineWidth: 1,
         },
         state: {
           selected: {
@@ -54,11 +80,14 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
       },
       edge: {
         style: {
-          labelText: (d) => (d.data?.label as string) || '',
-          stroke: token.colorBorderSecondary,
-          endArrow: true,
+          labelText: (d: EdgeData): string => {
+            const rec = d.data as Record<string, unknown> | undefined;
+            return rec && typeof rec['label'] === 'string' ? rec['label'] : '';
+          },
           labelFill: token.colorTextSecondary,
           labelFontSize: 11,
+          stroke: token.colorBorderSecondary,
+          endArrow: true,
         },
       },
       layout: { type: 'force', preventOverlap: true, linkDistance: 150, animated: true },
@@ -79,11 +108,43 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
 
     graphRef.current = graph;
 
+    const fetchGraph = async () => {
+      try {
+        const res = await knowledgeApi.getGraph(fileId);
+        const data = res.data.data;
+        if (!data || (!data.nodes?.length && !data.edges?.length)) {
+          setHasData(false);
+          setLoading(false);
+          return;
+        }
+        const nodes: G6Node[] = (data.nodes || []).map((n: GraphNode) => ({
+          id: n.id,
+          data: { label: n.label },
+        }));
+        const edges: G6Edge[] = (data.edges || []).map((e: GraphEdge) => ({
+          source: e.source,
+          target: e.target,
+          data: { label: e.label },
+        }));
+        graph.setData({ nodes, edges });
+        await graph.render();
+        onDataLoaded?.(data.nodes || [], data.edges || []);
+        setHasData(true);
+      } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } } };
+        setError(e.response?.data?.message || '載入圖譜失敗');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGraph();
+
     return () => {
       graphRef.current = null;
       graph.destroy();
     };
-  }, [fileId, onNodeSelect, onGraphReady, token]);
+  }, [fileId, onNodeSelect, onGraphReady, onDataLoaded, token]);
 
   return (
     <div
@@ -97,20 +158,40 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady }: KBG
         position: 'relative',
       }}
     >
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 10, pointerEvents: 'none',
-      }}>
-        <Empty
-          description={
-            <Text style={{ color: token.colorTextSecondary }}>
-              圖譜待生成（請等待後端向量化工序完成）
-            </Text>
-          }
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
-      </div>
+      {loading && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 10,
+        }}>
+          <Spin tip="載入圖譜..." />
+        </div>
+      )}
+      {!loading && error && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(255,255,255,0.9)', zIndex: 10,
+        }}>
+          <Alert type="error" message={error} showIcon style={{ maxWidth: 300 }} />
+        </div>
+      )}
+      {!loading && !error && !hasData && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10, pointerEvents: 'none',
+        }}>
+          <Empty
+            description={
+              <Text style={{ color: token.colorTextSecondary }}>
+                圖譜待生成（請等待後端向量化工序完成）
+              </Text>
+            }
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </div>
+      )}
     </div>
   );
 }

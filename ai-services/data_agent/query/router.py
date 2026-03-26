@@ -6,9 +6,9 @@ Provides:
 - NL→SQL: 3-tier hybrid NL→SQL pipeline (template/small_llm/large_llm)
   over Parquet data lake via DuckDB
 
-# Last Update: 2026-03-23 21:23:16
+# Last Update: 2026-03-26 08:58:10
 # Author: Daniel Chung
-# Version: 2.1.0
+# Version: 2.2.0
 """
 
 import logging
@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from data_agent.query.nl2sql import run_nl2sql_pipeline
+from data_agent.query.nl2sql.models import PipelineConfig
 
 router = APIRouter()
 
@@ -193,7 +194,14 @@ async def preview_table_data(
                 info_data.get("result", [{}])[0] if info_data.get("result") else {}
             )
 
+        if not table_info:
+            raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found in da_table_info")
+
         table_id = table_info.get("table_id", table_name)
+        s3_path = table_info.get("s3_path", "")
+
+        if not s3_path:
+            raise HTTPException(status_code=404, detail=f"No s3_path configured for table '{table_name}'")
 
         aql_fields = """
             FOR f IN da_field_info
@@ -211,49 +219,7 @@ async def preview_table_data(
             fields_data = fields_resp.json()
             fields = fields_data.get("result", [])
 
-        collection_name = table_info.get("table_name", table_id)
-        total = 0
-        rows: list[dict[str, object]] = []
-
-        aql_count = """
-            FOR doc IN @@collection
-            COLLECT WITH COUNT INTO total
-            RETURN total
-        """
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            count_resp = await client.post(
-                f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
-                json={"query": aql_count, "bindVars": {"@collection": collection_name}},
-                auth=(ARANGO_USER, ARANGO_PASSWORD),
-            )
-            if 200 <= count_resp.status_code < 300:
-                count_data = count_resp.json()
-                total = (
-                    count_data.get("result", [0])[0] if count_data.get("result") else 0
-                )
-
-        aql_rows = """
-            FOR doc IN @@collection
-            SORT doc._key ASC
-            LIMIT @offset, @limit
-            RETURN doc
-        """
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            rows_resp = await client.post(
-                f"{ARANGO_URL}/_db/{ARANGO_DB}/_api/cursor",
-                json={
-                    "query": aql_rows,
-                    "bindVars": {
-                        "@collection": collection_name,
-                        "offset": offset,
-                        "limit": limit,
-                    },
-                },
-                auth=(ARANGO_USER, ARANGO_PASSWORD),
-            )
-            if 200 <= rows_resp.status_code < 300:
-                rows_data = rows_resp.json()
-                rows = rows_data.get("result", [])
+        total, rows = _query_parquet_preview(s3_path, offset, limit)
 
         return {
             "table_name": table_name,
@@ -266,10 +232,54 @@ async def preview_table_data(
             "limit": limit,
         }
 
+    except HTTPException:
+        raise
     except httpx.HTTPStatusError:
         raise HTTPException(status_code=404, detail="Table not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _query_parquet_preview(
+    s3_path: str, offset: int, limit: int
+) -> tuple[int, list[dict[str, object]]]:
+    import duckdb
+
+    config = PipelineConfig(
+        s3_endpoint=os.getenv("S3_ENDPOINT", "http://localhost:8334"),
+        s3_access_key=os.getenv("S3_ACCESS_KEY", "admin"),
+        s3_secret_key=os.getenv("S3_SECRET_KEY", "admin123"),
+    )
+
+    parquet_glob = f"{s3_path}*.parquet"
+
+    conn = duckdb.connect(":memory:")
+    conn.execute("INSTALL httpfs; LOAD httpfs;")
+    if config.s3_endpoint:
+        endpoint = config.s3_endpoint.replace("http://", "").replace("https://", "")
+        conn.execute(f"SET s3_endpoint='{endpoint}';")
+        conn.execute("SET s3_use_ssl=false;")
+    if config.s3_access_key:
+        conn.execute(f"SET s3_access_key_id='{config.s3_access_key}';")
+    if config.s3_secret_key:
+        conn.execute(f"SET s3_secret_access_key='{config.s3_secret_key}';")
+    conn.execute("SET s3_url_style='path';")
+
+    count_result = conn.execute(
+        f"SELECT COUNT(*) FROM read_parquet('{parquet_glob}')"
+    ).fetchone()
+    total = count_result[0] if count_result else 0
+
+    rows_result = conn.execute(
+        f"SELECT * FROM read_parquet('{parquet_glob}') LIMIT {limit} OFFSET {offset}"
+    )
+    columns = [desc[0] for desc in rows_result.description]
+    rows: list[dict[str, object]] = [
+        dict(zip(columns, row)) for row in rows_result.fetchall()
+    ]
+
+    conn.close()
+    return total, rows
 
 
 @router.get("/health")

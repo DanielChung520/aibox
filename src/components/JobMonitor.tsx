@@ -168,7 +168,7 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
     <Dropdown
       placement="bottomRight"
       trigger={['click']}
-      dropdownRender={() => (
+      popupRender={() => (
         <div
           style={{
             width: 340,
@@ -321,7 +321,7 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
     <Drawer
       title={`任務日誌 — ${logJob?.filename ?? ''}`}
       placement="right"
-      width={440}
+      size="large"
       open={logDrawerOpen}
       onClose={() => setLogDrawerOpen(false)}
       styles={{ body: { padding: 0 } }}

@@ -15,6 +15,7 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 app = FastAPI(
@@ -272,6 +273,21 @@ async def trigger_graph(file_id: str) -> dict[str, object]:
     }
 
 
+@app.get("/pipeline/graph")
+async def get_graph(file_id: str) -> dict[str, object]:
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+    graph_data = arango.get_graph(file_id)
+    return {
+        "nodes": graph_data["nodes"],
+        "edges": graph_data["edges"],
+    }
+
+
 @app.post("/pipeline/abort")
 async def abort_pipeline(file_id: str) -> dict[str, object]:
     from celery_app.app import app as celery_app
@@ -307,3 +323,135 @@ async def get_pipeline_logs(file_id: str) -> dict[str, object]:
     arango = ArangoOps()
     logs = arango.get_job_logs(file_id)
     return {"file_id": file_id, "logs": logs, "count": len(logs)}
+
+
+@app.get("/pipeline/preview")
+async def get_preview(file_id: str) -> dict[str, object]:
+    from pathlib import Path
+
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    local_path = str(file_doc.get("local_path"))
+    if not local_path or not Path(local_path).exists():
+        raise HTTPException(status_code=404, detail="file not found on disk")
+
+    ext = Path(local_path).suffix.lower()
+    content_type_map = {
+        ".md": "markdown",
+        ".txt": "text",
+        ".pdf": "text",
+        ".csv": "table",
+        ".xlsx": "table",
+        ".xls": "table",
+        ".docx": "text",
+        ".doc": "text",
+    }
+    preview_type = content_type_map.get(ext, "binary")
+
+    if preview_type == "markdown":
+        text = Path(local_path).read_text(encoding="utf-8", errors="replace")
+        return {"file_id": file_id, "type": "markdown", "content": text}
+
+    if ext == ".pdf":
+        download_url = f"/pipeline/download?file_id={file_id}"
+        return {"file_id": file_id, "type": "pdf_url", "url": download_url}
+
+    if preview_type == "text":
+        text = Path(local_path).read_text(encoding="utf-8", errors="replace")
+        return {"file_id": file_id, "type": "text", "content": text[:5000]}
+
+    if preview_type == "table":
+        rows: list[dict[str, str | int | float]] = []
+        headers: list[str] = []
+        if ext in (".xlsx", ".xls"):
+            import openpyxl
+
+            wb = openpyxl.load_workbook(local_path, data_only=True)
+            ws = wb.active
+            for i, row in enumerate(ws.iter_rows(values_only=True)):
+                if i == 0:
+                    headers = [str(c) if c is not None else "" for c in row]
+                else:
+                    rows.append(
+                        {
+                            str(headers[j]) if j < len(headers) else f"col{j}": str(c)
+                            if c is not None
+                            else ""
+                            for j, c in enumerate(row)
+                        }
+                    )
+            return {
+                "file_id": file_id,
+                "type": "table",
+                "headers": headers,
+                "rows": rows[:200],
+            }
+        if ext == ".csv":
+            import csv
+
+            with open(local_path, encoding="utf-8", errors="replace") as f:
+                reader = csv.DictReader(f)
+                for i, row in enumerate(reader):
+                    if i == 0:
+                        headers = list(row.keys())
+                    rows.append(row)
+                    if i >= 199:
+                        break
+            return {
+                "file_id": file_id,
+                "type": "table",
+                "headers": headers,
+                "rows": rows,
+            }
+
+    if ext == ".pdf":
+        download_url = f"/pipeline/download?file_id={file_id}"
+        return {"file_id": file_id, "type": "pdf_url", "url": download_url}
+
+    if ext in (".docx", ".doc"):
+        from docx import Document
+
+        doc = Document(local_path)
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        return {
+            "file_id": file_id,
+            "type": "text",
+            "content": "\n".join(paragraphs[:200]),
+        }
+
+    return {"file_id": file_id, "type": "binary", "message": "不支援的檔案格式"}
+
+
+@app.get("/pipeline/download")
+async def download_file(file_id: str) -> dict[str, object]:
+    from pathlib import Path
+
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    local_path: str = str(file_doc.get("local_path"))
+    if not local_path or not Path(local_path).exists():
+        raise HTTPException(status_code=404, detail="file not found on disk")
+
+    filename: str = str(file_doc.get("filename", "download"))
+    file_type: str = str(file_doc.get("file_type", "application/octet-stream"))
+    import mimetypes
+
+    guessed = mimetypes.guess_type(filename)
+    mime: str = guessed[0] if guessed[0] else str(file_type)
+
+    return FileResponse(  # type: ignore[return-value]
+        path=local_path,
+        filename=filename,
+        media_type=mime,
+        content_disposition_type="inline",
+    )

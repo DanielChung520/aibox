@@ -215,3 +215,63 @@ class ArangoOps:
             if resp.status_code == 200:
                 return resp.json().get("result", [])
             return []
+
+    def get_graph(self, file_id: str) -> dict[str, object]:
+        with self._client() as client:
+            # Fetch nodes from knowledge_graphs collection
+            nodes_resp = client.post(
+                f"{self.url}/_db/{self.db}/_api/cursor",
+                json={
+                    "query": "FOR n IN knowledge_graphs FILTER n.file_id == @file_id RETURN n",
+                    "bindVars": {"file_id": file_id},
+                },
+            )
+            raw_nodes: list[dict[str, object]] = []
+            if nodes_resp.status_code == 200:
+                raw_nodes = nodes_resp.json().get("result", [])
+
+            # Fetch edges from knowledge_graph_edges collection
+            edges_resp = client.post(
+                f"{self.url}/_db/{self.db}/_api/cursor",
+                json={
+                    "query": "FOR e IN knowledge_graph_edges FILTER e.file_id == @file_id RETURN e",
+                    "bindVars": {"file_id": file_id},
+                },
+            )
+            raw_edges: list[dict[str, object]] = []
+            if edges_resp.status_code == 200:
+                raw_edges = edges_resp.json().get("result", [])
+
+        nodes: list[dict[str, object]] = []
+        node_id_map: dict[int, str] = {}
+        for i, n in enumerate(raw_nodes):
+            node_id_map[i] = str(n.get("_key", f"node_{i}"))
+            nodes.append({
+                "id": node_id_map[i],
+                "label": str(n.get("entity", "unknown")),
+                "type": str(n.get("entity_type", "concept")),
+                "properties": {
+                    "description": str(n.get("description", "")),
+                },
+            })
+
+        def extract_index(key: str, prefix: str) -> int | None:
+            if prefix in key:
+                try:
+                    return int(key.split(prefix)[1])
+                except ValueError:
+                    return None
+            return None
+
+        edges: list[dict[str, object]] = []
+        for e in raw_edges:
+            src = extract_index(str(e.get("_from", "")), "_node_")
+            tgt = extract_index(str(e.get("_to", "")), "_node_")
+            if src is not None and src in node_id_map and tgt is not None and tgt in node_id_map:
+                edges.append({
+                    "source": node_id_map[src],
+                    "target": node_id_map[tgt],
+                    "label": str(e.get("relation", "related_to")),
+                })
+
+        return {"nodes": nodes, "edges": edges}

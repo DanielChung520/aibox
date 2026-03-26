@@ -13,7 +13,7 @@ import os
 from typing import Any, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 app = FastAPI(
@@ -114,8 +114,6 @@ async def execute_weather(location: str) -> dict:
 
 
 async def execute_code(code: str) -> dict:
-    stdout_capture: list[str] = []
-
     try:
         local_vars: dict[str, Any] = {}
         exec(code, {"__builtins__": __builtins__}, local_vars)  # noqa: S102

@@ -85,6 +85,8 @@ pub fn create_router() -> Router {
         .route("/api/v1/knowledge/roots/{key}/favorite", patch(knowledge::toggle_favorite))
         .route("/api/v1/knowledge/roots/{root_id}/files", get(knowledge::list_files))
         .route("/api/v1/knowledge/files/{key}", get(knowledge::get_file).delete(knowledge::delete_file))
+        .route("/api/v1/knowledge/files/{key}/preview", get(knowledge::preview_file))
+        .route("/api/v1/knowledge/files/{key}/graph", get(knowledge::get_graph))
         .route("/api/v1/jobs", get(knowledge::list_jobs))
         .route("/api/v1/jobs/clear", delete(knowledge::clear_jobs))
         .route("/api/v1/jobs/{key}/abort", post(knowledge::abort_job))

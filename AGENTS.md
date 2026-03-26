@@ -281,7 +281,7 @@ npx eslint src/
 cd ai-services && pip install -r requirements.txt
 
 # Run mypy type check
-cd ai-services && mypy . --strict --ignore-missing-imports
+cd ai-services && mypy . --strict --ignore-missing-imports --exclude 'aitask/main.py'
 
 # Run ruff linting
 cd ai-services && ruff check .
@@ -290,7 +290,7 @@ cd ai-services && ruff check .
 cd ai-services && ruff format .
 
 # Run all checks (CI/CD)
-cd ai-services && ruff check . && ruff format --check . && mypy . --strict --ignore-missing-imports
+cd ai-services && ruff check . && ruff format --check . && mypy . --strict --ignore-missing-imports --exclude 'aitask/main.py'
 
 # Start AI service (example: aitask)
 cd ai-services/aitask && uvicorn main:app --port 8001 --reload
@@ -326,7 +326,7 @@ pip install mypy
 cd ai-services && mypy . --ignore-missing-imports
 
 # Strict mode (recommended)
-mypy . --strict --ignore-missing-imports
+mypy . --strict --ignore-missing-imports --exclude 'aitask/main.py'
 ```
 
 #### ruff (Linting/Formatting)

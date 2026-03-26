@@ -13,7 +13,7 @@ use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde_json::json;
@@ -577,6 +577,56 @@ pub async fn job_logs(
         Err(e) => Err((
             StatusCode::BAD_GATEWAY,
             Json(json!({ "code": 502, "message": format!("failed to fetch logs: {}", e) })),
+        )),
+    }
+}
+
+pub async fn get_graph(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/graph?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to get graph: {}", e) })),
+        )),
+    }
+}
+
+pub async fn preview_file(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/preview?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to preview file: {}", e) })),
         )),
     }
 }

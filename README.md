@@ -1,7 +1,7 @@
 ---
-lastUpdate: 2026-03-23 19:05:37
+lastUpdate: 2026-03-25 23:16:31
 author: Daniel Chung
-version: 1.2.0
+version: 1.3.0
 ---
 
 # ABC Desktop 管理系统
@@ -239,21 +239,22 @@ curl -sL https://raw.githubusercontent.com/your-repo/main/install.sh | bash
 
 ### 端口配置
 
-| 服务 | 端口 | 说明 |
-|------|------|------|
-| API Gateway | 6500 | Rust Axum |
-| AITask | 8001 | Python FastAPI |
-| Data Agent | 8003 | Python FastAPI (意圖 RAG + NL→SQL) |
-| MCP Tools | 8004 | Python FastAPI |
-| BPA MM Agent | 8005 | Python FastAPI (物料管理) |
-| Knowledge Agent | 8007 | Python FastAPI (知識庫 RAG) |
-| Frontend (dev) | 1420 | Vite dev server |
-| Frontend (preview) | 6000 | Vite preview |
-| ArangoDB | 8529 | 数据库 |
-| Qdrant | 6333 | 向量數據庫 |
-| MinIO (S3) | 8334 | 資料湖儲存 |
-| Ollama | 11434 | LLM |
-| LM Studio | 1234 | LLM |
+| 服务 | 端口 | Dashboard | 说明 |
+|------|------|-----------|------|
+| API Gateway | 6500 | — | Rust Axum |
+| AITask | 8001 | — | Python FastAPI |
+| Data Agent | 8003 | — | Python FastAPI (意圖 RAG + NL→SQL) |
+| MCP Tools | 8004 | — | Python FastAPI |
+| BPA MM Agent | 8005 | — | Python FastAPI (物料管理) |
+| Knowledge Agent | 8007 | — | Python FastAPI (知識庫 RAG) |
+| Frontend (dev) | 1420 | — | Vite dev server |
+| Frontend (preview) | 6000 | — | Vite preview |
+| ArangoDB | 8529 | :8529 | 数据库 |
+| Qdrant | 6333 | :6333/dashboard | 向量數據庫 |
+| MinIO (S3) | 8334 | :8334/minio | 資料湖儲存 |
+| SeaweedFS | 9334 | :9334 | 檔案備份儲存 |
+| Ollama | 11434 | — | LLM |
+| LM Studio | 1234 | — | LLM |
 
 ### 生产环境
 
@@ -427,6 +428,7 @@ npm run test
 
 | 日期 | 版本 | 更新者 | 變更內容 |
 |------|------|--------|----------|
+| 2026-03-25 | 1.3.0 | Daniel Chung | 新增 JobMonitor（Cloud icon + Tab）、任務中止、job_logs 失敗追蹤；新增 SeaweedFS 備份、Celery 非同步 pipeline、kb_pipeline Python 套件；新增知識庫向量化與圖譜抽取端點 |
 | 2026-03-23 | 1.2.0 | Daniel Chung | 重構 AI Services 架構：data_agent(8003), knowledge_agent(8007), bpa/mm_agent(8005), datalake |
 | 2026-03-18 | 1.1.0 | Daniel Chung | 新增 AI Agent 系統架構、Python AI Services、單元測試 |
 | 2026-03-17 | 1.0.0 | Daniel Chung | 初始版本，完整專案文檔 |

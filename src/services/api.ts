@@ -467,6 +467,16 @@ export interface GraphEdge {
   label: string;
 }
 
+export interface PreviewData {
+  file_id: string;
+  type: 'markdown' | 'text' | 'table' | 'binary' | 'pdf_url';
+  content?: string;
+  headers?: string[];
+  rows?: Record<string, string | number>[];
+  message?: string;
+  url?: string;
+}
+
 export interface KnowledgeRoleAuth {
   root_key: string;
   role_keys: string[];
@@ -500,7 +510,7 @@ export const knowledgeApi = {
   deleteFile: (fileId: string) =>
     api.delete<ApiMessage>(`/api/v1/knowledge/files/${fileId}`),
   getPreview: (fileId: string) =>
-    api.get<ApiResponse<{ content: string; type: string }>>(`/api/v1/knowledge/files/${fileId}/preview`),
+    api.get<ApiResponse<PreviewData>>(`/api/v1/knowledge/files/${fileId}/preview`),
   getVectors: (fileId: string, params: { limit: number; offset: number }) =>
     api.get<ApiResponse<{ chunks: VectorChunk[]; total: number }>>(`/api/v1/knowledge/files/${fileId}/vectors`, { params }),
   getGraph: (fileId: string) =>

@@ -44,6 +44,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
   const [error, setError] = useState<string | null>(null);
   const [hasData, setHasData] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const mountedRef = useRef(true);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -61,6 +62,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
   useEffect(() => {
     if (!containerRef.current) return;
 
+    mountedRef.current = true;
     graphRef.current?.destroy();
     graphRef.current = null;
     setLoading(true);
@@ -118,7 +120,9 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
     });
 
     graph.render().then(() => {
-      onGraphReady?.(graph);
+      if (mountedRef.current) {
+        onGraphReady?.(graph);
+      }
     });
 
     graphRef.current = graph;
@@ -127,6 +131,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
       try {
         const res = await knowledgeApi.getGraph(fileId);
         const data = res.data.data;
+        if (!mountedRef.current) return;
         if (!data || (!data.nodes?.length && !data.edges?.length)) {
           setHasData(false);
           setLoading(false);
@@ -141,23 +146,30 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
           target: e.target,
           data: { label: e.label },
         }));
+        if (!mountedRef.current) return;
         graph.setData({ nodes, edges });
         await graph.render();
+        if (!mountedRef.current) return;
         onDataLoaded?.(data.nodes || [], data.edges || []);
         setHasData(true);
       } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
-        setError(e.response?.data?.message || '載入圖譜失敗');
+        if (mountedRef.current) {
+          setError(e.response?.data?.message || '載入圖譜失敗');
+        }
       } finally {
-        setLoading(false);
+        if (mountedRef.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchGraph();
 
     return () => {
-      graphRef.current = null;
-      graph.destroy();
+    graphRef.current = null;
+    graph.destroy();
+    mountedRef.current = false;
     };
   }, [fileId, onNodeSelect, onGraphReady, onDataLoaded, token]);
 

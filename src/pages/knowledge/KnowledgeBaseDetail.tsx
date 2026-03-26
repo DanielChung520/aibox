@@ -121,9 +121,11 @@ export default function KnowledgeBaseDetail() {
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
-          padding: token.padding,
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          display: 'flex', alignItems: 'center', gap: token.margin,
+          padding: 16,
+          borderBottomWidth: 1,
+          borderBottomStyle: 'solid',
+          borderBottomColor: 'rgba(255, 255, 255, 0.89)',
+          display: 'flex', alignItems: 'center', gap: 16,
           flexShrink: 0,
         }}>
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/app/knowledge/management')} />

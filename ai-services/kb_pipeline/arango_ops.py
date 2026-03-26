@@ -32,16 +32,50 @@ class ArangoOps:
 
     def read_file(self, file_id: str) -> str | None:
         with self._client() as client:
-            resp = client.get(
+            doc_resp = client.get(
                 f"{self.url}/_db/{self.db}/_api/document/knowledge_files/{file_id}"
             )
-            if resp.status_code != 200:
+            if doc_resp.status_code not in (200, 201):
                 return None
-            doc = resp.json()
+            doc = doc_resp.json()
             local_path = doc.get("local_path")
-            if local_path and Path(local_path).exists():
-                return Path(local_path).read_text(encoding="utf-8", errors="replace")
-            return None
+            if not local_path:
+                return None
+
+            if local_path.startswith("http://") or local_path.startswith("https://"):
+                try:
+                    file_resp = client.get(local_path, timeout=60.0)
+                    if file_resp.status_code != 200:
+                        return None
+                    content = file_resp.content
+                except Exception:
+                    return None
+            elif Path(local_path).exists():
+                content = Path(local_path).read_bytes()
+            else:
+                return None
+
+            ext = local_path.rsplit(".", 1)[-1].lower() if "." in local_path else ""
+            if ext == "pdf":
+                try:
+                    import io
+
+                    import pdfplumber
+
+                    with pdfplumber.open(io.BytesIO(content)) as pdf:
+                        pages: list[str] = []
+                        for page in pdf.pages:
+                            text = page.extract_text()
+                            if text:
+                                pages.append(text)
+                        return "\n\n".join(pages) if pages else ""
+                except Exception:
+                    return None
+
+            try:
+                return content.decode("utf-8", errors="replace")
+            except Exception:
+                return None
 
     def read_file_chunks(self, file_id: str) -> list[str]:
         with self._client() as client:
@@ -150,18 +184,26 @@ class ArangoOps:
             }
             for i, n in enumerate(nodes)
         ]
-        edges_data = [
-            {
+        entity_index: dict[str, int] = {
+            str(n["entity"]): i for i, n in enumerate(nodes)
+        }
+        edges_data = []
+        for i, e in enumerate(edges):
+            src_raw = str(e["source"])
+            tgt_raw = str(e["target"])
+            src_idx = entity_index.get(src_raw, int(src_raw) if src_raw.isdigit() else -1)
+            tgt_idx = entity_index.get(tgt_raw, int(tgt_raw) if tgt_raw.isdigit() else -1)
+            if src_idx < 0 or tgt_idx < 0 or src_idx >= len(nodes) or tgt_idx >= len(nodes):
+                continue
+            edges_data.append({
                 "_key": f"{file_id}_edge_{i}",
-                "_from": f"knowledge_graphs/{file_id}_node_{edges[i]['source']}",
-                "_to": f"knowledge_graphs/{file_id}_node_{edges[i]['target']}",
+                "_from": f"knowledge_graphs/{file_id}_node_{src_idx}",
+                "_to": f"knowledge_graphs/{file_id}_node_{tgt_idx}",
                 "file_id": file_id,
-                "relation": edges[i].get("relation", "related_to"),
-                "source": f"{file_id}_node_{edges[i]['source']}",
-                "target": f"{file_id}_node_{edges[i]['target']}",
-            }
-            for i, e in enumerate(edges)
-        ]
+                "relation": e.get("relation", "related_to"),
+                "source": f"{file_id}_node_{src_idx}",
+                "target": f"{file_id}_node_{tgt_idx}",
+            })
         with self._client() as client:
             for node in nodes_data:
                 resp = client.post(
@@ -313,10 +355,8 @@ class ArangoOps:
 
         edges: list[dict[str, object]] = []
         for e in raw_edges:
-            source_key = str(e.get("source", ""))
-            target_key = str(e.get("target", ""))
-            src_node_id = node_id_map.get(int(source_key.split("_node_")[-1]) if "_node_" in source_key else -1)
-            tgt_node_id = node_id_map.get(int(target_key.split("_node_")[-1]) if "_node_" in target_key else -1)
+            src_node_id = str(e.get("source", ""))
+            tgt_node_id = str(e.get("target", ""))
             if src_node_id and tgt_node_id:
                 edges.append({
                     "source": src_node_id,

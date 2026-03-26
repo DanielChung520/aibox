@@ -38,8 +38,8 @@ export default function FileContentViewer({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
       <Card
-        style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-        styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: token.padding } }}
+        style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: token.borderRadius }}
+        styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <Tabs
@@ -54,7 +54,7 @@ export default function FileContentViewer({
             <Button icon={<SettingOutlined />} onClick={onSettingsClick} size="small" />
           )}
         </div>
-        <div style={{ flex: 1, overflow: currentTab === 'graph' ? 'hidden' : 'auto', paddingTop: token.margin }}>
+        <div style={{ flex: 1, overflow: currentTab === 'graph' ? 'hidden' : 'auto' }}>
           {currentTab === 'source' && (
             <KBSourcePreview fileId={fileId} fileName={fileName} fileType={fileType} />
           )}

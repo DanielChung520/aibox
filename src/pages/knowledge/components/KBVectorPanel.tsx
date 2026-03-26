@@ -15,9 +15,10 @@ const { Text } = Typography;
 
 interface KBVectorPanelProps {
   fileId: string;
+  vectorStatus?: string;
 }
 
-export default function KBVectorPanel({ fileId }: KBVectorPanelProps) {
+export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelProps) {
   const { token } = theme.useToken();
   const [chunks, setChunks] = useState<VectorChunk[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,14 +83,13 @@ export default function KBVectorPanel({ fileId }: KBVectorPanelProps) {
   return (
     <div style={{ padding: token.padding }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: token.margin }}>
-        <Button
-          icon={<ReloadOutlined />}
-          loading={regenerating}
-          onClick={handleRegenerate}
-          size="small"
-        >
-          重新產生
-        </Button>
+        {(!vectorStatus || !['pending', 'processing', 'queued'].includes(vectorStatus)) ? (
+          <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate} size="small">
+            重新產生
+          </Button>
+        ) : (
+          <Text type="secondary">向量生成中...</Text>
+        )}
       </div>
 
       {loading && (

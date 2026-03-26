@@ -17,6 +17,7 @@ const { Text } = Typography;
 
 interface KBGraphPanelProps {
   fileId: string;
+  graphStatus?: string;
   onNodeSelect?: (nodeId: string | null) => void;
   onGraphReady?: (graph: Graph) => void;
   onDataLoaded?: (nodes: GraphNode[], edges: GraphEdge[]) => void;
@@ -35,7 +36,7 @@ type G6Edge = {
   [key: string]: unknown;
 };
 
-export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDataLoaded }: KBGraphPanelProps) {
+export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGraphReady, onDataLoaded }: KBGraphPanelProps) {
   const { token } = theme.useToken();
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
@@ -230,13 +231,13 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
             }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
-          <Button
-            icon={<ReloadOutlined />}
-            loading={regenerating}
-            onClick={handleRegenerate}
-          >
-            重新產生
-          </Button>
+          {!graphStatus || !['pending', 'processing', 'queued'].includes(graphStatus) ? (
+            <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate}>
+              重新產生
+            </Button>
+          ) : (
+            <Text type="secondary">圖譜生成中...</Text>
+          )}
         </div>
       )}
     </div>

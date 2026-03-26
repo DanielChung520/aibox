@@ -460,7 +460,7 @@ pub async fn list_jobs(
                 .map_err(|_| err_500())?;
             return Ok(Json(json!({ "code": 200, "data": jobs })));
         }
-        _ => "f.vector_status IN ['pending', 'processing']",
+        _ => "f.vector_status IN ['pending', 'processing', 'queued']",
     };
 
     let query = format!(

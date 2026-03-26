@@ -169,13 +169,13 @@ export default function KnowledgeBaseDetail() {
                   />
                 </div>
                 <div style={{ flex: 1, overflow: activeTab === 'graph' ? 'hidden' : 'auto', paddingTop: token.margin }}>
-                  {activeTab === 'graph' && (
-                    <KBGraphPanel fileId={selectedFile._key} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} onDataLoaded={handleDataLoaded} />
-                  )}
+                {activeTab === 'graph' && (
+                  <KBGraphPanel fileId={selectedFile._key} graphStatus={selectedFile.graph_status} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} onDataLoaded={handleDataLoaded} />
+                )}
                   {activeTab === 'source' && (
                     <KBSourcePreview fileId={selectedFile._key} fileName={selectedFile.filename} fileType={selectedFile.file_type} />
                   )}
-                  {activeTab === 'vector' && <KBVectorPanel fileId={selectedFile._key} />}
+                  {activeTab === 'vector' && <KBVectorPanel fileId={selectedFile._key} vectorStatus={selectedFile.vector_status} />}
                 </div>
               </Card>
             </div>

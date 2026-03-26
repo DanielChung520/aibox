@@ -7,9 +7,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Empty, Spin, Alert, Typography, theme } from 'antd';
+import { Empty, Spin, Alert, Typography, Button, message, theme } from 'antd';
 import { Graph, NodeEvent, CanvasEvent } from '@antv/g6';
 import type { IElementEvent, IPointerEvent, NodeData, EdgeData } from '@antv/g6';
+import { ReloadOutlined } from '@ant-design/icons';
 import { knowledgeApi, GraphNode, GraphEdge } from '../../../services/api';
 
 const { Text } = Typography;
@@ -42,6 +43,20 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasData, setHasData] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    try {
+      await knowledgeApi.regenerateFile(fileId);
+      message.success('已重新提交圖譜生成任務');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      message.error(e.response?.data?.message || '重新產生失敗');
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -179,17 +194,24 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
       {!loading && !error && !hasData && (
         <div style={{
           position: 'absolute', inset: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 10, pointerEvents: 'none',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10, gap: token.padding,
         }}>
           <Empty
             description={
               <Text style={{ color: token.colorTextSecondary }}>
-                圖譜待生成（請等待後端向量化工序完成）
+                圖譜待生成
               </Text>
             }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
+          <Button
+            icon={<ReloadOutlined />}
+            loading={regenerating}
+            onClick={handleRegenerate}
+          >
+            重新產生
+          </Button>
         </div>
       )}
     </div>

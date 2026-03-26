@@ -515,6 +515,8 @@ export const knowledgeApi = {
     api.get<ApiResponse<{ chunks: VectorChunk[]; total: number }>>(`/api/v1/knowledge/files/${fileId}/vectors`, { params }),
   getGraph: (fileId: string) =>
     api.get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(`/api/v1/knowledge/files/${fileId}/graph`),
+  regenerateFile: (fileId: string) =>
+    api.post<ApiResponse<{ status: string; vector_task_id: string; graph_task_id: string }>>(`/api/v1/knowledge/files/${fileId}/regenerate`),
   getRoles: (rootId: string) =>
     api.get<ApiResponse<KnowledgeRoleAuth>>(`/api/v1/knowledge/roots/${rootId}/roles`),
   setRoles: (rootId: string, role_keys: string[], inherited_role_keys: string[]) =>

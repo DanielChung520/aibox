@@ -297,6 +297,52 @@ async def trigger_graph(file_id: str) -> dict[str, object]:
     }
 
 
+@app.get("/pipeline/vectors")
+async def get_vectors(file_id: str, limit: int = 50, offset: int = 0) -> dict[str, object]:
+    from kb_pipeline.arango_ops import ArangoOps
+    from kb_pipeline.qdrant_ops import QdrantStore
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+    root_id = str(file_doc.get("knowledge_root_id", ""))
+    if not root_id:
+        return {"chunks": [], "total": 0, "file_id": file_id}
+    qdrant = QdrantStore()
+    collection = f"knowledge_{root_id}"
+    chunks = qdrant.get_chunks(collection, file_id, limit, offset)
+    return {"chunks": chunks, "total": len(chunks), "file_id": file_id}
+
+
+@app.post("/pipeline/regenerate/{file_id}")
+async def regenerate_pipeline(file_id: str) -> dict[str, object]:
+    from celery_app.tasks import graph_task, vectorize_task
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+    local_path = file_doc.get("local_path")
+    root_id = file_doc.get("knowledge_root_id")
+    if not local_path or not root_id:
+        raise HTTPException(
+            status_code=400,
+            detail="file missing local_path or knowledge_root_id",
+        )
+    vector_result = vectorize_task.delay(file_id, local_path, root_id)
+    graph_result = graph_task.delay(file_id, local_path)
+    arango.set_task_id(file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id)
+    arango.update_status(file_id, vector_status="queued", graph_status="queued")
+    return {
+        "status": "queued",
+        "file_id": file_id,
+        "vector_task_id": vector_result.id,
+        "graph_task_id": graph_result.id,
+    }
+
+
 @app.get("/pipeline/graph")
 async def get_graph(file_id: str) -> dict[str, object]:
     from kb_pipeline.arango_ops import ArangoOps

@@ -40,7 +40,7 @@ class GraphExtractor:
         self.ollama_url = ollama_url or os.getenv(
             "OLLAMA_BASE_URL", "http://localhost:11434"
         )
-        self.model = model or os.getenv("OLLAMA_LLM_MODEL", "qwen2.5-coder:7b")
+        self.model = model or os.getenv("OLLAMA_LLM_MODEL", "llama3.2:latest")
         self.timeout = timeout
 
     def extract(

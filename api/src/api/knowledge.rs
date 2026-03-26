@@ -581,6 +581,37 @@ pub async fn job_logs(
     }
 }
 
+pub async fn get_vectors(
+    Path(file_key): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let limit = params.get("limit").and_then(|s| s.parse::<usize>().ok()).unwrap_or(50);
+    let offset = params.get("offset").and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+    let url = format!(
+        "{}/pipeline/vectors?file_id={}&limit={}&offset={}",
+        agent_url, file_key, limit, offset
+    );
+
+    let client = reqwest::Client::new();
+    match client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to get vectors: {}", e) })),
+        )),
+    }
+}
+
 pub async fn get_graph(
     Path(file_key): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
@@ -643,4 +674,29 @@ fn err_404(resource: &str) -> (StatusCode, Json<serde_json::Value>) {
         StatusCode::NOT_FOUND,
         Json(json!({ "code": 404, "message": format!("{} not found", resource) })),
     )
+}
+
+pub async fn regenerate_file(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/regenerate/{}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .post(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to regenerate: {}", e) })),
+        )),
+    }
 }

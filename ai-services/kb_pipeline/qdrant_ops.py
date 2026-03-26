@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass
+from typing import cast
 
 import httpx
 
@@ -78,6 +79,40 @@ class QdrantStore:
             resp.raise_for_status()
             result_data = resp.json().get("result")
             return list(result_data) if result_data else []
+
+    def get_chunks(
+        self, collection: str, file_id: str, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, object]]:
+        with self._client() as client:
+            resp = client.post(
+                f"{self.url}/collections/{collection}/points/scroll",
+                json={
+                    "filter": {
+                        "must": [
+                            {"key": "file_id", "match": {"value": file_id}}
+                        ]
+                    },
+                    "limit": limit,
+                    "offset": offset,
+                    "with_payload": True,
+                },
+            )
+            if resp.status_code >= 400:
+                return []
+            raw = resp.json()
+            result = cast(dict[str, object], raw.get("result", {}) if isinstance(raw, dict) else {})
+            points = cast(list[dict[str, object]], result.get("points", []) or [])
+            chunks: list[dict[str, object]] = []
+            for point in points:
+                pld = cast(dict[str, object], point.get("payload") or {})
+                chunks.append({
+                    "chunk_id": str(point.get("id", "")),
+                    "text": str(pld.get("text_full") or pld.get("text") or ""),
+                    "chunk_index": cast(int, pld.get("chunk_index") or 0),
+                    "score": 1.0,
+                })
+            chunks.sort(key=lambda x: cast(int, x["chunk_index"]))
+            return chunks
 
     def count(self, collection: str) -> int:
         with self._client() as client:

@@ -122,7 +122,7 @@ export default function KBGraphPanel({ fileId, onNodeSelect, onGraphReady, onDat
     graph.render().then(() => {
       if (instanceRef.current !== currentInstance) return;
       onGraphReady?.(graph);
-    });
+    }).catch(() => {});
 
     graphRef.current = graph;
 

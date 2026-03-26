@@ -114,82 +114,79 @@ export default function KnowledgeBaseDetail() {
   const showRightPanel = activeTab === 'graph' && selectedFile && !uploadMode;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       <div style={{
-        padding: token.padding,
-        borderBottom: `1px solid ${token.colorBorderSecondary}`,
-        display: 'flex', alignItems: 'center', gap: token.margin,
-        backgroundColor: token.colorBgContainer, flexShrink: 0,
+        width: 280, minWidth: 280, flexShrink: 0,
+        borderRight: `1px solid ${token.colorBorderSecondary}`,
+        backgroundColor: token.colorBgContainer,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/app/knowledge/management')} />
-        <Space orientation="vertical" size={0}>
-          <Title level={4} style={{ margin: 0, color: token.colorText }}>知識庫</Title>
-          <Text style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }}>ID: {id}</Text>
-        </Space>
+        <div style={{
+          padding: token.padding,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          display: 'flex', alignItems: 'center', gap: token.margin,
+          flexShrink: 0,
+        }}>
+          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/app/knowledge/management')} />
+          <Space orientation="vertical" size={0}>
+            <Title level={4} style={{ margin: 0, color: token.colorText }}>知識庫</Title>
+            <Text style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }}>ID: {id}</Text>
+          </Space>
+        </div>
+        <KBFileList
+          rootId={id || 'kb1'} files={files} selectedFileId={selectedFileId}
+          onSelectFile={handleSelectFile} onUpload={() => setUploadMode(true)}
+          onDeleteFile={handleDeleteFile} loading={filesLoading}
+        />
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        <div style={{
-          width: 280, minWidth: 280, flexShrink: 0,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
-          backgroundColor: token.colorBgContainer,
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
-          <KBFileList
-            rootId={id || 'kb1'} files={files} selectedFileId={selectedFileId}
-            onSelectFile={handleSelectFile} onUpload={() => setUploadMode(true)}
-            onDeleteFile={handleDeleteFile} loading={filesLoading}
-          />
-        </div>
-
-        <div style={{
-          flex: 1, minWidth: 0, overflow: 'hidden',
-          backgroundColor: token.colorBgLayout,
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {uploadMode ? (
-            <div style={{ padding: token.paddingXL, maxWidth: 600, margin: '0 auto', width: '100%' }}>
-              <KBFileUpload rootId={id || 'kb1'} onUploadComplete={handleUploadComplete} />
-            </div>
-          ) : !selectedFile ? (
-            <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-              <Empty description={<Text style={{ color: token.colorTextSecondary }}>請在左側選擇文件以查看詳情</Text>} />
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: token.padding }}>
-              <Card style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
-                <div style={{ paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
-                  <Tabs
-                    activeKey={activeTab} onChange={setActiveTab}
-                    items={[
-                      { key: 'source', label: '源文件' },
-                      { key: 'graph', label: '圖譜' },
-                      { key: 'vector', label: '向量' },
-                    ]}
-                  />
-                </div>
-                <div style={{ flex: 1, overflow: activeTab === 'graph' ? 'hidden' : 'auto', paddingTop: token.margin }}>
-                {activeTab === 'graph' && (
-                  <KBGraphPanel fileId={selectedFile._key} graphStatus={selectedFile.graph_status} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} onDataLoaded={handleDataLoaded} />
+      <div style={{
+        flex: 1, minWidth: 0, overflow: 'hidden',
+        backgroundColor: token.colorBgLayout,
+        display: 'flex', flexDirection: 'column',
+      }}>
+        {uploadMode ? (
+          <div style={{ padding: token.paddingXL, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+            <KBFileUpload rootId={id || 'kb1'} onUploadComplete={handleUploadComplete} />
+          </div>
+        ) : !selectedFile ? (
+          <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+            <Empty description={<Text style={{ color: token.colorTextSecondary }}>請在左側選擇文件以查看詳情</Text>} />
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: token.padding }}>
+            <Card style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
+              <div style={{ paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
+                <Tabs
+                  activeKey={activeTab} onChange={setActiveTab}
+                  items={[
+                    { key: 'source', label: '源文件' },
+                    { key: 'graph', label: '圖譜' },
+                    { key: 'vector', label: '向量' },
+                  ]}
+                />
+              </div>
+              <div style={{ flex: 1, overflow: activeTab === 'graph' ? 'hidden' : 'auto', paddingTop: token.margin }}>
+              {activeTab === 'graph' && (
+                <KBGraphPanel fileId={selectedFile._key} graphStatus={selectedFile.graph_status} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} onDataLoaded={handleDataLoaded} />
+              )}
+                {activeTab === 'source' && (
+                  <KBSourcePreview fileId={selectedFile._key} fileName={selectedFile.filename} fileType={selectedFile.file_type} />
                 )}
-                  {activeTab === 'source' && (
-                    <KBSourcePreview fileId={selectedFile._key} fileName={selectedFile.filename} fileType={selectedFile.file_type} />
-                  )}
-                  {activeTab === 'vector' && <KBVectorPanel fileId={selectedFile._key} vectorStatus={selectedFile.vector_status} />}
-                </div>
-              </Card>
-            </div>
-          )}
-        </div>
-
-        {showRightPanel && (
-          <KBNodeRelPanel
-            nodes={graphNodes} edges={graphEdges}
-            selectedNodeId={selectedNodeId} onNodeClick={handleRightPanelNodeClick}
-            collapsed={rightPanelCollapsed} onCollapse={setRightPanelCollapsed}
-          />
+                {activeTab === 'vector' && <KBVectorPanel fileId={selectedFile._key} vectorStatus={selectedFile.vector_status} />}
+              </div>
+            </Card>
+          </div>
         )}
       </div>
+
+      {showRightPanel && (
+        <KBNodeRelPanel
+          nodes={graphNodes} edges={graphEdges}
+          selectedNodeId={selectedNodeId} onNodeClick={handleRightPanelNodeClick}
+          collapsed={rightPanelCollapsed} onCollapse={setRightPanelCollapsed}
+        />
+      )}
     </div>
   );
 }

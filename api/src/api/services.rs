@@ -96,7 +96,7 @@ fn base_url_for(name: &str) -> String {
 
 async fn ping_service(client: &Client, health_url: &str) -> (ServiceStatus, Option<u64>) {
     let t0 = Instant::now();
-    match client.get(health_url).send().await {
+    match client.get(health_url).timeout(Duration::from_secs(3)).send().await {
         Ok(resp) if resp.status().is_success() => {
             let ms = t0.elapsed().as_millis() as u64;
             (ServiceStatus::Running, Some(ms))

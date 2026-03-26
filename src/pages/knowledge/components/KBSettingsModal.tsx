@@ -32,36 +32,28 @@ export default function KBSettingsModal({ open, onCancel }: KBSettingsModalProps
   const [loading, setLoading] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [embeddingModels, setEmbeddingModels] = useState<string[]>([]);
+  const [loadedParams, setLoadedParams] = useState<KnowledgeParams | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    fetchParams();
-    fetchOllamaModels();
-  }, [open]);
-
-  const fetchParams = async () => {
     setLoading(true);
-    try {
-      const res = await paramsApi.list();
-      const knowledgeParams: KnowledgeParams = {
-        embedding_model: 'bge-m3:latest',
-        embedding_dimension: 1024,
-        graph_model: 'llama3.2:latest',
-      };
-      for (const p of res.data.data || []) {
-        if (p.param_key === 'knowledge.embedding_model') knowledgeParams.embedding_model = p.param_value;
-        if (p.param_key === 'knowledge.embedding_dimension') knowledgeParams.embedding_dimension = parseInt(p.param_value, 10);
-        if (p.param_key === 'knowledge.graph_model') knowledgeParams.graph_model = p.param_value;
-      }
-      form.setFieldsValue(knowledgeParams);
-    } catch {
-      message.error('載入參數失敗');
-    } finally {
-      setLoading(false);
-    }
-  };
+    paramsApi.list()
+      .then(res => {
+        const params: KnowledgeParams = {
+          embedding_model: 'bge-m3:latest',
+          embedding_dimension: 1024,
+          graph_model: 'llama3.2:latest',
+        };
+        for (const p of res.data.data || []) {
+          if (p.param_key === 'knowledge.embedding_model') params.embedding_model = p.param_value;
+          if (p.param_key === 'knowledge.embedding_dimension') params.embedding_dimension = parseInt(p.param_value, 10);
+          if (p.param_key === 'knowledge.graph_model') params.graph_model = p.param_value;
+        }
+        setLoadedParams(params);
+      })
+      .catch(() => message.error('載入參數失敗'))
+      .finally(() => setLoading(false));
 
-  const fetchOllamaModels = () => {
     fetch('http://localhost:11434/api/tags')
       .then(res => res.ok ? res.json() : null)
       .then((data: { models: OllamaModel[] } | null) => {
@@ -71,7 +63,13 @@ export default function KBSettingsModal({ open, onCancel }: KBSettingsModalProps
         setEmbeddingModels(all.filter(n => n.includes('embed') || n.includes('bge') || n.includes('nomic')));
       })
       .catch(() => {});
-  };
+  }, [open]);
+
+  useEffect(() => {
+    if (loadedParams) {
+      form.setFieldsValue(loadedParams);
+    }
+  }, [loadedParams, form]);
 
   const handleOk = async () => {
     try {

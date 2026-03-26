@@ -44,20 +44,17 @@ export default function KBFileList({ files, selectedFileId, onSelectFile, onUplo
       render: (filename: string, record) => {
         const isPdf = record.file_type?.includes('pdf');
         const isMd = record.file_type?.includes('markdown');
-        const icon = isPdf ? <FilePdfOutlined style={{ color: token.colorError }} /> :
-                       isMd ? <FileMarkdownOutlined style={{ color: token.colorPrimary }} /> :
-                       <FileTextOutlined style={{ color: token.colorSuccess }} />;
         const isSelected = record._key === selectedFileId;
+        const textColor = isSelected ? '#fff' : token.colorText;
+        const iconColor = isSelected ? '#fff' : (
+          isPdf ? token.colorError : isMd ? token.colorPrimary : token.colorSuccess
+        );
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {icon}
-            <Text
-              ellipsis={{ tooltip: filename }}
-              style={{
-                color: isSelected ? token.colorPrimary : token.colorText,
-                fontWeight: isSelected ? 500 : 400,
-              }}
-            >
+            {isPdf ? <FilePdfOutlined style={{ color: iconColor }} /> :
+             isMd ? <FileMarkdownOutlined style={{ color: iconColor }} /> :
+             <FileTextOutlined style={{ color: iconColor }} />}
+            <Text ellipsis={{ tooltip: filename }} style={{ color: textColor, fontWeight: isSelected ? 500 : 400 }}>
               {filename}
             </Text>
           </div>
@@ -69,24 +66,36 @@ export default function KBFileList({ files, selectedFileId, onSelectFile, onUplo
       dataIndex: 'file_size',
       key: 'file_size',
       width: 80,
-      render: (size: number) => (
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {formatSize(size)}
-        </Text>
-      ),
+      render: (size: number, record) => {
+        const isSelected = record._key === selectedFileId;
+        return (
+          <Text style={{ fontSize: token.fontSizeSM, color: isSelected ? 'rgba(255,255,255,0.7)' : token.colorTextSecondary }}>
+            {formatSize(size)}
+          </Text>
+        );
+      },
     },
     {
       title: '',
       key: 'action',
       width: 40,
-      render: (_: unknown, record: KnowledgeFile) => (
-        <Popconfirm
-          title="確定要刪除此文件嗎？"
-          onConfirm={() => onDeleteFile(record._key)}
-        >
-          <Button type="text" danger size="small" icon={<DeleteOutlined />} />
-        </Popconfirm>
-      ),
+      render: (_: unknown, record: KnowledgeFile) => {
+        const isSelected = record._key === selectedFileId;
+        return (
+          <Popconfirm
+            title="確定要刪除此文件嗎？"
+            onConfirm={() => onDeleteFile(record._key)}
+          >
+            <Button
+              type="text"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              style={isSelected ? { color: '#fff' } : undefined}
+            />
+          </Popconfirm>
+        );
+      },
     },
   ];
 

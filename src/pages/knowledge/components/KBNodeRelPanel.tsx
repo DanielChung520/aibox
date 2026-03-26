@@ -6,8 +6,9 @@
  * @version     1.0.0
  */
 
-import { useMemo } from 'react';
+import { useMemo, useContext } from 'react';
 import { Tabs, Table, Tag, Button, Typography, Tooltip, theme } from 'antd';
+import { ThemeContext } from '../../../contexts/AppThemeProvider';
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { GraphNode, GraphEdge } from '../../../services/api';
@@ -32,6 +33,7 @@ export default function KBNodeRelPanel({
   onCollapse,
 }: KBNodeRelPanelProps) {
   const { token } = theme.useToken();
+  const { contentTokens } = useContext(ThemeContext);
 
   const nodeColumns: ColumnsType<GraphNode> = [
     {
@@ -102,7 +104,7 @@ export default function KBNodeRelPanel({
         flexDirection: 'column',
         borderLeft: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
-        borderRadius: `0 ${token.borderRadius} ${token.borderRadius} 0`,
+        borderRadius: `0 ${contentTokens.borderRadius}px ${contentTokens.borderRadius}px 0`,
         overflow: 'hidden',
       }}
     >

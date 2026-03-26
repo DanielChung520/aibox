@@ -6,12 +6,13 @@
  * @version     2.0.1
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Space, Typography, Empty, App, theme } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/g6';
 import { GraphNode, GraphEdge, KnowledgeFile, knowledgeApi } from '../../services/api';
+import { ThemeContext } from '../../contexts/AppThemeProvider';
 import FileContentViewer from '../../components/FileContentViewer';
 import KBFileList from './components/KBFileList';
 import KBFileUpload from './components/KBFileUpload';
@@ -25,6 +26,7 @@ export default function KnowledgeBaseDetail() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  const { contentTokens } = useContext(ThemeContext);
 
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
@@ -117,7 +119,7 @@ export default function KnowledgeBaseDetail() {
         width: 280, minWidth: 280, flexShrink: 0,
         backgroundColor: token.colorBgContainer,
         borderRight: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: '8px 0 0 8px',
+        borderRadius: `${contentTokens.borderRadius}px 0 0 ${contentTokens.borderRadius}px`,
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{

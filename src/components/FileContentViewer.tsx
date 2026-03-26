@@ -6,10 +6,12 @@
  * @version     1.0.0
  */
 
-import { Card, Tabs, Button, theme } from 'antd';
+import { Card, Tabs, Button } from 'antd';
 import { SettingOutlined } from '@ant-design/icons';
+import { useContext } from 'react';
 import type { Graph } from '@antv/g6';
 import type { GraphNode, GraphEdge } from '../services/api';
+import { ThemeContext } from '../contexts/AppThemeProvider';
 import KBSourcePreview from '../pages/knowledge/components/KBSourcePreview';
 import KBGraphPanel from '../pages/knowledge/components/KBGraphPanel';
 import KBVectorPanel from '../pages/knowledge/components/KBVectorPanel';
@@ -32,13 +34,13 @@ export default function FileContentViewer({
   fileId, fileName, fileType, activeTab = 'source', graphStatus, vectorStatus,
   onActiveTabChange, onSettingsClick, onGraphReady, onNodeSelect, onDataLoaded,
 }: FileContentViewerProps) {
-  const { token } = theme.useToken();
+  const { contentTokens } = useContext(ThemeContext);
   const currentTab = activeTab;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
       <Card
-        style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: token.borderRadius }}
+        style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: `${contentTokens.borderRadius}px` }}
         styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>

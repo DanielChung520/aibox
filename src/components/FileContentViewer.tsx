@@ -36,10 +36,10 @@ export default function FileContentViewer({
   const currentTab = activeTab;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: token.padding, boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
       <Card
         style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-        styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
+        styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: token.padding } }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
           <Tabs

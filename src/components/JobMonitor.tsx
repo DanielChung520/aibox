@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Badge, Button, Drawer, Dropdown, Modal, Segmented, Tooltip, message } from 'antd';
 import {
-  CloudOutlined, DeleteOutlined, FileTextOutlined, StopOutlined,
-  WarningOutlined,
+  CloudOutlined, DeleteOutlined, FileTextOutlined, PlayCircleOutlined,
+  StopOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import { jobsApi, JobLog, KbJobFile } from '../services/api';
 import { useContentTokens, useShellTokens } from '../contexts/AppThemeProvider';
@@ -20,6 +20,8 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
   const [tab, setTab] = useState<JobStatus>('active');
   const [clearing, setClearing] = useState(false);
   const [abortingKey, setAbortingKey] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [retryingKey, setRetryingKey] = useState<string | null>(null);
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [logJob, setLogJob] = useState<KbJobFile | null>(null);
   const [logs, setLogs] = useState<JobLog[]>([]);
@@ -90,6 +92,45 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
         }
       },
     });
+  };
+
+  const handleDeleteJob = (job: KbJobFile) => {
+    Modal.confirm({
+      title: '刪除任務',
+      content: `確定要刪除「${job.filename}」及其所有相關資料嗎？此操作無法復原。`,
+      okText: '確定刪除',
+      cancelText: '取消',
+      okButtonProps: { danger: true, loading: deletingKey === job._key },
+      onOk: async () => {
+        if (!job._key) return;
+        setDeletingKey(job._key);
+        try {
+          await jobsApi.deleteJob(job._key);
+          message.success('任務已刪除');
+          fetchJobs();
+        } catch (error: unknown) {
+          const err = error as { response?: { data?: { message?: string } } };
+          message.error(err.response?.data?.message || '刪除失敗');
+        } finally {
+          setDeletingKey(null);
+        }
+      },
+    });
+  };
+
+  const handleRetry = async (job: KbJobFile) => {
+    if (!job._key) return;
+    setRetryingKey(job._key);
+    try {
+      await jobsApi.retry(job._key);
+      message.success('任務已重新排入佇列');
+      fetchJobs();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      message.error(err.response?.data?.message || '重試失敗');
+    } finally {
+      setRetryingKey(null);
+    }
   };
 
   const handleViewLogs = async (job: KbJobFile) => {
@@ -266,6 +307,40 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
                               }}
                             />
                           </Tooltip>
+                        )}
+                        {overall === 'pending' && (
+                          <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                            <Tooltip title="強制執行">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<PlayCircleOutlined />}
+                                loading={retryingKey === job._key}
+                                onClick={() => handleRetry(job)}
+                                style={{ color: tokens.colorSuccess, padding: '0 2px', height: 20, minWidth: 0 }}
+                              />
+                            </Tooltip>
+                            <Tooltip title="中止任務">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<StopOutlined />}
+                                loading={abortingKey === job._key}
+                                onClick={() => handleAbort(job)}
+                                style={{ color: tokens.colorError, padding: '0 2px', height: 20, minWidth: 0 }}
+                              />
+                            </Tooltip>
+                            <Tooltip title="刪除任務">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                loading={deletingKey === job._key}
+                                onClick={() => handleDeleteJob(job)}
+                                style={{ color: tokens.colorError, padding: '0 2px', height: 20, minWidth: 0 }}
+                              />
+                            </Tooltip>
+                          </div>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 12, color: tokens.textSecondary }}>

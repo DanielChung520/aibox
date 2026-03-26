@@ -1,9 +1,9 @@
 """
 Celery app configuration for AIBox file processing pipeline.
 
-# Last Update: 2026-03-25 18:00:00
+# Last Update: 2026-03-26 20:30:00
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 1.1.0
 """
 
 import os
@@ -14,8 +14,12 @@ if _AISERVICES_DIR not in sys.path:
     sys.path.insert(0, _AISERVICES_DIR)
 
 os.environ.setdefault("API_ROOT", "/Users/daniel/GitHub/AIBox/api")
+os.environ["PYTHONPATH"] = (
+    _AISERVICES_DIR + os.pathsep + os.environ.get("PYTHONPATH", "")
+)
 
-from celery import Celery
+from celery import Celery  # noqa: E402
+from celery.signals import worker_process_init  # noqa: E402
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
@@ -35,3 +39,9 @@ app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 )
+
+
+@worker_process_init.connect
+def _fix_path(**_kwargs: object) -> None:
+    if _AISERVICES_DIR not in sys.path:
+        sys.path.insert(0, _AISERVICES_DIR)

@@ -37,28 +37,22 @@ export default function KBNodeRelPanel({
 
   const nodeColumns: ColumnsType<GraphNode> = [
     {
-      title: '節點名稱',
-      dataIndex: 'label',
-      key: 'label',
-      render: (text: string) => <Text strong>{text}</Text>,
-    },
-    {
-      title: '類型',
-      dataIndex: 'type',
-      key: 'type',
-      width: 80,
-      render: (t: string) => <Tag color={token.colorPrimary}>{t}</Tag>,
-    },
-    {
-      title: '屬性',
-      dataIndex: 'properties',
-      key: 'properties',
-      render: (props: Record<string, string>) => (
-        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {Object.entries(props).map(([k, v]) => (
-            <Tag key={k} bordered={false}>{k}: {v}</Tag>
-          ))}
-        </span>
+      title: '節點',
+      key: 'node',
+      render: (_: unknown, record: GraphNode) => (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Text strong style={{ minWidth: 120 }}>{record.label}</Text>
+            <Tag color={token.colorPrimary}>{record.type}</Tag>
+          </div>
+          {Object.keys(record.properties || {}).length > 0 && (
+            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {Object.entries(record.properties || {}).map(([k, v]) => (
+                <Tag key={k} style={{ marginRight: 0 }}>{k}: {v}</Tag>
+              ))}
+            </div>
+          )}
+        </div>
       ),
     },
   ];
@@ -91,7 +85,7 @@ export default function KBNodeRelPanel({
     },
   ];
 
-  const panelWidth = collapsed ? 40 : 320;
+  const panelWidth = collapsed ? 40 : 450;
 
   return (
     <div

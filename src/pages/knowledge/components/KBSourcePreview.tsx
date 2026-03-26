@@ -10,6 +10,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { knowledgeApi, PreviewData } from '../../../services/api';
+import ExcelViewer from '../../../components/ExcelViewer';
+import DOCXViewer from '../../../components/DOCXViewer';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -36,20 +38,6 @@ export default function KBSourcePreview({ fileId, fileName, fileType }: KBSource
   const [pdfScale, setPdfScale] = useState(1.0);
 
   const [pdfData, setPdfData] = useState<string | ArrayBuffer | null>(null);
-
-  const [tableHeight, setTableHeight] = useState(300);
-  useEffect(() => {
-    const el = document.getElementById(`table-wrap-${fileId}`);
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setTableHeight(Math.max(100, entry.contentRect.height));
-      }
-    });
-    ro.observe(el);
-    setTableHeight(Math.max(100, el.clientHeight));
-    return () => ro.disconnect();
-  }, [fileId]);
 
   useEffect(() => {
     let active = true;
@@ -222,6 +210,16 @@ export default function KBSourcePreview({ fileId, fileName, fileType }: KBSource
     );
   }
 
+  const isExcel = /xlsx|xls|spreadsheet/i.test(fileType);
+  const isDocx = /docx|doc|word/i.test(fileType);
+
+  if (isExcel) {
+    return <ExcelViewer fileId={fileId} fileName={fileName} fileType={fileType} />;
+  }
+  if (isDocx) {
+    return <DOCXViewer fileId={fileId} fileName={fileName} fileType={fileType} />;
+  }
+
   if (preview.type === 'table') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, padding: token.paddingLG, gap: token.marginSM }}>
@@ -238,7 +236,7 @@ export default function KBSourcePreview({ fileId, fileName, fileType }: KBSource
             columns={tableColumns}
             dataSource={tableData}
             pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50', '100', '200'] }}
-            scroll={{ x: 'max-content', y: tableHeight }}
+            scroll={{ x: 'max-content', y: 'calc(100vh - 400px)' }}
             size="small"
           />
         </div>

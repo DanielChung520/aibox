@@ -10,7 +10,7 @@ Migrated from knowledge_assets to knowledge_agent with port 8007.
 """
 
 import os
-from typing import Optional
+from typing import Optional, cast
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -268,7 +268,9 @@ async def trigger_pipeline(body: TriggerRequest) -> dict[str, object]:
     arango = ArangoOps()
     vector_result = vectorize_task.delay(body.file_id, body.local_path, body.root_id)
     graph_result = graph_task.delay(body.file_id, body.local_path)
-    arango.set_task_id(body.file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id)
+    arango.set_task_id(
+        body.file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id
+    )
     return {
         "status": "queued",
         "file_id": body.file_id,
@@ -298,7 +300,9 @@ async def trigger_graph(file_id: str) -> dict[str, object]:
 
 
 @app.get("/pipeline/vectors")
-async def get_vectors(file_id: str, limit: int = 50, offset: int = 0) -> dict[str, object]:
+async def get_vectors(
+    file_id: str, limit: int = 50, offset: int = 0
+) -> dict[str, object]:
     from kb_pipeline.arango_ops import ArangoOps
     from kb_pipeline.qdrant_ops import QdrantStore
 
@@ -313,6 +317,41 @@ async def get_vectors(file_id: str, limit: int = 50, offset: int = 0) -> dict[st
     collection = f"knowledge_{root_id}"
     chunks = qdrant.get_chunks(collection, file_id, limit, offset)
     return {"chunks": chunks, "total": len(chunks), "file_id": file_id}
+
+
+@app.get("/pipeline/similar")
+async def get_similar(
+    file_id: str, chunk_id: str, top_k: int = 10
+) -> dict[str, object]:
+    from kb_pipeline.arango_ops import ArangoOps
+    from kb_pipeline.qdrant_ops import QdrantStore
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+    root_id = str(file_doc.get("knowledge_root_id", ""))
+    if not root_id:
+        return {"similar": []}
+
+    qdrant = QdrantStore()
+    collection = f"knowledge_{root_id}"
+    try:
+        positive_id = int(chunk_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="chunk_id must be numeric")
+    results = qdrant.recommend(collection, positive_id, limit=top_k)
+    similar = []
+    for r in results:
+        pld = cast(dict[str, object], r.get("payload") or {})
+        similar.append(
+            {
+                "chunk_id": str(r.get("id", "")),
+                "text": str(pld.get("text_full") or pld.get("text") or ""),
+                "score": cast(float, r.get("score", 0.0)),
+            }
+        )
+    return {"similar": similar}
 
 
 @app.post("/pipeline/regenerate/{file_id}")
@@ -333,7 +372,9 @@ async def regenerate_pipeline(file_id: str) -> dict[str, object]:
         )
     vector_result = vectorize_task.delay(file_id, local_path, root_id)
     graph_result = graph_task.delay(file_id, local_path)
-    arango.set_task_id(file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id)
+    arango.set_task_id(
+        file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id
+    )
     arango.update_status(file_id, vector_status="queued", graph_status="queued")
     return {
         "status": "queued",
@@ -355,6 +396,33 @@ async def get_graph(file_id: str) -> dict[str, object]:
     return {
         "nodes": graph_data["nodes"],
         "edges": graph_data["edges"],
+    }
+
+
+@app.post("/pipeline/retry")
+async def retry_pipeline(file_id: str) -> dict[str, object]:
+    from celery_app.tasks import graph_task, vectorize_task
+    from kb_pipeline.arango_ops import ArangoOps
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    local_path = file_doc.get("local_path", "")
+    root_id = file_doc.get("knowledge_root_id", "")
+    if not local_path:
+        raise HTTPException(status_code=400, detail="local_path missing")
+
+    v_result = vectorize_task.delay(file_id, local_path, root_id)
+    g_result = graph_task.delay(file_id, local_path)
+    arango.set_task_id(file_id, vector_task_id=v_result.id, graph_task_id=g_result.id)
+    arango.update_status(file_id, vector_status="pending", graph_status="pending")
+    return {
+        "status": "queued",
+        "file_id": file_id,
+        "vector_task_id": v_result.id,
+        "graph_task_id": g_result.id,
     }
 
 
@@ -384,6 +452,117 @@ async def abort_pipeline(file_id: str) -> dict[str, object]:
         failed_reason="任務已被使用者中止",
     )
     return {"status": "aborted", "file_id": file_id, "revoked": revoked}
+
+
+@app.post("/pipeline/delete")
+async def delete_file_data(file_id: str) -> dict[str, object]:
+    from pathlib import Path
+
+    from kb_pipeline.arango_ops import ArangoOps
+    from kb_pipeline.qdrant_ops import QdrantStore
+
+    arango = ArangoOps()
+    file_doc = arango.get_file(file_id)
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="file not found")
+
+    revoked: list[str] = []
+    try:
+        import json as json_mod
+
+        import redis as redis_lib
+
+        from celery_app.app import REDIS_URL
+        from celery_app.app import app as celery_app
+
+        for tid_key in ("vector_task_id", "graph_task_id"):
+            tid = file_doc.get(tid_key)
+            if tid and isinstance(tid, str):
+                celery_app.control.revoke(tid, terminate=True)
+                revoked.append(tid)
+
+        r = redis_lib.from_url(REDIS_URL)
+        queue_key = "celery"
+        queue_len = r.llen(queue_key)
+        if queue_len and queue_len > 0:
+            to_remove: list[bytes] = []
+            for raw in r.lrange(queue_key, 0, queue_len - 1) or []:
+                try:
+                    msg = json_mod.loads(raw)
+                    body = msg.get("body")
+                    if isinstance(body, str):
+                        import base64
+
+                        body = json_mod.loads(base64.b64decode(body))
+                    args = (
+                        body if isinstance(body, list) else (body or {}).get("args", [])
+                    )
+                    if (
+                        isinstance(args, (list, tuple))
+                        and len(args) > 0
+                        and args[0] == file_id
+                    ):
+                        task_id = msg.get("headers", {}).get("id", "")
+                        if task_id:
+                            celery_app.control.revoke(task_id, terminate=True)
+                            revoked.append(task_id)
+                        to_remove.append(
+                            raw if isinstance(raw, bytes) else raw.encode()
+                        )
+                except Exception:
+                    continue
+            for item in to_remove:
+                r.lrem(queue_key, 1, item)
+    except Exception:
+        pass
+
+    root_id = str(file_doc.get("knowledge_root_id", ""))
+    qdrant_deleted = False
+    if root_id:
+        try:
+            qdrant = QdrantStore()
+            qdrant.delete_by_file(f"knowledge_{root_id}", file_id)
+            qdrant_deleted = True
+        except Exception:
+            pass
+
+    arango_removed = arango.delete_file_data(file_id)
+
+    local_deleted = False
+    local_path = str(file_doc.get("local_path", ""))
+    if local_path and Path(local_path).exists():
+        try:
+            Path(local_path).unlink()
+            local_deleted = True
+        except Exception:
+            pass
+
+    seaweed_deleted = False
+    s3_path = str(file_doc.get("s3_path", ""))
+    if s3_path:
+        try:
+            seaweed_base = os.getenv("SEAWEED_AIBOX_URL", "http://localhost:8888")
+            seaweed_user = os.getenv("SEAWEED_USER", "admin")
+            seaweed_pass = os.getenv("SEAWEED_PASS", "admin123")
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.request(
+                    "DELETE",
+                    f"{seaweed_base}/{s3_path}",
+                    auth=(seaweed_user, seaweed_pass),
+                )
+                seaweed_deleted = resp.status_code < 400
+        except Exception:
+            pass
+
+    return {
+        "status": "deleted",
+        "file_id": file_id,
+        "revoked_tasks": revoked,
+        "qdrant_deleted": qdrant_deleted,
+        "arango_removed": arango_removed,
+        "local_deleted": local_deleted,
+        "seaweed_deleted": seaweed_deleted,
+    }
 
 
 @app.get("/pipeline/logs")

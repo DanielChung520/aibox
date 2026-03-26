@@ -65,9 +65,19 @@ function AppContent() {
 
   const pageBg = contentTokens.pageBg || bgColor;
   const containerBg = contentTokens.containerBg || bgColor;
+  const tooltipBgRaw = contentTokens.tooltipBg || containerBg;
+  const tooltipBgOpacity = (contentTokens.tooltipBgOpacity ?? 88) / 100;
+  const tooltipBg = tooltipBgRaw.startsWith('#') && tooltipBgRaw.length === 7
+    ? `${tooltipBgRaw}${Math.round(tooltipBgOpacity * 255).toString(16).padStart(2, '0')}`
+    : tooltipBgRaw;
+  const tooltipText = contentTokens.tooltipText || contentTokens.colorTextBase;
 
   return (
-    <div style={{ '--table-shadow': contentTokens.tableShadow || 'none' } as React.CSSProperties}>
+    <div style={{
+      '--table-shadow': contentTokens.tableShadow || 'none',
+      '--tooltip-bg': tooltipBg,
+      '--tooltip-text': tooltipText,
+    } as React.CSSProperties}>
     <ConfigProvider
       theme={{
         token: {
@@ -96,6 +106,9 @@ function AppContent() {
             rowExpandedBg: contentTokens.tableExpandedRowBg,
             headerBg: contentTokens.tableHeaderBg,
             rowHoverBg: contentTokens.tableRowHoverBg,
+          },
+          Tooltip: {
+            colorBgSpotlight: tooltipBg,
           },
         },
       }}

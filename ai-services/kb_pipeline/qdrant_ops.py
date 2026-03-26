@@ -125,3 +125,41 @@ class QdrantStore:
                 if isinstance(raw_count, (int, float)):
                     return int(raw_count)
             return 0
+
+    def recommend(
+        self, collection: str, positive_id: int, limit: int = 10, score_threshold: float | None = None
+    ) -> list[dict[str, object]]:
+        body: dict[str, object] = {
+            "positive": [positive_id],
+            "limit": limit,
+            "with_payload": True,
+        }
+        if score_threshold is not None:
+            body["score_threshold"] = score_threshold
+        with self._client() as client:
+            resp = client.post(
+                f"{self.url}/collections/{collection}/points/recommend", json=body
+            )
+            if resp.status_code >= 400:
+                raise Exception(f"Qdrant recommend failed: {resp.status_code} {resp.text}")
+            result_data = resp.json().get("result")
+            return list(result_data) if result_data else []
+
+    def delete_by_file(self, collection: str, file_id: str) -> int:
+        """Delete all points matching file_id from collection."""
+        with self._client() as client:
+            resp = client.post(
+                f"{self.url}/collections/{collection}/points/delete",
+                json={
+                    "filter": {
+                        "must": [
+                            {"key": "file_id", "match": {"value": file_id}}
+                        ]
+                    }
+                },
+            )
+            if resp.status_code >= 400:
+                raise Exception(
+                    f"Qdrant delete failed: {resp.status_code} {resp.text}"
+                )
+        return 0

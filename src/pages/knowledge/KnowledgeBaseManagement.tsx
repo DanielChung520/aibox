@@ -233,7 +233,7 @@ export default function KnowledgeBaseManagement() {
   }, [authKb, authForm, authData, message]);
 
   return (
-    <div style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={4} style={{ margin: 0, color: contentTokens.colorPrimary }}>
           🗄️ 知識庫管理

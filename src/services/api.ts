@@ -260,6 +260,14 @@ export const jobsApi = {
     api.post<{ code: number; data: { status: string; revoked: string[] } }>(
       `/api/v1/jobs/${fileKey}/abort`,
     ),
+  deleteJob: (fileKey: string) =>
+    api.post<ApiResponse<{ status: string; file_id: string }>>(
+      `/api/v1/jobs/${fileKey}/delete`,
+    ),
+  retry: (fileKey: string) =>
+    api.post<ApiResponse<{ status: string; file_id: string; vector_task_id: string; graph_task_id: string }>>(
+      `/api/v1/jobs/${fileKey}/retry`,
+    ),
   logs: (fileKey: string) =>
     api.get<{ code: number; data: { file_id: string; logs: JobLog[]; count: number } }>(
       `/api/v1/jobs/${fileKey}/logs`,
@@ -312,6 +320,9 @@ export interface ContentTokens {
   cardShadowHover: string;
   tableShadow: string;
   bgOpacity: number;
+  tooltipBg: string;
+  tooltipText: string;
+  tooltipBgOpacity: number;
 }
 
 export interface ThemeTemplate {
@@ -454,6 +465,13 @@ export interface VectorChunk {
   metadata: Record<string, string>;
 }
 
+export interface SimilarChunk {
+  chunk_id: string;
+  text: string;
+  score: number;
+  metadata?: Record<string, string>;
+}
+
 export interface GraphNode {
   id: string;
   label: string;
@@ -515,12 +533,35 @@ export const knowledgeApi = {
     api.get<ApiResponse<{ chunks: VectorChunk[]; total: number }>>(`/api/v1/knowledge/files/${fileId}/vectors`, { params }),
   getGraph: (fileId: string) =>
     api.get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(`/api/v1/knowledge/files/${fileId}/graph`),
+  getSimilarChunks: (fileId: string, chunkId: string, topK: number = 10) =>
+    api.get<ApiResponse<{ similar: SimilarChunk[] }>>(
+      `/api/v1/knowledge/files/${fileId}/similar`,
+      { params: { chunk_id: chunkId, top_k: topK } },
+    ),
   regenerateFile: (fileId: string) =>
     api.post<ApiResponse<{ status: string; vector_task_id: string; graph_task_id: string }>>(`/api/v1/knowledge/files/${fileId}/regenerate`),
+  regenerateVector: (fileId: string) =>
+    api.post<ApiResponse<{ status: string; file_id: string; type: string; task_id: string }>>(`/api/v1/knowledge/files/${fileId}/regenerate-vector`),
+  regenerateGraph: (fileId: string) =>
+    api.post<ApiResponse<{ status: string; file_id: string; type: string; task_id: string }>>(`/api/v1/knowledge/files/${fileId}/regenerate-graph`),
   getRoles: (rootId: string) =>
     api.get<ApiResponse<KnowledgeRoleAuth>>(`/api/v1/knowledge/roots/${rootId}/roles`),
   setRoles: (rootId: string, role_keys: string[], inherited_role_keys: string[]) =>
     api.put<ApiMessage>(`/api/v1/knowledge/roots/${rootId}/roles`, { role_keys, inherited_role_keys }),
+};
+
+const KNOWLEDGE_AGENT_BASE = 'http://localhost:8007';
+
+export const downloadFile = async (fileId: string): Promise<Blob> => {
+  const token = localStorage.getItem('token');
+  const resp = await fetch(`${KNOWLEDGE_AGENT_BASE}/pipeline/download?file_id=${encodeURIComponent(fileId)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => `HTTP ${resp.status}`);
+    throw new Error(detail || `下載失敗 (${resp.status})`);
+  }
+  return resp.blob();
 };
 
 export default api;

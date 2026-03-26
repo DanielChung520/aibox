@@ -297,9 +297,26 @@ pub async fn delete_file(
 
     let root_id = files[0].knowledge_root_id.clone();
 
+    // Pipeline cleanup MUST complete before ArangoDB removal,
+    // otherwise Python cannot resolve root_id → Qdrant collection.
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let client = reqwest::Client::new();
+    let pipeline_ok = client
+        .post(format!("{}/pipeline/delete?file_id={}", agent_url, file_key))
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+
+    if !pipeline_ok {
+        eprintln!("WARNING: pipeline/delete failed for file_id={}, proceeding with DB removal", file_key);
+    }
+
     let _: Vec<serde_json::Value> = db
         .aql_bind_vars(
-            "REMOVE @key IN knowledge_files",
+            "REMOVE @key IN knowledge_files OPTIONS { ignoreErrors: true }",
             [("key", json!(file_key))].into(),
         )
         .await
@@ -307,7 +324,7 @@ pub async fn delete_file(
 
     let _: Vec<serde_json::Value> = db
         .aql_bind_vars(
-            "FOR r IN knowledge_roots FILTER r._key == @key UPDATE r WITH { source_count: MAX(0, r.source_count - 1), updated_at: @now } IN knowledge_roots",
+            "FOR r IN knowledge_roots FILTER r._key == @key UPDATE r WITH { source_count: MAX([0, r.source_count - 1]), updated_at: @now } IN knowledge_roots RETURN 1",
             [("key", json!(root_id)), ("now", json!(chrono::Utc::now().to_rfc3339()))].into(),
         )
         .await
@@ -676,12 +693,12 @@ fn err_404(resource: &str) -> (StatusCode, Json<serde_json::Value>) {
     )
 }
 
-pub async fn regenerate_file(
+pub async fn regenerate_vector(
     Path(file_key): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
         .unwrap_or_else(|_| "http://localhost:8007".to_string());
-    let url = format!("{}/pipeline/regenerate/{}", agent_url, file_key);
+    let url = format!("{}/pipeline/vector?file_id={}", agent_url, file_key);
 
     let client = reqwest::Client::new();
     match client
@@ -696,7 +713,113 @@ pub async fn regenerate_file(
         }
         Err(e) => Err((
             StatusCode::BAD_GATEWAY,
-            Json(json!({ "code": 502, "message": format!("failed to regenerate: {}", e) })),
+            Json(json!({ "code": 502, "message": format!("failed to regenerate vector: {}", e) })),
+        )),
+    }
+}
+
+pub async fn regenerate_graph(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/graph?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .post(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to regenerate graph: {}", e) })),
+        )),
+    }
+}
+
+pub async fn get_similar_chunks(
+    Path(file_key): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let chunk_id = params.get("chunk_id").cloned().unwrap_or_default();
+    let top_k = params.get("top_k").and_then(|s| s.parse::<usize>().ok()).unwrap_or(10);
+    let url = format!(
+        "{}/pipeline/similar?file_id={}&chunk_id={}&top_k={}",
+        agent_url, file_key, chunk_id, top_k
+    );
+
+    let client = reqwest::Client::new();
+    match client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to get similar: {}", e) })),
+        )),
+    }
+}
+
+pub async fn delete_job(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/delete?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .post(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to delete job: {}", e) })),
+        )),
+    }
+}
+
+pub async fn retry_job(
+    Path(file_key): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let agent_url = std::env::var("KNOWLEDGE_AGENT_URL")
+        .unwrap_or_else(|_| "http://localhost:8007".to_string());
+    let url = format!("{}/pipeline/retry?file_id={}", agent_url, file_key);
+
+    let client = reqwest::Client::new();
+    match client
+        .post(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            Ok(Json(json!({ "code": 200, "data": body })))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "code": 502, "message": format!("failed to retry job: {}", e) })),
         )),
     }
 }

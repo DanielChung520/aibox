@@ -8,8 +8,6 @@ from kb_pipeline.arango_ops import ArangoOps
 
 
 class Embedder:
-    _cache: dict[str, str] = {}
-
     def __init__(
         self,
         base_url: str | None = None,
@@ -23,12 +21,9 @@ class Embedder:
         self._model = model or self._get_model()
 
     def _get_model(self) -> str:
-        if "embedding_model" in Embedder._cache:
-            return Embedder._cache["embedding_model"]
         arango = ArangoOps()
         db_model = arango.get_system_param("knowledge.embedding_model")
         if db_model:
-            Embedder._cache["embedding_model"] = db_model
             return db_model
         return os.getenv("EMBEDDING_MODEL", "bge-m3:latest")
 

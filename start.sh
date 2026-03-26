@@ -2,9 +2,9 @@
 # ============================================================================
 # @file        start.sh
 # @description ABC Desktop 服務管理腳本 — Rust API + Static + Python AI Services
-# @lastUpdate  2026-03-25 12:41:00
+# @lastUpdate  2026-03-26 20:53:43
 # @author      Daniel Chung
-# @version     2.1.0
+# @version     2.3.0
 # ============================================================================
 set -e
 
@@ -41,6 +41,14 @@ kill_port() {
     kill -9 $pid 2>/dev/null || true
     sleep 1
   fi
+}
+
+# 真正的健康檢查：curl HTTP 端點，回傳 0=healthy / 1=unhealthy
+# 用法: health_check <url> [timeout_seconds]
+health_check() {
+  local url=$1
+  local timeout=${2:-3}
+  curl -sf --max-time "$timeout" "$url" > /dev/null 2>&1
 }
 
 wait_for_port() {
@@ -151,6 +159,58 @@ stop_static() {
   kill_port 6000
 }
 
+# ─── Celery Worker ───────────────────────────────────────────────────────────
+
+start_celery() {
+  echo "═══════════════════════════════════════"
+  echo " Celery Worker"
+  echo "═══════════════════════════════════════"
+
+  if [ -f "$PID_DIR/celery.pid" ]; then
+    local old_pid
+    old_pid=$(cat "$PID_DIR/celery.pid")
+    if kill -0 "$old_pid" 2>/dev/null; then
+      echo "  -> Killing old Celery worker (PID: $old_pid)"
+      kill "$old_pid" 2>/dev/null || true
+      sleep 2
+    fi
+    rm -f "$PID_DIR/celery.pid"
+  fi
+
+  if [ ! -x "$VENV_PYTHON" ]; then
+    echo "  ❌ Python venv not found: $VENV_PYTHON"
+    return 1
+  fi
+
+  cd "$AI_DIR"
+  PYTHONPATH="$AI_DIR" "$AI_DIR/.venv/bin/celery" \
+    -A celery_app.app worker --loglevel=info --concurrency=2 \
+    > /tmp/abc-celery.log 2>&1 &
+  echo $! > "$PID_DIR/celery.pid"
+
+  sleep 2
+  local pid
+  pid=$(cat "$PID_DIR/celery.pid")
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "  ✅ Celery Worker started (PID: $pid)"
+  else
+    echo "  ❌ Celery Worker failed to start"
+    tail -10 /tmp/abc-celery.log
+  fi
+}
+
+stop_celery() {
+  if [ -f "$PID_DIR/celery.pid" ]; then
+    local pid
+    pid=$(cat "$PID_DIR/celery.pid")
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "  -> Stopping Celery Worker (PID: $pid)"
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$PID_DIR/celery.pid"
+  fi
+}
+
 # ─── Python AI Services ─────────────────────────────────────────────────────
 
 start_ai_service() {
@@ -233,6 +293,10 @@ do_single() {
       [ "$action" = "stop" ] || [ "$action" = "restart" ] && stop_static
       [ "$action" = "start" ] || [ "$action" = "restart" ] && start_static
       ;;
+    celery)
+      [ "$action" = "stop" ] || [ "$action" = "restart" ] && stop_celery
+      [ "$action" = "start" ] || [ "$action" = "restart" ] && start_celery
+      ;;
     *)
       local entry
       entry=$(find_ai_service "$target") || {
@@ -258,46 +322,118 @@ status() {
   echo "═══════════════════════════════════════"
   echo ""
 
+  # --- Rust API: /health JSON 深度檢查 ---
   printf "  %-22s (port %s): " "Rust API Gateway" "$API_PORT"
-  if lsof -ti :"$API_PORT" > /dev/null 2>&1; then
-    local api_pid
-    api_pid=$(lsof -ti :"$API_PORT" | head -1)
-    echo "✅ Running (PID: $api_pid)"
+  local api_health
+  api_health=$(curl -sf --max-time 3 "http://localhost:$API_PORT/health" 2>/dev/null || echo "")
+  if [ -n "$api_health" ]; then
+    local api_pid api_status
+    api_pid=$(lsof -ti :"$API_PORT" 2>/dev/null | head -1)
+    api_status=$(echo "$api_health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+    if [ "$api_status" = "healthy" ]; then
+      echo "✅ Healthy (PID: $api_pid)"
+    else
+      local arango_ok qdrant_ok
+      arango_ok=$(echo "$api_health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('services',{}).get('arangodb',False))" 2>/dev/null)
+      qdrant_ok=$(echo "$api_health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('services',{}).get('qdrant',False))" 2>/dev/null)
+      local issues=""
+      [ "$arango_ok" != "True" ] && issues="${issues}ArangoDB "
+      [ "$qdrant_ok" != "True" ] && issues="${issues}Qdrant "
+      echo "⚠️  Degraded (PID: $api_pid) — down: ${issues:-unknown}"
+    fi
   else
-    echo "❌ Not running"
+    if lsof -ti :"$API_PORT" > /dev/null 2>&1; then
+      echo "⚠️  Port open but /health unreachable"
+    else
+      echo "❌ Not running"
+    fi
   fi
 
+  # --- Static Server: HTTP 可達性 ---
   printf "  %-22s (port %s): " "Static Server" "6000"
-  if lsof -ti :6000 > /dev/null 2>&1; then
+  if health_check "http://localhost:6000/" 2; then
     local static_pid
-    static_pid=$(lsof -ti :6000 | head -1)
-    echo "✅ Running (PID: $static_pid)"
+    static_pid=$(lsof -ti :6000 2>/dev/null | head -1)
+    echo "✅ Healthy (PID: $static_pid)"
+  elif lsof -ti :6000 > /dev/null 2>&1; then
+    echo "⚠️  Port open but not responding"
   else
     echo "❌ Not running"
   fi
 
+  # --- Python AI Services: /docs 端點 ---
   for entry in "${AI_SERVICES[@]}"; do
     IFS=':' read -r name port module <<< "$entry"
     printf "  %-22s (port %s): " "$name" "$port"
-    if lsof -ti :"$port" > /dev/null 2>&1; then
+    if health_check "http://localhost:$port/docs" 3; then
       local svc_pid
-      svc_pid=$(lsof -ti :"$port" | head -1)
-      echo "✅ Running (PID: $svc_pid)"
+      svc_pid=$(lsof -ti :"$port" 2>/dev/null | head -1)
+      echo "✅ Healthy (PID: $svc_pid)"
+    elif lsof -ti :"$port" > /dev/null 2>&1; then
+      echo "⚠️  Port open but /docs unreachable"
     else
       echo "❌ Not running"
     fi
   done
 
+  # --- Celery Worker: inspect ping ---
+  printf "  %-22s            : " "Celery Worker"
+  if [ -f "$PID_DIR/celery.pid" ] && kill -0 "$(cat "$PID_DIR/celery.pid")" 2>/dev/null; then
+    local celery_ping
+    celery_ping=$(cd "$AI_DIR" && PYTHONPATH="$AI_DIR" "$AI_DIR/.venv/bin/celery" \
+      -A celery_app.app inspect ping --timeout 3 2>/dev/null || echo "")
+    if echo "$celery_ping" | grep -q "pong"; then
+      echo "✅ Healthy (PID: $(cat "$PID_DIR/celery.pid"))"
+    else
+      echo "⚠️  PID alive but worker not responding"
+    fi
+  else
+    echo "❌ Not running"
+  fi
+
   echo ""
   echo "  External (not managed by this script):"
+
   printf "  %-22s (port %s): " "ArangoDB" "8529"
-  lsof -ti :8529 > /dev/null 2>&1 && echo "✅ Running" || echo "❌ Not running"
+  local arango_http
+  arango_http=$(curl -so /dev/null -w "%{http_code}" --max-time 3 "http://localhost:8529/_api/version" 2>/dev/null || echo "000")
+  if [ "$arango_http" != "000" ]; then
+    echo "✅ Healthy (HTTP $arango_http)"
+  elif lsof -ti :8529 > /dev/null 2>&1; then
+    echo "⚠️  Port open but API unreachable"
+  else
+    echo "❌ Not running"
+  fi
+
   printf "  %-22s (port %s): " "Qdrant" "6333"
-  lsof -ti :6333 > /dev/null 2>&1 && echo "✅ Running" || echo "❌ Not running"
+  if curl -sf --max-time 3 "http://localhost:6333/collections" > /dev/null 2>&1; then
+    echo "✅ Healthy"
+  elif lsof -ti :6333 > /dev/null 2>&1; then
+    echo "⚠️  Port open but API unreachable"
+  else
+    echo "❌ Not running"
+  fi
+
   printf "  %-22s (port %s): " "MinIO (S3)" "8334"
-  lsof -ti :8334 > /dev/null 2>&1 && echo "✅ Running" || echo "❌ Not running"
+  local minio_http
+  minio_http=$(curl -so /dev/null -w "%{http_code}" --max-time 3 "http://localhost:8334/" 2>/dev/null || echo "000")
+  if [ "$minio_http" != "000" ]; then
+    echo "✅ Healthy (HTTP $minio_http)"
+  elif lsof -ti :8334 > /dev/null 2>&1; then
+    echo "⚠️  Port open but not responding"
+  else
+    echo "❌ Not running"
+  fi
+
   printf "  %-22s (port %s): " "Ollama" "11434"
-  lsof -ti :11434 > /dev/null 2>&1 && echo "✅ Running" || echo "❌ Not running"
+  if curl -sf --max-time 3 "http://localhost:11434/api/version" > /dev/null 2>&1; then
+    echo "✅ Healthy"
+  elif lsof -ti :11434 > /dev/null 2>&1; then
+    echo "⚠️  Port open but API unreachable"
+  else
+    echo "❌ Not running"
+  fi
+
   echo ""
 }
 
@@ -366,6 +502,7 @@ case "${1:-status}" in
       start_api
       start_static
       start_all_ai
+      start_celery
       echo ""
       echo "═══════════════════════════════════════"
       echo " All services started!"
@@ -380,6 +517,7 @@ case "${1:-status}" in
       stop_api
       stop_static
       stop_all_ai
+      stop_celery
       echo "  ✅ All services stopped"
     fi
     ;;
@@ -390,10 +528,12 @@ case "${1:-status}" in
       stop_api
       stop_static
       stop_all_ai
+      stop_celery
       sleep 2
       start_api
       start_static
       start_all_ai
+      start_celery
       echo ""
       status
     fi
@@ -438,6 +578,7 @@ case "${1:-status}" in
     echo "Available services:"
     echo "  api               Rust API Gateway (port $API_PORT)"
     echo "  static            Static File Server (port 6000)"
+    echo "  celery            Celery Worker (async task queue)"
     for entry in "${AI_SERVICES[@]}"; do
       IFS=':' read -r name port module <<< "$entry"
       printf "  %-18s  Python AI service (port %s)\n" "$name" "$port"

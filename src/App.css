@@ -54,3 +54,26 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
 }
+
+.ant-tag {
+  background: transparent !important;
+  border-color: currentColor !important;
+}
+
+.ant-badge-status-text {
+  font-size: inherit;
+}
+
+.ant-table .ant-tag {
+  background: transparent !important;
+  border-color: currentColor !important;
+}
+
+.ant-tooltip .ant-tooltip-inner {
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+}
+
+.ant-tooltip .ant-tooltip-arrow::before {
+  background: var(--tooltip-bg);
+}

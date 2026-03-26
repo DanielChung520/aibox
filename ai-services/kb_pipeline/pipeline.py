@@ -1,5 +1,6 @@
 """Pipeline orchestrator — composes vectorization and graph extraction."""
 
+from pathlib import Path
 from typing import TypedDict
 
 from kb_pipeline.arango_ops import ArangoOps
@@ -7,6 +8,8 @@ from kb_pipeline.chunker import chunk_text
 from kb_pipeline.embedder import Embedder
 from kb_pipeline.graph import GraphExtractor
 from kb_pipeline.qdrant_ops import Point, QdrantStore
+
+_BINARY_EXTS = {".xlsx", ".xls", ".docx", ".pdf"}
 
 
 class VectorizeResult(TypedDict):
@@ -18,6 +21,10 @@ class GraphResult(TypedDict):
     entities: int
     relations: int
     status: str
+
+
+def _is_binary_file(local_path: str) -> bool:
+    return Path(local_path).suffix.lower() in _BINARY_EXTS
 
 
 class Pipeline:
@@ -44,9 +51,17 @@ class Pipeline:
                 chunks_raw = self.arango.read_file_chunks(file_id)
                 if chunks_raw:
                     raw_text = " ".join(chunks_raw)
+                elif _is_binary_file(local_path):
+                    reason = (
+                        f"vectorize: binary file ({Path(local_path).suffix}) "
+                        f"could not be parsed by read_file"
+                    )
+                    self.arango.update_status(
+                        file_id, vector_status="failed", failed_reason=reason
+                    )
+                    self.arango.log_event(file_id, "vectorize", "error", reason)
+                    return VectorizeResult(chunks=0, status="parse_failed")
                 else:
-                    from pathlib import Path
-
                     raw_text = Path(local_path).read_text(
                         encoding="utf-8", errors="replace"
                     )
@@ -86,6 +101,7 @@ class Pipeline:
             collection = f"knowledge_{root_id}"
             self.qdrant.ensure_collection(collection)
             import hashlib
+
             points = [
                 Point(
                     id=int(hashlib.md5(f"{file_id}_{i}".encode()).hexdigest()[:12], 16),
@@ -127,9 +143,17 @@ class Pipeline:
                 chunks_raw = self.arango.read_file_chunks(file_id)
                 if chunks_raw:
                     raw_text = " ".join(chunks_raw)
+                elif _is_binary_file(local_path):
+                    reason = (
+                        f"graph: binary file ({Path(local_path).suffix}) "
+                        f"could not be parsed by read_file"
+                    )
+                    self.arango.update_status(
+                        file_id, graph_status="failed", failed_reason=reason
+                    )
+                    self.arango.log_event(file_id, "graph", "error", reason)
+                    return GraphResult(entities=0, relations=0, status="parse_failed")
                 else:
-                    from pathlib import Path
-
                     raw_text = Path(local_path).read_text(
                         encoding="utf-8", errors="replace"
                     )

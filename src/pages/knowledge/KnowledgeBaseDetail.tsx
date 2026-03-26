@@ -1,9 +1,9 @@
 /**
  * @file        知識庫詳情頁面
  * @description 三欄佈局：左側文件列表、中間圖譜/源文件/向量、右側節點與關係面板
- * @lastUpdate  2026-03-25 18:00:00
+ * @lastUpdate  2026-03-26 21:22:20
  * @author      Daniel Chung
- * @version     2.0.1
+ * @version     2.0.2
  */
 
 import { useState, useCallback, useRef, useEffect, useContext } from 'react';
@@ -59,6 +59,17 @@ export default function KnowledgeBaseDetail() {
   useEffect(() => {
     loadFiles();
   }, [loadFiles]);
+
+  // Poll file statuses while any file is still pending/processing
+  useEffect(() => {
+    const hasPending = files.some(f =>
+      ['pending', 'processing', 'queued'].includes(f.vector_status || '') ||
+      ['pending', 'processing', 'queued'].includes(f.graph_status || '')
+    );
+    if (!hasPending || !id) return;
+    const timer = setInterval(() => { loadFiles(); }, 5000);
+    return () => clearInterval(timer);
+  }, [files, id, loadFiles]);
 
   useEffect(() => {
     if (!selectedFileId && files.length > 0) {

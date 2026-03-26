@@ -1,11 +1,14 @@
 """ArangoDB operations for knowledge base files."""
 
+import logging
 import os
 import traceback as tb_module
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 ARANGO_URL = os.getenv("ARANGO_URL", "http://localhost:8529")
 ARANGO_DB = os.getenv("ARANGO_DATABASE", "abc_desktop")
@@ -70,6 +73,53 @@ class ArangoOps:
                                 pages.append(text)
                         return "\n\n".join(pages) if pages else ""
                 except Exception:
+                    logger.exception("Failed to parse PDF: %s", file_id)
+                    return None
+
+            if ext in ("xlsx", "xls"):
+                try:
+                    import io
+
+                    import openpyxl
+
+                    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                    parts: list[str] = []
+                    for ws in wb.worksheets:
+                        for row in ws.iter_rows(values_only=True):
+                            cells = [str(c) if c is not None else "" for c in row]
+                            line = " | ".join(cells).strip()
+                            if line:
+                                parts.append(line)
+                    return "\n".join(parts) if parts else ""
+                except Exception:
+                    logger.exception("Failed to parse Excel: %s", file_id)
+                    return None
+
+            if ext == "docx":
+                try:
+                    import io
+
+                    import docx
+
+                    doc = docx.Document(io.BytesIO(content))
+                    parts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+                    return "\n".join(parts) if parts else ""
+                except Exception:
+                    logger.exception("Failed to parse DOCX: %s", file_id)
+                    return None
+
+            if ext == "csv":
+                try:
+                    import io
+
+                    import csv
+
+                    decoded = content.decode("utf-8", errors="replace")
+                    reader = csv.reader(io.StringIO(decoded))
+                    parts = [" | ".join(row) for row in reader if row]
+                    return "\n".join(parts) if parts else ""
+                except Exception:
+                    logger.exception("Failed to parse CSV: %s", file_id)
                     return None
 
             try:
@@ -157,10 +207,11 @@ class ArangoOps:
 
     def ensure_graph_collections(self) -> None:
         with self._client() as client:
-            for name, edge_type in [("knowledge_graphs", 3), ("knowledge_graph_edges", 2)]:
-                resp = client.get(
-                    f"{self.url}/_db/{self.db}/_api/collection/{name}"
-                )
+            for name, edge_type in [
+                ("knowledge_graphs", 3),
+                ("knowledge_graph_edges", 2),
+            ]:
+                resp = client.get(f"{self.url}/_db/{self.db}/_api/collection/{name}")
                 if resp.status_code == 404:
                     client.post(
                         f"{self.url}/_db/{self.db}/_api/collection",
@@ -191,19 +242,30 @@ class ArangoOps:
         for i, e in enumerate(edges):
             src_raw = str(e["source"])
             tgt_raw = str(e["target"])
-            src_idx = entity_index.get(src_raw, int(src_raw) if src_raw.isdigit() else -1)
-            tgt_idx = entity_index.get(tgt_raw, int(tgt_raw) if tgt_raw.isdigit() else -1)
-            if src_idx < 0 or tgt_idx < 0 or src_idx >= len(nodes) or tgt_idx >= len(nodes):
+            src_idx = entity_index.get(
+                src_raw, int(src_raw) if src_raw.isdigit() else -1
+            )
+            tgt_idx = entity_index.get(
+                tgt_raw, int(tgt_raw) if tgt_raw.isdigit() else -1
+            )
+            if (
+                src_idx < 0
+                or tgt_idx < 0
+                or src_idx >= len(nodes)
+                or tgt_idx >= len(nodes)
+            ):
                 continue
-            edges_data.append({
-                "_key": f"{file_id}_edge_{i}",
-                "_from": f"knowledge_graphs/{file_id}_node_{src_idx}",
-                "_to": f"knowledge_graphs/{file_id}_node_{tgt_idx}",
-                "file_id": file_id,
-                "relation": e.get("relation", "related_to"),
-                "source": f"{file_id}_node_{src_idx}",
-                "target": f"{file_id}_node_{tgt_idx}",
-            })
+            edges_data.append(
+                {
+                    "_key": f"{file_id}_edge_{i}",
+                    "_from": f"knowledge_graphs/{file_id}_node_{src_idx}",
+                    "_to": f"knowledge_graphs/{file_id}_node_{tgt_idx}",
+                    "file_id": file_id,
+                    "relation": e.get("relation", "related_to"),
+                    "source": f"{file_id}_node_{src_idx}",
+                    "target": f"{file_id}_node_{tgt_idx}",
+                }
+            )
         with self._client() as client:
             for node in nodes_data:
                 resp = client.post(
@@ -344,24 +406,51 @@ class ArangoOps:
         node_id_map: dict[int, str] = {}
         for i, n in enumerate(raw_nodes):
             node_id_map[i] = str(n.get("_key", f"node_{i}"))
-            nodes.append({
-                "id": node_id_map[i],
-                "label": str(n.get("entity", "unknown")),
-                "type": str(n.get("entity_type", "concept")),
-                "properties": {
-                    "description": str(n.get("description", "")),
-                },
-            })
+            nodes.append(
+                {
+                    "id": node_id_map[i],
+                    "label": str(n.get("entity", "unknown")),
+                    "type": str(n.get("entity_type", "concept")),
+                    "properties": {
+                        "description": str(n.get("description", "")),
+                    },
+                }
+            )
 
         edges: list[dict[str, object]] = []
         for e in raw_edges:
             src_node_id = str(e.get("source", ""))
             tgt_node_id = str(e.get("target", ""))
             if src_node_id and tgt_node_id:
-                edges.append({
-                    "source": src_node_id,
-                    "target": tgt_node_id,
-                    "label": str(e.get("relation", "related_to")),
-                })
+                edges.append(
+                    {
+                        "source": src_node_id,
+                        "target": tgt_node_id,
+                        "label": str(e.get("relation", "related_to")),
+                    }
+                )
 
         return {"nodes": nodes, "edges": edges}
+
+    def delete_file_data(self, file_id: str) -> dict[str, int]:
+        removed: dict[str, int] = {}
+        collections = [
+            "knowledge_chunks",
+            "knowledge_graphs",
+            "knowledge_graph_edges",
+            "job_logs",
+        ]
+        with self._client() as client:
+            for col in collections:
+                resp = client.post(
+                    f"{self.url}/_db/{self.db}/_api/cursor",
+                    json={
+                        "query": f"FOR d IN {col} FILTER d.file_id == @fid REMOVE d IN {col} RETURN 1",
+                        "bindVars": {"fid": file_id},
+                    },
+                )
+                count = 0
+                if resp.status_code in (200, 201):
+                    count = len(resp.json().get("result", []))
+                removed[col] = count
+        return removed

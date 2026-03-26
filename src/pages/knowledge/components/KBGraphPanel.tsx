@@ -1,9 +1,9 @@
 /**
  * @file        知識庫圖譜面板元件
  * @description 使用 @antv/g6 v5 力導向圖視覺化知識圖譜節點與關聯
- * @lastUpdate  2026-03-26 00:00:00
+ * @lastUpdate  2026-03-26 21:22:20
  * @author      Daniel Chung
- * @version     2.1.0
+ * @version     2.2.0
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -145,11 +145,11 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
   const handleRegenerate = async () => {
     setRegenerating(true);
     try {
-      await knowledgeApi.regenerateFile(fileId);
+      await knowledgeApi.regenerateGraph(fileId);
       message.success('已重新提交圖譜生成任務');
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
-      message.error(e.response?.data?.message || '重新產生失敗');
+      message.error(e.response?.data?.message || '重新圖譜失敗');
     } finally {
       setRegenerating(false);
     }
@@ -342,17 +342,17 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
           <Empty
             description={
               <Text style={{ color: token.colorTextSecondary }}>
-                圖譜待生成
+                {graphStatus === 'completed' ? '圖譜未提取到實體與關係' : '圖譜待生成'}
               </Text>
             }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
-          {!graphStatus || !['pending', 'processing', 'queued'].includes(graphStatus) ? (
-            <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate}>
-              重新產生
-            </Button>
-          ) : (
+          {graphStatus && ['pending', 'processing', 'queued'].includes(graphStatus) ? (
             <Text type="secondary">圖譜生成中...</Text>
+          ) : (
+            <Button icon={<ReloadOutlined />} loading={regenerating} onClick={handleRegenerate}>
+              重新圖譜
+            </Button>
           )}
         </div>
       )}

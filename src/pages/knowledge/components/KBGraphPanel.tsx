@@ -176,7 +176,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
             const rec = d.data as Record<string, unknown> | undefined;
             return rec && typeof rec['label'] === 'string' ? rec['label'] : String(d.id);
           },
-          labelFill: token.colorText,
+          labelFill: '#1e293b',
           labelFontSize: 12,
           labelPlacement: 'bottom',
           fill: (d: NodeData): string => {
@@ -191,7 +191,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
           selected: {
             fill: token.colorPrimaryActive,
             stroke: token.colorPrimary,
-            lineWidth: 3,
+            lineWidth: 2,
           },
         },
       },
@@ -311,7 +311,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
         height: '100%',
         borderRadius: token.borderRadiusLG,
         border: `1px solid ${token.colorBorderSecondary}`,
-        backgroundColor: token.colorBgContainer,
+        backgroundColor: '#ffffff',
         position: 'relative',
       }}
     >
@@ -365,11 +365,14 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
         flexDirection: 'column',
         gap: 4,
         alignItems: 'flex-end',
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 8,
+        padding: 6,
       }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          <Button type="text" size="small" icon={<ZoomOutOutlined />} onClick={zoomOut} title="縮小" />
-          <Button type="text" size="small" icon={<ZoomInOutlined />} onClick={zoomIn} title="放大" />
-          <Button type="text" size="small" onClick={resetZoom} title="重置視角" style={{ fontSize: 10 }}>1:1</Button>
+          <Button size="small" icon={<ZoomOutOutlined />} onClick={zoomOut} title="縮小" />
+          <Button size="small" icon={<ZoomInOutlined />} onClick={zoomIn} title="放大" />
+          <Button size="small" onClick={resetZoom} title="重置視角" style={{ fontSize: 10 }}>1:1</Button>
         </div>
         <Segmented
           value={layoutMode}

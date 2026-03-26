@@ -117,11 +117,12 @@ export default function KnowledgeBaseDetail() {
         width: 280, minWidth: 280, flexShrink: 0,
         backgroundColor: token.colorBgContainer,
         borderRight: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: `${token.borderRadius} 0 0 ${token.borderRadius}`,
+        borderRadius: '8px 0 0 8px',
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
           padding: 16,
+          borderRadius: 16,
           borderBottomWidth: 1,
           borderBottomStyle: 'solid',
           borderBottomColor: 'rgba(255, 255, 255, 0.89)',

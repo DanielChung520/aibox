@@ -8,14 +8,12 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Tabs, Space, Typography, Empty, App, Card, theme } from 'antd';
+import { Button, Space, Typography, Empty, App, theme } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/g6';
 import { GraphNode, GraphEdge, KnowledgeFile, knowledgeApi } from '../../services/api';
+import FileContentViewer from '../../components/FileContentViewer';
 import KBFileList from './components/KBFileList';
-import KBSourcePreview from './components/KBSourcePreview';
-import KBVectorPanel from './components/KBVectorPanel';
-import KBGraphPanel from './components/KBGraphPanel';
 import KBFileUpload from './components/KBFileUpload';
 import KBNodeRelPanel from './components/KBNodeRelPanel';
 
@@ -30,7 +28,7 @@ export default function KnowledgeBaseDetail() {
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<string>('source');
+  const [activeTab, setActiveTab] = useState('source');
   const [uploadMode, setUploadMode] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
@@ -61,13 +59,11 @@ export default function KnowledgeBaseDetail() {
   useEffect(() => {
     if (!selectedFileId && files.length > 0) {
       setSelectedFileId(files[0]._key);
-      setActiveTab('source');
     }
   }, [files, selectedFileId]);
 
   const handleSelectFile = (fileId: string) => {
     setSelectedFileId(fileId);
-    setActiveTab('source');
     setUploadMode(false);
   };
 
@@ -154,29 +150,18 @@ export default function KnowledgeBaseDetail() {
             <Empty description={<Text style={{ color: token.colorTextSecondary }}>請在左側選擇文件以查看詳情</Text>} />
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', padding: token.padding }}>
-            <Card style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
-              <div style={{ paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
-                <Tabs
-                  activeKey={activeTab} onChange={setActiveTab}
-                  items={[
-                    { key: 'source', label: '源文件' },
-                    { key: 'graph', label: '圖譜' },
-                    { key: 'vector', label: '向量' },
-                  ]}
-                />
-              </div>
-              <div style={{ flex: 1, overflow: activeTab === 'graph' ? 'hidden' : 'auto', paddingTop: token.margin }}>
-              {activeTab === 'graph' && (
-                <KBGraphPanel fileId={selectedFile._key} graphStatus={selectedFile.graph_status} onNodeSelect={handleNodeSelect} onGraphReady={handleGraphReady} onDataLoaded={handleDataLoaded} />
-              )}
-                {activeTab === 'source' && (
-                  <KBSourcePreview fileId={selectedFile._key} fileName={selectedFile.filename} fileType={selectedFile.file_type} />
-                )}
-                {activeTab === 'vector' && <KBVectorPanel fileId={selectedFile._key} vectorStatus={selectedFile.vector_status} />}
-              </div>
-            </Card>
-          </div>
+          <FileContentViewer
+            fileId={selectedFile._key}
+            fileName={selectedFile.filename}
+            fileType={selectedFile.file_type}
+            activeTab={activeTab}
+            graphStatus={selectedFile.graph_status}
+            vectorStatus={selectedFile.vector_status}
+            onActiveTabChange={setActiveTab}
+            onGraphReady={handleGraphReady}
+            onNodeSelect={handleNodeSelect}
+            onDataLoaded={handleDataLoaded}
+          />
         )}
       </div>
 

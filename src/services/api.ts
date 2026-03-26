@@ -442,8 +442,8 @@ export interface KnowledgeFile {
   file_size: number;
   file_type: string;
   upload_time: string;
-  vector_status: 'pending' | 'processing' | 'completed' | 'failed';
-  graph_status: 'pending' | 'processing' | 'completed' | 'failed';
+  vector_status: 'pending' | 'processing' | 'queued' | 'completed' | 'failed';
+  graph_status: 'pending' | 'processing' | 'queued' | 'completed' | 'failed';
   knowledge_root_id: string;
 }
 

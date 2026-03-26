@@ -115,10 +115,10 @@ export default function KnowledgeBaseDetail() {
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       <div style={{
         width: 280, minWidth: 280, flexShrink: 0,
-        borderRight: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        borderRight: `1px solid ${token.colorBorderSecondary}`,
         borderRadius: `${token.borderRadius} 0 0 ${token.borderRadius}`,
+        display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
           padding: token.padding,

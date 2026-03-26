@@ -6,14 +6,45 @@
  * @version     2.1.0
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { Empty, Spin, Alert, Typography, Button, message, theme } from 'antd';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Empty, Spin, Alert, Typography, Button, message, Segmented } from 'antd';
 import { Graph, NodeEvent, CanvasEvent } from '@antv/g6';
 import type { IElementEvent, IPointerEvent, NodeData, EdgeData } from '@antv/g6';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import { knowledgeApi, GraphNode, GraphEdge } from '../../../services/api';
 
 const { Text } = Typography;
+type LayoutMode = 'force' | 'grid' | 'circular';
+
+const NODE_COLOR_PALETTE = [
+  '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
+];
+
+const getNodeColor = (type: string): string => {
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) {
+    hash = type.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return NODE_COLOR_PALETTE[Math.abs(hash) % NODE_COLOR_PALETTE.length];
+};
+
+const EDGE_COLOR_PALETTE = [
+  '#e74c3c', '#2ecc71', '#3498db', '#9b59b6', '#f39c12',
+  '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#8bc34a',
+  '#673ab7', '#ffc107', '#607d8b', '#ff9800', '#4caf50',
+  '#3f51b5', '#009688', '#f06292', '#00e676', '#ffab40',
+  '#536dfe', '#76ff03', '#d500f9', '#ff1744', '#64ffda',
+  '#ff6e40', '#69f0ae', '#7c4dff', '#ff9100', '#b2ff59',
+];
+
+const getEdgeColor = (label: string): string => {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return EDGE_COLOR_PALETTE[Math.abs(hash) % EDGE_COLOR_PALETTE.length];
+};
 
 interface KBGraphPanelProps {
   fileId: string;
@@ -36,8 +67,21 @@ type G6Edge = {
   [key: string]: unknown;
 };
 
+const TOKEN = {
+  colorPrimary: '#3b82f6',
+  colorText: '#f1f5f9',
+  colorTextSecondary: '#94a3b8',
+  colorBorder: '#334155',
+  colorBorderSecondary: '#475569',
+  colorPrimaryActive: '#60a5fa',
+  colorBgContainer: '#1e293b',
+  borderRadiusLG: 8,
+  padding: 16,
+  paddingXS: 4,
+};
+
 export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGraphReady, onDataLoaded }: KBGraphPanelProps) {
-  const { token } = theme.useToken();
+  const token = TOKEN;
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
 
@@ -45,7 +89,58 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
   const [error, setError] = useState<string | null>(null);
   const [hasData, setHasData] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('force');
   const instanceRef = useRef(0);
+  const zoomRef = useRef(1);
+
+  const getLayout = useCallback((mode: LayoutMode) => {
+    switch (mode) {
+      case 'force':
+        return { type: 'force' as const, preventOverlap: true, linkDistance: 150, animated: true };
+      case 'grid':
+        return { type: 'grid' as const, cols: 6 };
+      case 'circular':
+        return { type: 'circular' as const, startAngle: 0, endAngle: 2 * Math.PI, autoRadius: true };
+      default:
+        return { type: 'force' as const, preventOverlap: true, linkDistance: 150, animated: true };
+    }
+  }, []);
+
+  const handleLayoutChange = useCallback((mode: LayoutMode) => {
+    setLayoutMode(mode);
+  }, []);
+
+  const zoomIn = useCallback(() => {
+    const g = graphRef.current;
+    if (!g) return;
+    const current = zoomRef.current;
+    const next = Math.min(current + 0.15, 3);
+    zoomRef.current = next;
+    g.zoomTo(next, undefined);
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const g = graphRef.current;
+    if (!g) return;
+    const current = zoomRef.current;
+    const next = Math.max(current - 0.15, 0.2);
+    zoomRef.current = next;
+    g.zoomTo(next, undefined);
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    const g = graphRef.current;
+    if (!g) return;
+    zoomRef.current = 1;
+    g.zoomTo(1, undefined);
+  }, []);
+
+  useEffect(() => {
+    const g = graphRef.current;
+    if (!g) return;
+    g.setLayout(getLayout(layoutMode));
+    g.render().catch(() => { });
+  }, [layoutMode, getLayout]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -84,7 +179,11 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
           labelFill: token.colorText,
           labelFontSize: 12,
           labelPlacement: 'bottom',
-          fill: token.colorPrimary,
+          fill: (d: NodeData): string => {
+            const rec = d.data as Record<string, unknown> | undefined;
+            const type = rec && typeof rec['type'] === 'string' ? rec['type'] : '';
+            return getNodeColor(type);
+          },
           stroke: token.colorBorder,
           lineWidth: 1,
         },
@@ -102,13 +201,30 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
             const rec = d.data as Record<string, unknown> | undefined;
             return rec && typeof rec['label'] === 'string' ? rec['label'] : '';
           },
-          labelFill: token.colorTextSecondary,
-          labelFontSize: 11,
-          stroke: token.colorBorderSecondary,
+          labelFill: '#555',
+          labelFontSize: 12,
+          labelBackground: true,
+          labelBackgroundFill: 'rgba(255,255,255,0.85)',
+          labelBackgroundRadius: 3,
+          labelBackgroundPadding: [2, 4],
+          stroke: (d: EdgeData): string => {
+            const rec = d.data as Record<string, unknown> | undefined;
+            const label = rec && typeof rec['label'] === 'string' ? rec['label'] : '';
+            return getEdgeColor(label);
+          },
+          lineWidth: 2,
+          lineOpacity: 0.85,
           endArrow: true,
         },
+        state: {
+          selected: {
+            stroke: '#e74c3c',
+            lineWidth: 2,
+            lineOpacity: 1,
+          },
+        },
       },
-      layout: { type: 'force', preventOverlap: true, linkDistance: 150, animated: true },
+      layout: getLayout(layoutMode),
       behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
     });
 
@@ -122,7 +238,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
 
     const silentRender = async (g: Graph) => {
       const origError = console.error;
-      console.error = () => {};
+      console.error = () => { };
       try {
         await g.render();
       } catch {
@@ -135,7 +251,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
     silentRender(graph).then(() => {
       if (instanceRef.current !== currentInstance) return;
       onGraphReady?.(graph);
-    }).catch(() => {});
+    }).catch(() => { });
 
     graphRef.current = graph;
 
@@ -151,7 +267,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
         }
         const nodes: G6Node[] = (data.nodes || []).map((n: GraphNode) => ({
           id: n.id,
-          data: { label: n.label },
+          data: { label: n.label, type: n.type },
         }));
         const edges: G6Edge[] = (data.edges || []).map((e: GraphEdge) => ({
           source: e.source,
@@ -240,6 +356,32 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
           )}
         </div>
       )}
+      <div style={{
+        position: 'absolute',
+        top: token.paddingXS,
+        right: token.paddingXS,
+        zIndex: 5,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        alignItems: 'flex-end',
+      }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <Button type="text" size="small" icon={<ZoomOutOutlined />} onClick={zoomOut} title="縮小" />
+          <Button type="text" size="small" icon={<ZoomInOutlined />} onClick={zoomIn} title="放大" />
+          <Button type="text" size="small" onClick={resetZoom} title="重置視角" style={{ fontSize: 10 }}>1:1</Button>
+        </div>
+        <Segmented
+          value={layoutMode}
+          onChange={(v) => handleLayoutChange(v as LayoutMode)}
+          options={[
+            { label: '力導圖', value: 'force' },
+            { label: '網格', value: 'grid' },
+            { label: '環形', value: 'circular' },
+          ]}
+          size="small"
+        />
+      </div>
     </div>
   );
 }

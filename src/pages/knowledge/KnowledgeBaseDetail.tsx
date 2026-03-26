@@ -9,7 +9,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Space, Typography, Empty, App, theme } from 'antd';
-import { ArrowLeftOutlined, SettingOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/g6';
 import { GraphNode, GraphEdge, KnowledgeFile, knowledgeApi } from '../../services/api';
 import FileContentViewer from '../../components/FileContentViewer';
@@ -152,28 +152,19 @@ export default function KnowledgeBaseDetail() {
             <Empty description={<Text style={{ color: token.colorTextSecondary }}>請在左側選擇文件以查看詳情</Text>} />
           </div>
         ) : (
-          <>
-            <div style={{
-              padding: `${token.padding}px ${token.padding}px 0`,
-              display: 'flex', justifyContent: 'flex-end', flexShrink: 0,
-            }}>
-              <Button icon={<SettingOutlined />} onClick={() => setSettingsOpen(true)}>
-                設置
-              </Button>
-            </div>
-            <FileContentViewer
-              fileId={selectedFile._key}
-              fileName={selectedFile.filename}
-              fileType={selectedFile.file_type}
-              activeTab={activeTab}
-              graphStatus={selectedFile.graph_status}
-              vectorStatus={selectedFile.vector_status}
-              onActiveTabChange={setActiveTab}
-              onGraphReady={handleGraphReady}
-              onNodeSelect={handleNodeSelect}
-              onDataLoaded={handleDataLoaded}
-            />
-          </>
+          <FileContentViewer
+            fileId={selectedFile._key}
+            fileName={selectedFile.filename}
+            fileType={selectedFile.file_type}
+            activeTab={activeTab}
+            graphStatus={selectedFile.graph_status}
+            vectorStatus={selectedFile.vector_status}
+            onActiveTabChange={setActiveTab}
+            onGraphReady={handleGraphReady}
+            onNodeSelect={handleNodeSelect}
+            onDataLoaded={handleDataLoaded}
+            onSettingsClick={() => setSettingsOpen(true)}
+          />
         )}
       </div>
 

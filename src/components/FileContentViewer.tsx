@@ -6,7 +6,8 @@
  * @version     1.0.0
  */
 
-import { Card, Tabs, theme } from 'antd';
+import { Card, Tabs, Button, theme } from 'antd';
+import { SettingOutlined } from '@ant-design/icons';
 import type { Graph } from '@antv/g6';
 import type { GraphNode, GraphEdge } from '../services/api';
 import KBSourcePreview from '../pages/knowledge/components/KBSourcePreview';
@@ -21,6 +22,7 @@ interface FileContentViewerProps {
   graphStatus?: string;
   vectorStatus?: string;
   onActiveTabChange?: (tab: string) => void;
+  onSettingsClick?: () => void;
   onGraphReady?: (graph: Graph) => void;
   onNodeSelect?: (nodeId: string | null) => void;
   onDataLoaded?: (nodes: GraphNode[], edges: GraphEdge[]) => void;
@@ -28,7 +30,7 @@ interface FileContentViewerProps {
 
 export default function FileContentViewer({
   fileId, fileName, fileType, activeTab = 'source', graphStatus, vectorStatus,
-  onActiveTabChange, onGraphReady, onNodeSelect, onDataLoaded,
+  onActiveTabChange, onSettingsClick, onGraphReady, onNodeSelect, onDataLoaded,
 }: FileContentViewerProps) {
   const { token } = theme.useToken();
   const currentTab = activeTab;
@@ -39,7 +41,7 @@ export default function FileContentViewer({
         style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
       >
-        <div style={{ paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: token.padding, flexShrink: 0, borderBottom: `1px solid ${token.colorBorderSecondary}`, marginBottom: token.margin }}>
           <Tabs
             activeKey={currentTab} onChange={onActiveTabChange}
             items={[
@@ -48,6 +50,9 @@ export default function FileContentViewer({
               { key: 'vector', label: '向量' },
             ]}
           />
+          {onSettingsClick && (
+            <Button icon={<SettingOutlined />} onClick={onSettingsClick} size="small" />
+          )}
         </div>
         <div style={{ flex: 1, overflow: currentTab === 'graph' ? 'hidden' : 'auto', paddingTop: token.margin }}>
           {currentTab === 'source' && (

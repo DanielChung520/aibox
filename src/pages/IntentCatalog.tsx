@@ -1,7 +1,7 @@
 /**
  * @file        統一意圖目錄管理頁面
  * @description 支援 TopOrchestrator / DataAgent 分頁切換的意圖 CRUD 管理
- * @lastUpdate  2026-03-28 12:35:09
+ * @lastUpdate  2026-03-29 01:52:37
  * @author      Daniel Chung
  * @version     2.0.0
  */
@@ -247,7 +247,7 @@ function OrchestratorPanel() {
   ];
 
   return (
-    <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+    <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
       <Row gutter={16}>
         <Col span={6}>
           <Card size="small">
@@ -256,17 +256,17 @@ function OrchestratorPanel() {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="工具型" value={intents.filter(i => i.config?.intent_type === 'tool').length} valueStyle={{ color: token.colorSuccess }} />
+            <Statistic title="工具型" value={intents.filter(i => i.config?.intent_type === 'tool').length} styles={{ content: { color: token.colorSuccess } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="工作流型" value={intents.filter(i => i.config?.intent_type === 'workflow').length} valueStyle={{ color: token.colorInfo }} />
+            <Statistic title="工作流型" value={intents.filter(i => i.config?.intent_type === 'workflow').length} styles={{ content: { color: token.colorInfo } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="備援型" value={intents.filter(i => i.config?.intent_type === 'fallback').length} valueStyle={{ color: token.colorWarning }} />
+            <Statistic title="備援型" value={intents.filter(i => i.config?.intent_type === 'fallback').length} styles={{ content: { color: token.colorWarning } }} />
           </Card>
         </Col>
       </Row>
@@ -387,7 +387,7 @@ function OrchestratorPanel() {
         </Form>
       </Modal>
 
-      <Drawer title="Orchestrator 設定" width={480} open={settingsVisible} onClose={() => setSettingsVisible(false)} extra={<Button type="primary" onClick={handleSaveSettings}>儲存設定</Button>}>
+      <Drawer title="Orchestrator 設定" styles={{ wrapper: { width: '480px' } }} open={settingsVisible} onClose={() => setSettingsVisible(false)} extra={<Button type="primary" onClick={handleSaveSettings}>儲存設定</Button>}>
         <Alert message="變更提醒" description="修改 Embedding 模型或維度後，必須重新執行「同步到 Qdrant」，否則查詢可能失效。" type="warning" showIcon style={{ marginBottom: 16 }} />
         <Form form={settingsForm} layout="vertical">
           <Form.Item name="embeddingModel" label="Embedding 模型" rules={[{ required: true }]}>
@@ -662,7 +662,7 @@ function DataAgentPanel() {
   ];
 
   return (
-    <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+    <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
       <Row gutter={16}>
         <Col span={6}>
           <Card size="small">
@@ -671,17 +671,17 @@ function DataAgentPanel() {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="模板策略" value={intents.filter(i => i.config?.generation_strategy === 'template').length} valueStyle={{ color: token.colorSuccess }} />
+            <Statistic title="模板策略" value={intents.filter(i => i.config?.generation_strategy === 'template').length} styles={{ content: { color: token.colorSuccess } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="小型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'small_llm').length} valueStyle={{ color: token.colorInfo }} />
+            <Statistic title="小型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'small_llm').length} styles={{ content: { color: token.colorInfo } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="大型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'large_llm').length} valueStyle={{ color: token.colorPrimary }} />
+            <Statistic title="大型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'large_llm').length} styles={{ content: { color: token.colorPrimary } }} />
           </Card>
         </Col>
       </Row>
@@ -857,7 +857,7 @@ function DataAgentPanel() {
         </Form>
       </Modal>
 
-      <Drawer title="DataAgent 設定" width={480} open={settingsVisible} onClose={() => setSettingsVisible(false)} extra={<Button type="primary" onClick={handleSaveSettings}>儲存設定</Button>}>
+      <Drawer title="DataAgent 設定" styles={{ wrapper: { width: '480px' } }} open={settingsVisible} onClose={() => setSettingsVisible(false)} extra={<Button type="primary" onClick={handleSaveSettings}>儲存設定</Button>}>
         <Divider >Embedding 向量模型</Divider>
         <Alert message="變更提醒" description="修改 Embedding 模型或維度後，必須重新執行「同步到 Qdrant」。" type="warning" showIcon style={{ marginBottom: 16 }} />
         <Form form={settingsForm} layout="vertical">

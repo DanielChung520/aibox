@@ -1,0 +1,81 @@
+/**
+ * @file        Unified Intent Catalog API 服務層
+ * @description 統一意圖目錄 CRUD 接口，以 agent_scope 區分 orchestrator / data_agent
+ * @lastUpdate  2026-03-28 12:09:54
+ * @author      Daniel Chung
+ * @version     1.0.0
+ */
+
+import api from './api';
+
+// ==================== Types ====================
+
+export type AgentScope = 'orchestrator' | 'data_agent';
+
+export interface IntentCatalogEntry {
+  _key?: string;
+  intent_id: string;
+  agent_scope: AgentScope;
+  name: string;
+  description: string;
+  nl_examples: string[];
+  status: 'enabled' | 'disabled';
+  priority: number;
+  created_at?: string;
+  updated_at?: string;
+  /** Scope-specific fields (orchestrator: tool_name, intent_type; data_agent: tables, sql_template, generation_strategy) */
+  config: Record<string, unknown>;
+}
+
+export interface IntentCatalogListResponse {
+  code: number;
+  data: {
+    records: IntentCatalogEntry[];
+    total: number;
+    page: number;
+    page_size: number;
+  };
+}
+
+export interface IntentCatalogListParams {
+  agent_scope: AgentScope;
+  page?: number;
+  page_size?: number;
+  status?: string;
+  intent_type?: string;
+  search?: string;
+  tool_name?: string;
+  group?: string;
+  generation_strategy?: string;
+}
+
+// ==================== API ====================
+
+export const intentCatalogApi = {
+  list: (params: IntentCatalogListParams) =>
+    api.get<IntentCatalogListResponse>('/api/v1/intents/catalog', { params }),
+
+  create: (data: Partial<IntentCatalogEntry>) =>
+    api.post<{ code: number; data: IntentCatalogEntry }>('/api/v1/intents/catalog', data),
+
+  update: (intentId: string, data: Partial<IntentCatalogEntry>) =>
+    api.put<{ code: number; data: IntentCatalogEntry }>(`/api/v1/intents/catalog/${intentId}`, data),
+
+  delete: (intentId: string) =>
+    api.delete(`/api/v1/intents/catalog/${intentId}`),
+
+  feedback: (intentId: string, data: { action: 'thumbs_up' | 'thumbs_down'; nl_query: string }) =>
+    api.post<{ code: number; data: { action: string; intent_id: string; applied: boolean; nl_added?: string } }>(
+      `/api/v1/intents/catalog/${intentId}/feedback`, data
+    ),
+
+  syncToQdrant: (data: { agent_scope: AgentScope; model?: string }) =>
+    api.post<{ code: number; data: { synced_count: number; status: string } }>(
+      '/api/v1/intents/sync-qdrant', data
+    ),
+
+  listModels: (agentScope: AgentScope) =>
+    api.get<{ models: string[] }>('/api/v1/intents/models', { params: { agent_scope: agentScope } }),
+};
+
+export default intentCatalogApi;

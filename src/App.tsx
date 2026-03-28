@@ -1,9 +1,9 @@
 /**
  * @file        應用入口
  * @description 路由配置、ConfigProvider、主題供應
- * @lastUpdate  2026-03-25 13:03:52
+ * @lastUpdate  2026-03-28 12:19:04
  * @author      Daniel Chung
- * @version     2.1.0
+ * @version     2.2.0
  */
 
 import { useState, useEffect, ReactNode } from 'react';
@@ -25,13 +25,12 @@ import TaskSessionHistory from './pages/TaskSessionHistory';
 import TaskSessionScheduled from './pages/TaskSessionScheduled';
 import UnderDevelopment from './pages/UnderDevelopment';
 import SchemaPage from './pages/data-agent/SchemaPage';
-import IntentsPage from './pages/data-agent/IntentsPage';
 import QueryPlayground from './pages/data-agent/QueryPlayground';
 import DataLakePage from './pages/data-agent/DataLakePage';
 import OntologyList from './pages/knowledge/OntologyList';
 import KnowledgeBaseManagement from './pages/knowledge/KnowledgeBaseManagement';
 import KnowledgeBaseDetail from './pages/knowledge/KnowledgeBaseDetail';
-import IntentOrchestration from './pages/IntentOrchestration';
+import IntentCatalog from './pages/IntentCatalog';
 import { authStore } from './stores/auth';
 import AppUpdater from './components/AppUpdater';
 
@@ -141,13 +140,13 @@ function AppContent() {
               <Route path="task-session/scheduled" element={<TaskSessionScheduled />} />
               <Route path="under-development" element={<UnderDevelopment />} />
               <Route path="data-agent/schema" element={<SchemaPage />} />
-              <Route path="data-agent/intents" element={<IntentsPage />} />
+              <Route path="data-agent/intents" element={<IntentCatalog scope="data_agent" />} />
               <Route path="data-agent/playground" element={<QueryPlayground />} />
               <Route path="data-agent/datalake" element={<DataLakePage />} />
               <Route path="knowledge/ontology" element={<OntologyList />} />
               <Route path="knowledge/management" element={<KnowledgeBaseManagement />} />
               <Route path="knowledge/management/:id" element={<KnowledgeBaseDetail />} />
-              <Route path="intent-orchestration" element={<IntentOrchestration />} />
+              <Route path="intent-orchestration" element={<IntentCatalog scope="orchestrator" />} />
             </Route>
           </Routes>
         </AntApp>

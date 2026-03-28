@@ -1,5 +1,12 @@
+/**
+ * @file        JobMonitor - 任務監控元件
+ * @description 顯示知識庫處理任務狀態（處理中/失敗/完成），支援中止、重試、刪除與日誌查看
+ * @lastUpdate  2026-03-29 00:07:13
+ * @author      Daniel Chung
+ * @version     1.1.0
+ */
 import { useState, useEffect } from 'react';
-import { Badge, Button, Drawer, Dropdown, Modal, Segmented, Tooltip, message } from 'antd';
+import { App, Badge, Button, Drawer, Dropdown, Segmented, Tooltip } from 'antd';
 import {
   CloudOutlined, DeleteOutlined, FileTextOutlined, PlayCircleOutlined,
   StopOutlined, WarningOutlined,
@@ -16,6 +23,7 @@ interface JobMonitorProps {
 }
 
 export default function JobMonitor({ textColor }: JobMonitorProps) {
+  const { modal, message } = App.useApp();
   const [jobs, setJobs] = useState<KbJobFile[]>([]);
   const [tab, setTab] = useState<JobStatus>('active');
   const [clearing, setClearing] = useState(false);
@@ -48,7 +56,7 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
   const handleClear = () => {
     if (jobs.length === 0) return;
     const label = tab === 'failed' ? '失敗' : '已完成';
-    Modal.confirm({
+    modal.confirm({
       title: `清除${label}任務`,
       content: `確定要清除 ${jobs.length} 筆${label}任務嗎？此操作無法復原。`,
       okText: '確定清除',
@@ -71,7 +79,7 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
   };
 
   const handleAbort = (job: KbJobFile) => {
-    Modal.confirm({
+    modal.confirm({
       title: '中止任務',
       content: `確定要中止「${job.filename}」嗎？`,
       okText: '確定中止',
@@ -95,7 +103,7 @@ export default function JobMonitor({ textColor }: JobMonitorProps) {
   };
 
   const handleDeleteJob = (job: KbJobFile) => {
-    Modal.confirm({
+    modal.confirm({
       title: '刪除任務',
       content: `確定要刪除「${job.filename}」及其所有相關資料嗎？此操作無法復原。`,
       okText: '確定刪除',

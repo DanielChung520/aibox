@@ -51,8 +51,9 @@ function pickContentTokens(
 ): ContentTokens {
   const key = effective === 'dark' ? 'content.dark' : 'content.light';
   const found = templates.find(t => t._key === key && t.template_type === 'content');
-  if (found) return found.tokens as ContentTokens;
-  return effective === 'dark' ? DEFAULT_CONTENT_DARK_TOKENS : DEFAULT_CONTENT_LIGHT_TOKENS;
+  const defaults = effective === 'dark' ? DEFAULT_CONTENT_DARK_TOKENS : DEFAULT_CONTENT_LIGHT_TOKENS;
+  if (found) return { ...defaults, ...found.tokens } as ContentTokens;
+  return defaults;
 }
 
 function pickShellTokens(templates: ThemeTemplate[]): ShellTokens {

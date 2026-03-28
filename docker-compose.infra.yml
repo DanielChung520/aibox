@@ -10,7 +10,7 @@ services:
     volumes:
       - arango-data:/var/lib/arangodb3
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8529/_api/version"]
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8529/_api/version || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

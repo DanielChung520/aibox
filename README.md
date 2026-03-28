@@ -261,7 +261,8 @@ curl -sL https://raw.githubusercontent.com/your-repo/main/install.sh | bash
 | 服务 | 地址 |
 |------|------|
 | API | https://abcapi.k84.org |
-| 前端静态 | https://abc.k84.org |
+| 前端 | 內嵌於 Tauri 桌面應用 (dist/) |
+| 產品頁 | https://abc.k84.org |
 
 ### 环境变量 (api/.env)
 

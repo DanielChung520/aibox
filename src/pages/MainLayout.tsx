@@ -44,7 +44,7 @@ export default function MainLayout() {
   const textColor = shellTokens.logoColor;
   const primaryColor = contentTokens.colorPrimary;
   const contentBg = contentTokens.contentBg || contentTokens.colorBgBase;
-  const tooltipBgRaw = contentTokens.tooltipBg || contentTokens.containerBg;
+  const tooltipBgRaw = contentTokens.tooltipBg || contentTokens.containerBg || contentTokens.colorBgBase || '#1e293b';
   const tooltipBgOpacity = (contentTokens.tooltipBgOpacity ?? 88) / 100;
   const tooltipBg = tooltipBgRaw.startsWith('#') && tooltipBgRaw.length === 7
     ? `${tooltipBgRaw}${Math.round(tooltipBgOpacity * 255).toString(16).padStart(2, '0')}`

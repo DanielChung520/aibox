@@ -59,7 +59,8 @@ version: 1.1.0
 
 生产环境:
   - API:  https://abcapi.k84.org (port 443)
-  - 静态: https://abc.k84.org (port 443)
+  - 静态: 内嵌于 Tauri 桌面应用 (dist/)
+  - 产品页: https://abc.k84.org
 ```
 
 ---
@@ -542,8 +543,8 @@ abc-desktop/
 | 组件 | 描述 | 端口 | 生产地址 |
 |------|------|------|----------|
 | API 服务器 | Rust Axum 独立进程 | 6500 | https://abcapi.k84.org |
-| 静态文件服务器 | Vite preview | 6000 | https://abc.k84.org |
-| 桌面应用 | Tauri 构建的 .dmg | - | 一键安装脚本 |
+| 桌面应用 | Tauri 构建 (前端内嵌于 dist/) | - | 一键安装脚本 |
+| 产品介绍/下载页 | 独立 HTML 页面 | - | https://abc.k84.org |
 
 ### 服务管理脚本
 

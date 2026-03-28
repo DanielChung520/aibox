@@ -59,13 +59,13 @@ function AppContent() {
 
   const opacity = contentTokens.bgOpacity / 100;
   const bgBase = contentTokens.colorBgBase;
-  const bgColor = opacity < 1 && bgBase.startsWith('#') && bgBase.length === 7
+  const bgColor = opacity < 1 && bgBase?.startsWith('#') && bgBase?.length === 7
     ? `${bgBase}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
     : bgBase;
 
-  const pageBg = contentTokens.pageBg || bgColor;
-  const containerBg = contentTokens.containerBg || bgColor;
-  const tooltipBgRaw = contentTokens.tooltipBg || containerBg;
+  const pageBg = contentTokens.pageBg || bgColor || '#0f172a';
+  const containerBg = contentTokens.containerBg || bgColor || '#1e293b';
+  const tooltipBgRaw = contentTokens.tooltipBg || containerBg || contentTokens.colorBgBase || '#1e293b';
   const tooltipBgOpacity = (contentTokens.tooltipBgOpacity ?? 88) / 100;
   const tooltipBg = tooltipBgRaw.startsWith('#') && tooltipBgRaw.length === 7
     ? `${tooltipBgRaw}${Math.round(tooltipBgOpacity * 255).toString(16).padStart(2, '0')}`

@@ -1,12 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ABC管理系统",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.abc.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "https://abc.k84.org"
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,

@@ -1467,6 +1467,7 @@ async fn sync_model_provider(Path(key): Path<String>) -> Result<impl IntoRespons
                         input_cost_per_1k: None,
                         output_cost_per_1k: None,
                         supports_vision: Some(false),
+                        temperature: Some(0.7),
                         status: "enabled".to_string(),
                     });
                 }

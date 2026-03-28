@@ -5,9 +5,9 @@
 //! 以 agent_scope 欄位區分不同 Agent 的意圖（orchestrator / data_agent / …）
 //! sync-qdrant / models 路由依 scope 代理轉發到對應 Python 服務
 //!
-//! # Last Update: 2026-03-28 11:58:53
+//! # Last Update: 2026-03-29 02:07:44
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use crate::config::CONFIG;
 use crate::db::get_db;
@@ -87,19 +87,19 @@ async fn list_catalog(
     }
 
     if let Some(intent_type) = params.get("intent_type").filter(|v| !v.trim().is_empty()) {
-        filters.push("d.config.intent_type == @intent_type".into());
+        filters.push("d.intent_type == @intent_type".into());
         bind_entries.push(("intent_type".into(), serde_json::json!(intent_type)));
     }
 
     // ── orchestrator-specific filters ──
     if let Some(tool_name) = params.get("tool_name").filter(|v| !v.trim().is_empty()) {
-        filters.push("d.config.tool_name == @tool_name".into());
+        filters.push("d.tool_name == @tool_name".into());
         bind_entries.push(("tool_name".into(), serde_json::json!(tool_name)));
     }
 
     // ── data_agent-specific filters ──
     if let Some(group) = params.get("group").filter(|v| !v.trim().is_empty()) {
-        filters.push("d.config.group == @group".into());
+        filters.push("d.group == @group".into());
         bind_entries.push(("group".into(), serde_json::json!(group)));
     }
 
@@ -107,7 +107,7 @@ async fn list_catalog(
         .get("generation_strategy")
         .filter(|v| !v.trim().is_empty())
     {
-        filters.push("d.config.generation_strategy == @generation_strategy".into());
+        filters.push("d.generation_strategy == @generation_strategy".into());
         bind_entries.push((
             "generation_strategy".into(),
             serde_json::json!(strategy),
@@ -235,10 +235,6 @@ async fn create_intent(Json(payload): Json<Value>) -> Result<impl IntoResponse, 
         }
         if !obj.contains_key("priority") {
             obj.insert("priority".into(), serde_json::json!(0));
-        }
-        // Ensure config object exists
-        if !obj.contains_key("config") {
-            obj.insert("config".into(), serde_json::json!({}));
         }
     }
 

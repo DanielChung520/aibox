@@ -1,9 +1,9 @@
 /**
  * @file        統一意圖目錄管理頁面
  * @description 支援 TopOrchestrator / DataAgent 分頁切換的意圖 CRUD 管理
- * @lastUpdate  2026-03-29 01:52:37
+ * @lastUpdate  2026-03-29 02:07:44
  * @author      Daniel Chung
- * @version     2.0.0
+ * @version     2.1.0
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -176,7 +176,6 @@ function OrchestratorPanel() {
     form.setFieldsValue({
       ...record,
       nl_examples: record.nl_examples?.join('\n') || '',
-      ...record.config
     });
     setModalVisible(true);
   };
@@ -184,7 +183,7 @@ function OrchestratorPanel() {
   const handleSave = async () => {
     try {
       const formValues = await form.validateFields();
-      const { intent_id, name, description, priority, status, nl_examples, ...configFields } = formValues;
+      const { intent_id, name, description, priority, status, nl_examples, intent_type, tool_name, confidence_threshold } = formValues;
       const payload: Partial<IntentCatalogEntry> = {
         intent_id,
         name,
@@ -193,7 +192,9 @@ function OrchestratorPanel() {
         status,
         agent_scope: 'orchestrator',
         nl_examples: nl_examples ? nl_examples.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
-        config: { ...configFields }
+        intent_type,
+        tool_name,
+        confidence_threshold,
       };
 
       if (editingId) {
@@ -215,19 +216,19 @@ function OrchestratorPanel() {
     { title: '名稱', dataIndex: 'name', key: 'name' },
     { title: '說明', dataIndex: 'description', key: 'description', ellipsis: true },
     {
-      title: '類型', dataIndex: ['config', 'intent_type'], key: 'intent_type',
+      title: '類型', dataIndex: 'intent_type', key: 'intent_type',
       render: (type: string) => {
         const color = type === 'tool' ? 'green' : type === 'workflow' ? 'blue' : 'orange';
         return <Tag color={color}>{type || '-'}</Tag>;
       }
     },
     {
-      title: '工具', dataIndex: ['config', 'tool_name'], key: 'tool_name',
+      title: '工具', dataIndex: 'tool_name', key: 'tool_name',
       render: (tool: string) => tool ? <Tag color="geekblue">{tool}</Tag> : '-'
     },
     { title: '優先度', dataIndex: 'priority', key: 'priority' },
     {
-      title: '信賴度', dataIndex: ['config', 'confidence_threshold'], key: 'confidence',
+      title: '信賴度', dataIndex: 'confidence_threshold', key: 'confidence',
       render: (val: number) => val != null ? `${(val * 100).toFixed(0)}%` : '-'
     },
     {
@@ -256,17 +257,17 @@ function OrchestratorPanel() {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="工具型" value={intents.filter(i => i.config?.intent_type === 'tool').length} styles={{ content: { color: token.colorSuccess } }} />
+            <Statistic title="工具型" value={intents.filter(i => i.intent_type === 'tool').length} styles={{ content: { color: token.colorSuccess } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="工作流型" value={intents.filter(i => i.config?.intent_type === 'workflow').length} styles={{ content: { color: token.colorInfo } }} />
+            <Statistic title="工作流型" value={intents.filter(i => i.intent_type === 'workflow').length} styles={{ content: { color: token.colorInfo } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="備援型" value={intents.filter(i => i.config?.intent_type === 'fallback').length} styles={{ content: { color: token.colorWarning } }} />
+            <Statistic title="備援型" value={intents.filter(i => i.intent_type === 'fallback').length} styles={{ content: { color: token.colorWarning } }} />
           </Card>
         </Col>
       </Row>
@@ -314,9 +315,9 @@ function OrchestratorPanel() {
                   <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
                   <Descriptions.Item label="狀態"><Tag color={currentIntent.status === 'enabled' ? 'green' : 'default'}>{currentIntent.status}</Tag></Descriptions.Item>
                   <Descriptions.Item label="優先度">{currentIntent.priority}</Descriptions.Item>
-                  <Descriptions.Item label="類型"><Tag>{String(currentIntent.config?.intent_type || '-')}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="工具">{String(currentIntent.config?.tool_name || '-')}</Descriptions.Item>
-                  <Descriptions.Item label="信賴度">{currentIntent.config?.confidence_threshold ? `${(Number(currentIntent.config.confidence_threshold) * 100).toFixed(0)}%` : '-'}</Descriptions.Item>
+                   <Descriptions.Item label="類型"><Tag>{currentIntent.intent_type || '-'}</Tag></Descriptions.Item>
+                   <Descriptions.Item label="工具">{currentIntent.tool_name || '-'}</Descriptions.Item>
+                   <Descriptions.Item label="信賴度">{currentIntent.confidence_threshold != null ? `${(currentIntent.confidence_threshold * 100).toFixed(0)}%` : '-'}</Descriptions.Item>
                 </Descriptions>
               )
             },
@@ -591,8 +592,7 @@ function DataAgentPanel() {
     form.setFieldsValue({
       ...record,
       nl_examples: record.nl_examples?.join('\n') || '',
-      ...record.config,
-      example_sqls: Array.isArray(record.config?.example_sqls) ? record.config.example_sqls.join('\n---\n') : ''
+      example_sqls: Array.isArray(record.example_sqls) ? record.example_sqls.join('\n---\n') : ''
     });
     setModalVisible(true);
   };
@@ -600,21 +600,26 @@ function DataAgentPanel() {
   const handleSave = async () => {
     try {
       const formValues = await form.validateFields();
-      const { intent_id, name, description, priority, status, nl_examples, ...configFields } = formValues;
+      const { intent_id, name, description, priority, status, nl_examples, bpa_domain_intent, intent_type, group, generation_strategy, tables, core_fields, sql_template, example_sqls } = formValues;
       const payload: Partial<IntentCatalogEntry> = {
         intent_id,
-        name: name || configFields.bpa_domain_intent || intent_id,
+        name: name || bpa_domain_intent || intent_id,
         description,
         priority,
         status,
         agent_scope: 'data_agent',
         nl_examples: nl_examples ? nl_examples.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
-        config: { ...configFields }
+        bpa_domain_intent,
+        intent_type,
+        group,
+        generation_strategy,
+        tables,
+        core_fields,
+        sql_template,
+        example_sqls: example_sqls && typeof example_sqls === 'string'
+          ? example_sqls.split('\n---\n').map((s: string) => s.trim()).filter(Boolean)
+          : example_sqls,
       };
-
-      if (configFields.example_sqls && typeof configFields.example_sqls === 'string') {
-        payload.config!.example_sqls = configFields.example_sqls.split('\n---\n').map((s: string) => s.trim()).filter(Boolean);
-      }
 
       if (editingId) {
         await intentCatalogApi.update(editingId, payload);
@@ -632,20 +637,20 @@ function DataAgentPanel() {
 
   const columns = [
     { title: 'Intent ID', dataIndex: 'intent_id', key: 'intent_id', render: (text: string) => <Text code>{text}</Text> },
-    { title: 'Domain Intent', dataIndex: ['config', 'bpa_domain_intent'], key: 'bpa_domain_intent' },
+    { title: 'Domain Intent', dataIndex: 'bpa_domain_intent', key: 'bpa_domain_intent' },
     { title: '說明', dataIndex: 'description', key: 'description', ellipsis: true },
-    { title: '類型', dataIndex: ['config', 'intent_type'], key: 'intent_type' },
-    { title: '群組', dataIndex: ['config', 'group'], key: 'group' },
-    { title: '策略', dataIndex: ['config', 'generation_strategy'], key: 'generation_strategy' },
+    { title: '類型', dataIndex: 'intent_type', key: 'intent_type' },
+    { title: '群組', dataIndex: 'group', key: 'group' },
+    { title: '策略', dataIndex: 'generation_strategy', key: 'generation_strategy' },
     {
-      title: '表', dataIndex: ['config', 'tables'], key: 'tables',
+      title: '表', dataIndex: 'tables', key: 'tables',
       render: (tables: string[]) => Array.isArray(tables) ? tables.map(t => <Tag key={t}>{t}</Tag>) : '-'
     },
     {
       title: '範例', key: 'examples',
       render: (_: unknown, record: IntentCatalogEntry) => {
         const nlCount = record.nl_examples?.length || 0;
-        const sqlCount = Array.isArray(record.config?.example_sqls) ? record.config.example_sqls.length : 0;
+        const sqlCount = Array.isArray(record.example_sqls) ? record.example_sqls.length : 0;
         return <Text>{nlCount} NL / {sqlCount} SQL</Text>;
       }
     },
@@ -671,17 +676,17 @@ function DataAgentPanel() {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="模板策略" value={intents.filter(i => i.config?.generation_strategy === 'template').length} styles={{ content: { color: token.colorSuccess } }} />
+            <Statistic title="模板策略" value={intents.filter(i => i.generation_strategy === 'template').length} styles={{ content: { color: token.colorSuccess } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="小型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'small_llm').length} styles={{ content: { color: token.colorInfo } }} />
+            <Statistic title="小型LLM策略" value={intents.filter(i => i.generation_strategy === 'small_llm').length} styles={{ content: { color: token.colorInfo } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="大型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'large_llm').length} styles={{ content: { color: token.colorPrimary } }} />
+            <Statistic title="大型LLM策略" value={intents.filter(i => i.generation_strategy === 'large_llm').length} styles={{ content: { color: token.colorPrimary } }} />
           </Card>
         </Col>
       </Row>
@@ -726,18 +731,18 @@ function DataAgentPanel() {
               children: (
                 <Descriptions bordered column={1} size="small">
                   <Descriptions.Item label="Intent ID"><Text code>{currentIntent.intent_id}</Text></Descriptions.Item>
-                  <Descriptions.Item label="Domain Intent">{String(currentIntent.config?.bpa_domain_intent || '-')}</Descriptions.Item>
-                  <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
-                  <Descriptions.Item label="查詢類型"><Tag>{String(currentIntent.config?.intent_type || '-')}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="群組"><Tag>{String(currentIntent.config?.group || '-')}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="生成策略"><Tag>{String(currentIntent.config?.generation_strategy || '-')}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="Is Template">{currentIntent.config?.generation_strategy === 'template' ? 'Yes' : 'No'}</Descriptions.Item>
-                  <Descriptions.Item label="關聯表">
-                    {Array.isArray(currentIntent.config?.tables) ? currentIntent.config.tables.map((t: string) => <Tag key={t}>{t}</Tag>) : '-'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="核心欄位">
-                    {Array.isArray(currentIntent.config?.core_fields) ? currentIntent.config.core_fields.map((f: string) => <Tag key={f}>{f}</Tag>) : '-'}
-                  </Descriptions.Item>
+                   <Descriptions.Item label="Domain Intent">{currentIntent.bpa_domain_intent || '-'}</Descriptions.Item>
+                   <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
+                   <Descriptions.Item label="查詢類型"><Tag>{currentIntent.intent_type || '-'}</Tag></Descriptions.Item>
+                   <Descriptions.Item label="群組"><Tag>{currentIntent.group || '-'}</Tag></Descriptions.Item>
+                   <Descriptions.Item label="生成策略"><Tag>{currentIntent.generation_strategy || '-'}</Tag></Descriptions.Item>
+                   <Descriptions.Item label="Is Template">{currentIntent.generation_strategy === 'template' ? 'Yes' : 'No'}</Descriptions.Item>
+                   <Descriptions.Item label="關聯表">
+                     {Array.isArray(currentIntent.tables) ? currentIntent.tables.map((t: string) => <Tag key={t}>{t}</Tag>) : '-'}
+                   </Descriptions.Item>
+                   <Descriptions.Item label="核心欄位">
+                     {Array.isArray(currentIntent.core_fields) ? currentIntent.core_fields.map((f: string) => <Tag key={f}>{f}</Tag>) : '-'}
+                   </Descriptions.Item>
                 </Descriptions>
               )
             },
@@ -748,7 +753,7 @@ function DataAgentPanel() {
                 <Card size="small">
                   <ol style={{ paddingLeft: 20, margin: 0 }}>
                     {currentIntent.nl_examples?.map((ex, i) => {
-                      const sqls = Array.isArray(currentIntent.config?.example_sqls) ? currentIntent.config.example_sqls : [];
+                      const sqls = Array.isArray(currentIntent.example_sqls) ? currentIntent.example_sqls : [];
                       return (
                         <li key={i} style={{ marginBottom: 16 }}>
                           <Text strong>{ex}</Text>
@@ -770,11 +775,11 @@ function DataAgentPanel() {
               children: (
                 <Card size="small" extra={
                   <Button type="text" icon={<CopyOutlined />} onClick={() => {
-                    navigator.clipboard.writeText(String(currentIntent.config?.sql_template || ''));
+                    navigator.clipboard.writeText(currentIntent.sql_template || '');
                     message.success('已複製 SQL Template');
                   }}>複製</Button>
                 }>
-                  <pre style={{ margin: 0 }}>{String(currentIntent.config?.sql_template || '無')}</pre>
+                   <pre style={{ margin: 0 }}>{currentIntent.sql_template || '無'}</pre>
                 </Card>
               )
             }

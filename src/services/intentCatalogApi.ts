@@ -1,9 +1,9 @@
 /**
  * @file        Unified Intent Catalog API 服務層
  * @description 統一意圖目錄 CRUD 接口，以 agent_scope 區分 orchestrator / data_agent
- * @lastUpdate  2026-03-28 12:09:54
+ * @lastUpdate  2026-03-29 02:07:44
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.1.0
  */
 
 import api from './api';
@@ -23,8 +23,17 @@ export interface IntentCatalogEntry {
   priority: number;
   created_at?: string;
   updated_at?: string;
-  /** Scope-specific fields (orchestrator: tool_name, intent_type; data_agent: tables, sql_template, generation_strategy) */
-  config: Record<string, unknown>;
+  updated_by?: string;
+  intent_type?: string;
+  tool_name?: string;
+  confidence_threshold?: number;
+  group?: string;
+  tables?: string[];
+  generation_strategy?: 'template' | 'small_llm' | 'large_llm';
+  sql_template?: string;
+  core_fields?: string[];
+  example_sqls?: string[];
+  bpa_domain_intent?: string;
 }
 
 export interface IntentCatalogListResponse {

@@ -319,7 +319,7 @@ export default function DataLakePage() {
           />
         ) : loadingData ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
-            <Spin size="large" tip="載入資料中..." />
+            <Spin size="large" description="載入資料中..." />
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12, overflow: 'hidden' }}>

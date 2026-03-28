@@ -108,18 +108,12 @@ export default function AgentFormModal({
   const [isThirdParty, setIsThirdParty] = useState(false);
   const [roles, setRoles] = useState<{ value: string; label: string }[]>([]);
   const [visibility, setVisibility] = useState<'public' | 'private' | 'role'>('private');
-  const watchedSource = Form.useWatch('source', form);
-
   useEffect(() => {
     roleApi.list().then((res: any) => {
       const opts = (res.data.data || []).map((r: any) => ({ value: r._key, label: r.name }));
       setRoles(opts);
     }).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    setIsThirdParty(watchedSource === 'third_party');
-  }, [watchedSource]);
 
   useEffect(() => {
     if (open && agent && mode === 'edit') {
@@ -244,6 +238,7 @@ export default function AgentFormModal({
               checkedChildren="第三方" 
               unCheckedChildren="本機" 
               defaultChecked={false}
+              onChange={(checked) => setIsThirdParty(checked)}
             />
           </Form.Item>
           <Form.Item 

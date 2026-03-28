@@ -355,6 +355,17 @@ async fn seed_params(db: &Database<ReqwestClient>) -> Result<(), String> {
         ("autoJump.delay", "3", "number", false, "behavior"),
         ("autoLogin.enabled", "true", "boolean", false, "behavior"),
         ("autoLogin.days", "2", "number", false, "behavior"),
+        ("knowledge.embedding_model", "qwen3-embedding:latest", "string", false, "knowledge"),
+        ("knowledge.embedding_dimension", "1024", "number", false, "knowledge"),
+        ("knowledge.graph_model", "qwen3-coder:30b", "string", false, "knowledge"),
+        ("knowledge.graph_num_predict", "9600", "number", false, "knowledge"),
+        ("task_chat.default_provider", "ollama", "string", false, "task_chat"),
+        ("task_chat.default_model", "llama3.2:latest", "string", false, "task_chat"),
+        ("task_chat.temperature", "0.7", "number", false, "task_chat"),
+        ("task_chat.max_tokens", "4096", "number", false, "task_chat"),
+        ("task_chat.max_history_messages", "20", "number", false, "task_chat"),
+        ("task_chat.greeting_message", "你好！我是你的 AI 工作助理，有什麼可以幫你的嗎？", "string", false, "task_chat"),
+        ("task_chat.system_prompt", "你是一個綜合工作協作者，可以天南地北無所不談，協助使用者完成各種工作任務。", "string", false, "task_chat"),
     ];
 
     let now = Utc::now().to_rfc3339();

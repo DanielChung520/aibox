@@ -560,11 +560,11 @@ async fn send_message(
                                         .data(serde_json::json!({ "done": true }).to_string())));
                                     return;
                                 }
-                            }
 
-                            let _ = tx_for_bg.send(Ok(Event::default()
-                                .event("chat_chunk")
-                                .data(data.to_string())));
+                                let _ = tx_for_bg.send(Ok(Event::default()
+                                    .event("chat_chunk")
+                                    .data(data.to_string())));
+                            }
                         }
                     }
                 }

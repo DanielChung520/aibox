@@ -341,7 +341,10 @@ pub async fn summarize_result_stream(
             let done = data.get("done").and_then(|v| v.as_bool()).unwrap_or(false);
             events.push(Ok(Event::default()
                 .event(if done { "chat_done" } else { "chat_chunk" })
-                .data(serde_json::json!({ "content": content, "done": done }).to_string())));
+                .data(serde_json::json!({
+                    "message": { "role": "assistant", "content": content },
+                    "done": done
+                }).to_string())));
         }
     }
 
@@ -366,7 +369,10 @@ pub fn sse_text_to_stream(
                 let done = data.get("done").and_then(|v| v.as_bool()).unwrap_or(false);
                 Ok(Event::default()
                     .event(if done { "chat_done" } else { "chat_chunk" })
-                    .data(serde_json::json!({ "content": content, "done": done }).to_string()))
+                    .data(serde_json::json!({
+                        "message": { "role": "assistant", "content": content },
+                        "done": done
+                    }).to_string()))
             })
         })
         .collect();

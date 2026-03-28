@@ -80,7 +80,7 @@ start_api() {
   kill_port "$API_PORT"
 
   cd "$API_DIR"
-  cargo run --release > /tmp/abc-api.log 2>&1 &
+  cargo watch -x 'run --release' > /tmp/abc-api.log 2>&1 &
   echo $! > "$PID_DIR/api.pid"
 
   echo "  -> Waiting for API Server (compiling + starting, max 120s)..."

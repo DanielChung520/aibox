@@ -186,7 +186,7 @@ export default function KBVectorPanel({ fileId, vectorStatus }: KBVectorPanelPro
 
         {similarLoading && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-            <Spin tip="查詢相似中..." />
+            <Spin description="查詢相似中..." />
           </div>
         )}
 

@@ -37,7 +37,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "nsis", "msi"],
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -46,19 +46,27 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    },
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": ["SimpChinese", "English"],
+        "installMode": "both"
+      }
     }
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5MzI4OTIwNkJBOENEOUUKUldTZXphaHJJSWt5aVJNUVRicWFSSzV4QWJHM1VpS2M0RGNxL05IbFpoUlZUOWpmL01YK1M3OXUK",
       "endpoints": [
-        "https://abcapi.k84.org/api/v1/updater/{{target}}/{{arch}}/{{current_version}}"
+        "https://github.com/DanielChung520/aibox/releases/latest/download/latest.json"
       ],
-      "dialog": false
+      "dialog": true
     }
   }
 }

@@ -52,6 +52,9 @@ __pycache__/
 *.rpm
 *.AppImage
 
+# Allow DMGs in public/ for download
+!public/*.dmg
+
 # Temporary files (AI agent artifacts)
 .tmp/
 

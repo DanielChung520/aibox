@@ -1,0 +1,219 @@
+# Build & Release Tauri Desktop App
+# Triggers on version tags (v*) or manual dispatch
+# Builds for: macOS ARM (M1/M2/M3/M4), macOS Intel, Windows x64
+# Produces: DMG, NSIS (exe), MSI + updater artifacts (latest.json)
+
+name: Build & Release Tauri App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+jobs:
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            label: macOS-ARM
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            label: macOS-Intel
+
+    runs-on: ${{ matrix.runner }}
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        run: npx tauri build --target ${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-${{ matrix.label }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    name: Build (Windows-x64)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        run: npx tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-Windows-x64
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.nsis.zip
+            src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi.zip
+            src-tauri/target/release/bundle/msi/*.msi.zip.sig
+          if-no-files-found: error
+
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "is_draft=false" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+            echo "is_draft=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate latest.json for updater
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTES="Release ${VERSION}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REPO="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
+
+          # Read signatures
+          MAC_ARM_SIG=""
+          MAC_INTEL_SIG=""
+          WIN_NSIS_SIG=""
+          WIN_MSI_SIG=""
+
+          for f in artifacts/tauri-macOS-ARM/*.sig; do
+            [ -f "$f" ] && MAC_ARM_SIG=$(cat "$f")
+          done
+          for f in artifacts/tauri-macOS-Intel/*.sig; do
+            [ -f "$f" ] && MAC_INTEL_SIG=$(cat "$f")
+          done
+          for f in artifacts/tauri-Windows-x64/*.nsis.zip.sig; do
+            [ -f "$f" ] && WIN_NSIS_SIG=$(cat "$f")
+          done
+          for f in artifacts/tauri-Windows-x64/*.msi.zip.sig; do
+            [ -f "$f" ] && WIN_MSI_SIG=$(cat "$f")
+          done
+
+          # Find filenames
+          MAC_ARM_TAR=$(basename artifacts/tauri-macOS-ARM/*.app.tar.gz 2>/dev/null || echo "")
+          MAC_INTEL_TAR=$(basename artifacts/tauri-macOS-Intel/*.app.tar.gz 2>/dev/null || echo "")
+          WIN_NSIS_ZIP=$(basename artifacts/tauri-Windows-x64/*.nsis.zip 2>/dev/null | head -1 || echo "")
+          WIN_MSI_ZIP=$(basename artifacts/tauri-Windows-x64/*.msi.zip 2>/dev/null | head -1 || echo "")
+
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION#v}",
+            "notes": "${NOTES}",
+            "pub_date": "${DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MAC_ARM_SIG}",
+                "url": "${REPO}/${MAC_ARM_TAR}"
+              },
+              "darwin-x86_64": {
+                "signature": "${MAC_INTEL_SIG}",
+                "url": "${REPO}/${MAC_INTEL_TAR}"
+              },
+              "windows-x86_64": {
+                "signature": "${WIN_NSIS_SIG}",
+                "url": "${REPO}/${WIN_NSIS_ZIP}"
+              }
+            }
+          }
+          EOF
+
+          cat latest.json
+
+      - name: Collect release files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.msi" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" -o -name "*.msi.zip" -o -name "*.msi.zip.sig" \) -exec cp {} release-files/ \;
+          cp latest.json release-files/
+          ls -la release-files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ABC Desktop ${{ steps.version.outputs.version }}
+          draft: ${{ steps.version.outputs.is_draft == 'true' || github.event.inputs.draft == 'true' }}
+          prerelease: false
+          generate_release_notes: true
+          files: release-files/*

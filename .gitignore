@@ -38,6 +38,8 @@ target/
 
 # Screenshots (development artifacts)
 *.png
+!src/assets/*.png
+!public/icons/*.png
 
 # Python cache
 __pycache__/

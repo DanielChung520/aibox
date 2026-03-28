@@ -92,7 +92,7 @@ export default function ServiceStatusBar() {
     if (healthResult.status === 'fulfilled') {
       reachable = true;
       const h = healthResult.value.data;
-      const entries = Object.entries(h.services) as [keyof HealthServices, boolean][];
+      const entries = Object.entries(h.services ?? {}) as [keyof HealthServices, boolean][];
       setInfraLights(
         entries.map(([key, ok]) => ({
           name: key,

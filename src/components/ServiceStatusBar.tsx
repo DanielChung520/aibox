@@ -1,16 +1,19 @@
 /**
  * @file        ServiceStatusBar
- * @description Header 服務燈號列：每 30 秒透過 API Gateway 偵測各後端服務狀態，
- *              綠燈正常、黃燈延遲（>1s）、紅燈無回應，Tooltip 顯示服務名與延遲
- * @lastUpdate  2026-03-24 22:33:13
+ * @description Header 服務總燈號：合併 /health（基礎設施）與 /api/v1/services（AI 服務）
+ *              的狀態。全綠 → 綠燈，任一延遲 → 黃三角，任一異常或 API 不可達 → 紅燈。
+ *              點擊展開 Popover 分區列出基礎設施與 AI 服務的名稱、燈號與延遲。
+ * @lastUpdate  2026-03-28 10:42:20
  * @author      Daniel Chung
- * @version     1.2.0
+ * @version     3.1.0
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Tooltip } from 'antd';
-import { servicesApi, ServiceStatus } from '../services/api';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { Popover, message } from 'antd';
+import { CheckCircleOutlined, WarningOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { servicesApi, healthApi, type ServiceStatus, type HealthServices } from '../services/api';
 import { useContentTokens, useShellTokens } from '../contexts/AppThemeProvider';
+import { authStore } from '../stores/auth';
 
 type LightColor = 'green' | 'yellow' | 'red';
 
@@ -19,55 +22,103 @@ interface ServiceLight {
   displayName: string;
   color: LightColor;
   latencyMs: number | null;
-  lastCheck: string | null;
 }
 
-function statusToColor(status: ServiceStatus, latencyMs: number | null): LightColor {
+function svcStatusToColor(status: ServiceStatus, latencyMs: number | null): LightColor {
   if (status === 'stopped' || status === 'error') return 'red';
   if (status === 'starting' || status === 'stopping') return 'yellow';
   if (latencyMs !== null && latencyMs > 1000) return 'yellow';
   return 'green';
 }
 
+function boolToColor(ok: boolean): LightColor {
+  return ok ? 'green' : 'red';
+}
+
+function worstColor(lights: ServiceLight[]): LightColor {
+  if (lights.some((l) => l.color === 'red')) return 'red';
+  if (lights.some((l) => l.color === 'yellow')) return 'yellow';
+  return 'green';
+}
+
+const INFRA_DISPLAY_NAMES: Record<keyof HealthServices, string> = {
+  main_api: 'Rust API Gateway',
+  chat_api: 'AI Task (Chat)',
+  arangodb: 'ArangoDB',
+  qdrant: 'Qdrant',
+};
+
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 const COLOR_LABEL: Record<LightColor, string> = {
-  green:  '正常',
+  green: '正常',
   yellow: '延遲',
-  red:    '異常',
+  red: '異常',
 };
 
 export default function ServiceStatusBar() {
   const contentTokens = useContentTokens();
   const shellTokens = useShellTokens();
-  const [lights, setLights] = useState<ServiceLight[]>([]);
+  const authState = useSyncExternalStore(
+    (cb) => authStore.subscribe(cb),
+    () => authStore.getState()
+  );
+  const isAdmin = authState.user?.role_key === 'admin';
+
+  const [infraLights, setInfraLights] = useState<ServiceLight[]>([]);
+  const [aiLights, setAiLights] = useState<ServiceLight[]>([]);
+  const [apiUnreachable, setApiUnreachable] = useState(false);
+  const [lastCheck, setLastCheck] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [restartingSet, setRestartingSet] = useState<Set<string>>(new Set());
 
   const colorHex: Record<LightColor, string> = {
-    green:  contentTokens.colorSuccess,
+    green: contentTokens.colorSuccess,
     yellow: contentTokens.colorWarning,
-    red:    contentTokens.colorError,
+    red: contentTokens.colorError,
   };
 
   const fetchStatuses = useCallback(async () => {
-    try {
-      const res = await servicesApi.list();
-      const services = res.data.services ?? [];
+    const results = await Promise.allSettled([
+      healthApi.check(),
+      servicesApi.list(),
+    ]);
 
-      setLights(
-        services.map((svc) => ({
-          name:        svc.name,
-          displayName: svc.display_name,
-          color:       statusToColor(svc.status, svc.latency_ms ?? null),
-          latencyMs:   svc.latency_ms ?? null,
-          lastCheck:   new Date().toLocaleTimeString(),
+    const healthResult = results[0];
+    const servicesResult = results[1];
+
+    let reachable = false;
+
+    if (healthResult.status === 'fulfilled') {
+      reachable = true;
+      const h = healthResult.value.data;
+      const entries = Object.entries(h.services) as [keyof HealthServices, boolean][];
+      setInfraLights(
+        entries.map(([key, ok]) => ({
+          name: key,
+          displayName: INFRA_DISPLAY_NAMES[key] ?? key,
+          color: boolToColor(ok),
+          latencyMs: null,
         }))
       );
-    } catch {
-      setLights([]);
-    } finally {
-      setLoading(false);
     }
+
+    if (servicesResult.status === 'fulfilled') {
+      reachable = true;
+      const services = servicesResult.value.data.services ?? [];
+      setAiLights(
+        services.map((svc) => ({
+          name: svc.name,
+          displayName: svc.display_name,
+          color: svcStatusToColor(svc.status, svc.latency_ms ?? null),
+          latencyMs: svc.latency_ms ?? null,
+        }))
+      );
+    }
+
+    setApiUnreachable(!reachable);
+    setLastCheck(new Date().toLocaleTimeString());
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -76,40 +127,153 @@ export default function ServiceStatusBar() {
     return () => clearInterval(timer);
   }, [fetchStatuses]);
 
-  if (loading || lights.length === 0) return null;
+  const handleRestart = async (serviceName: string) => {
+    setRestartingSet((prev) => new Set(prev).add(serviceName));
+    try {
+      await servicesApi.restart(serviceName);
+      message.success(`${serviceName} 重啟指令已送出`);
+      setTimeout(() => void fetchStatuses(), 3000);
+    } catch {
+      message.error(`${serviceName} 重啟失敗`);
+    } finally {
+      setRestartingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(serviceName);
+        return next;
+      });
+    }
+  };
+
+  if (loading) return null;
+
+  const allLights = [...infraLights, ...aiLights];
+  const overall: LightColor = apiUnreachable
+    ? 'red'
+    : allLights.length === 0
+      ? 'yellow'
+      : worstColor(allLights);
+
+  const overallHex = colorHex[overall];
+
+  const OverallIcon =
+    overall === 'red'
+      ? CloseCircleOutlined
+      : overall === 'yellow'
+        ? WarningOutlined
+        : CheckCircleOutlined;
+
+  const renderLightRow = (light: ServiceLight, restartable: boolean) => (
+    <div
+      key={light.name}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '5px 0',
+        borderBottom: `1px solid ${contentTokens.textSecondary}30`,
+      }}
+    >
+      <span
+        style={{
+          display: 'inline-block',
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          backgroundColor: colorHex[light.color],
+          boxShadow: `0 0 4px ${colorHex[light.color]}`,
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ flex: 1, color: contentTokens.colorTextBase }}>{light.displayName}</span>
+      <span style={{ color: colorHex[light.color], fontSize: 12, fontWeight: 500 }}>
+        {COLOR_LABEL[light.color]}
+      </span>
+      {light.latencyMs !== null && (
+        <span style={{ color: contentTokens.textSecondary, fontSize: 11, minWidth: 50, textAlign: 'right' }}>
+          {light.latencyMs} ms
+        </span>
+      )}
+      {isAdmin && restartable && (
+        <ReloadOutlined
+          spin={restartingSet.has(light.name)}
+          style={{
+            fontSize: 12,
+            color: restartingSet.has(light.name) ? contentTokens.colorPrimary : contentTokens.textSecondary,
+            cursor: restartingSet.has(light.name) ? 'not-allowed' : 'pointer',
+            flexShrink: 0,
+            transition: 'color 0.2s',
+          }}
+          onClick={() => {
+            if (!restartingSet.has(light.name)) void handleRestart(light.name);
+          }}
+        />
+      )}
+    </div>
+  );
+
+  const sectionTitleStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: contentTokens.textSecondary,
+    padding: '6px 0 2px',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  };
+
+  const popoverContent = (
+    <div style={{ minWidth: 220, fontSize: 13 }}>
+      {apiUnreachable && (
+        <div style={{ padding: '4px 0 8px', color: colorHex.red, fontWeight: 600, borderBottom: `1px solid ${contentTokens.textSecondary}30`, marginBottom: 6 }}>
+          ⚠ API Gateway 無法連線
+        </div>
+      )}
+
+      {infraLights.length > 0 && (
+        <>
+          <div style={sectionTitleStyle}>基礎設施</div>
+          {infraLights.map((l) => renderLightRow(l, false))}
+        </>
+      )}
+
+      {aiLights.length > 0 && (
+        <>
+          <div style={{ ...sectionTitleStyle, marginTop: infraLights.length > 0 ? 8 : 0 }}>AI 服務</div>
+          {aiLights.map((l) => renderLightRow(l, true))}
+        </>
+      )}
+
+      {allLights.length === 0 && !apiUnreachable && (
+        <div style={{ color: contentTokens.textSecondary, padding: '8px 0' }}>
+          尚無服務資訊
+        </div>
+      )}
+
+      {lastCheck && (
+        <div style={{ marginTop: 6, fontSize: 11, color: contentTokens.textSecondary, textAlign: 'right' }}>
+          最後檢查：{lastCheck}
+        </div>
+      )}
+    </div>
+  );
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      {lights.map((light) => (
-        <Tooltip
-          key={light.name}
-          title={
-            <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-              <div><strong>{light.displayName}</strong></div>
-              <div>狀態：{COLOR_LABEL[light.color]}</div>
-              {light.latencyMs !== null && <div>延遲：{light.latencyMs} ms</div>}
-              {light.lastCheck && <div>最後檢查：{light.lastCheck}</div>}
-            </div>
-          }
-          placement="bottom"
-        >
-          <span
-            style={{
-              display:         'inline-block',
-              width:           10,
-              height:          10,
-              borderRadius:    '50%',
-              backgroundColor: colorHex[light.color],
-              boxShadow:       `0 0 4px ${colorHex[light.color]}`,
-              cursor:          'default',
-              flexShrink:      0,
-            }}
-          />
-        </Tooltip>
-      ))}
-      <span style={{ color: shellTokens.menuItemColor, fontSize: 12, opacity: 0.6 }}>
-        服務狀態
+    <Popover content={popoverContent} title="服務狀態" trigger="click" placement="bottomRight">
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          cursor: 'pointer',
+          padding: '2px 6px',
+          borderRadius: 4,
+          transition: 'background 0.2s',
+        }}
+      >
+        <OverallIcon style={{ fontSize: 16, color: overallHex }} />
+        <span style={{ color: shellTokens.menuItemColor, fontSize: 12, opacity: 0.7 }}>
+          服務狀態
+        </span>
       </span>
-    </div>
+    </Popover>
   );
 }

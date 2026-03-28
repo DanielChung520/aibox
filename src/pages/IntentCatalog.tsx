@@ -1,141 +1,562 @@
 /**
  * @file        統一意圖目錄管理頁面
- * @description 支援 orchestrator / data_agent 範圍切換的意圖 CRUD 管理
- * @lastUpdate  2026-03-28 12:09:54
+ * @description 支援 TopOrchestrator / DataAgent 分頁切換的意圖 CRUD 管理
+ * @lastUpdate  2026-03-28 12:35:09
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     2.0.0
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { App, Row, Col, Statistic, Space, Input, Select, Button, Table, Tag, Drawer, Modal, Form, InputNumber, Typography, Tabs } from 'antd';
-import type { TableColumnsType } from 'antd';
-import { SyncOutlined, ReloadOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
-import { intentCatalogApi, IntentCatalogEntry, AgentScope } from '../services/intentCatalogApi';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Card, Table, Button, Tag, Space, Typography, Descriptions, Select, Input,
+  Drawer, Tabs, App, Statistic, Row, Col, theme, Modal, Form, InputNumber, Divider, Alert
+} from 'antd';
+import {
+  EyeOutlined, DeleteOutlined, ReloadOutlined, EditOutlined, PlusOutlined,
+  CloudSyncOutlined, AimOutlined, DatabaseOutlined, SettingOutlined, CopyOutlined
+} from '@ant-design/icons';
+import { intentCatalogApi, IntentCatalogEntry } from '../services/intentCatalogApi';
 import { paramsApi } from '../services/api';
 
-const { TextArea } = Input;
 const { Text } = Typography;
+const { TextArea } = Input;
 
-interface IntentCatalogProps {
-  scope: AgentScope;
-}
-
-export default function IntentCatalog({ scope }: IntentCatalogProps) {
+function OrchestratorPanel() {
   const { message, modal } = App.useApp();
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const [settingsForm] = Form.useForm();
-  
-  const activeScope = scope;
+
+  const [intents, setIntents] = useState<IntentCatalogEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<IntentCatalogEntry[]>([]);
   const [total, setTotal] = useState(0);
-  
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('');
-  const [orchIntentType, setOrchIntentType] = useState<string>('');
-  const [daGroup, setDaGroup] = useState<string>('');
-  const [daGenStrategy, setDaGenStrategy] = useState<string>('');
+  const [intentType, setIntentType] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [currentIntent, setCurrentIntent] = useState<IntentCatalogEntry | null>(null);
+
+  const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [viewItem, setViewItem] = useState<IntentCatalogEntry | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [syncing, setSyncing] = useState(false);
 
-  const loadData = async () => {
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settings, setSettings] = useState({ embeddingModel: '', embeddingDimension: 1536, matchThreshold: 0.75 });
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const loadIntents = useCallback(async () => {
     setLoading(true);
     try {
       const res = await intentCatalogApi.list({
-        agent_scope: activeScope,
-        page: 1,
-        page_size: 1000,
+        agent_scope: 'orchestrator',
+        page,
+        page_size: pageSize,
         search: search || undefined,
-        status: status || undefined,
-        intent_type: activeScope === 'orchestrator' ? orchIntentType || undefined : undefined,
-        group: activeScope === 'data_agent' ? daGroup || undefined : undefined,
-        generation_strategy: activeScope === 'data_agent' ? daGenStrategy || undefined : undefined,
+        status: statusFilter || undefined,
+        intent_type: intentType || undefined,
       });
       if (res.data.code === 0) {
-        setData(res.data.data.records);
-        setTotal(res.data.data.total);
+        setIntents(res.data.data.records || []);
+        setTotal(res.data.data.total || 0);
+      } else {
+        message.error('載入失敗');
       }
-    } catch (e: unknown) {
+    } catch (e) {
       message.error('載入意圖失敗');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, search, statusFilter, intentType, message]);
 
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeScope, status, orchIntentType, daGroup, daGenStrategy]);
+    loadIntents();
+  }, [loadIntents]);
 
   const loadSettings = async () => {
     try {
       const res = await paramsApi.list();
       if (res.data.code === 0) {
         const p = res.data.data.reduce((acc, curr) => ({ ...acc, [curr.param_key]: curr.param_value }), {} as Record<string, string>);
-        if (activeScope === 'orchestrator') {
-          settingsForm.setFieldsValue({
-            embeddingModel: p['orch.embedding_model'],
-            embeddingDimension: Number(p['orch.embedding_dimension']),
-            matchThreshold: Number(p['orch.match_threshold']),
-          });
-        } else {
-          settingsForm.setFieldsValue({
-            embeddingModel: p['da.embedding_model'],
-            embeddingDimension: Number(p['da.embedding_dimension']),
-            smallLlmModel: p['da.small_llm_model'],
-            largeLlmModel: p['da.large_llm_model'],
-          });
-        }
+        const newSettings = {
+          embeddingModel: p['orch.embedding_model'] || '',
+          embeddingDimension: Number(p['orch.embedding_dimension']) || 1536,
+          matchThreshold: Number(p['orch.match_threshold']) || 0.75,
+        };
+        setSettings(newSettings);
+        settingsForm.setFieldsValue(newSettings);
       }
-    } catch (e: unknown) {
+    } catch (e) {
       message.error('載入設定失敗');
     }
   };
 
   useEffect(() => {
-    if (isSettingsOpen) loadSettings();
+    if (settingsVisible) {
+      loadSettings();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSettingsOpen, activeScope]);
+  }, [settingsVisible]);
 
-  const handleSettingsSave = async () => {
+  const handleSyncQdrant = async () => {
+    setIsSyncing(true);
     try {
-      const vals = await settingsForm.validateFields();
-      const updates = activeScope === 'orchestrator' 
-        ? [
-            paramsApi.update('orch.embedding_model', vals.embeddingModel),
-            paramsApi.update('orch.embedding_dimension', String(vals.embeddingDimension)),
-            paramsApi.update('orch.match_threshold', String(vals.matchThreshold)),
-          ]
-        : [
-            paramsApi.update('da.embedding_model', vals.embeddingModel),
-            paramsApi.update('da.embedding_dimension', String(vals.embeddingDimension)),
-            paramsApi.update('da.small_llm_model', vals.smallLlmModel),
-            paramsApi.update('da.large_llm_model', vals.largeLlmModel),
-          ];
-      await Promise.all(updates);
-      message.success('設定已儲存');
-      setIsSettingsOpen(false);
-    } catch (e: unknown) {
-      message.error('儲存設定失敗');
+      const res = await intentCatalogApi.syncToQdrant({ agent_scope: 'orchestrator', model: settings.embeddingModel });
+      if (res.data.code === 0) {
+        message.success(`同步成功，共 ${res.data.data.synced_count} 筆`);
+      } else {
+        message.error('同步失敗');
+      }
+    } catch (e) {
+      message.error('同步發生錯誤');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
+  const handleSaveSettings = async () => {
     try {
-      const vals = settingsForm.getFieldsValue();
-      const res = await intentCatalogApi.syncToQdrant({ agent_scope: activeScope, model: vals.embeddingModel });
+      const vals = await settingsForm.validateFields();
+      modal.confirm({
+        title: '確認儲存設定？',
+        content: '變更 Embedding 模型或維度後，建議重新執行「同步到 Qdrant」以確保向量資料一致。',
+        onOk: async () => {
+          try {
+            await Promise.all([
+              paramsApi.update('orch.embedding_model', vals.embeddingModel),
+              paramsApi.update('orch.embedding_dimension', String(vals.embeddingDimension)),
+              paramsApi.update('orch.match_threshold', String(vals.matchThreshold)),
+            ]);
+            message.success('設定已儲存');
+            setSettings(vals);
+            setSettingsVisible(false);
+          } catch (e) {
+            message.error('儲存設定失敗');
+          }
+        }
+      });
+    } catch (e) {
+      // validation failed
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    modal.confirm({
+      title: '確認刪除',
+      content: `確定要刪除意圖 ${id} 嗎？此操作無法還原。`,
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await intentCatalogApi.delete(id);
+          message.success('刪除成功');
+          if (intents.length === 1 && page > 1) {
+            setPage(page - 1);
+          } else {
+            loadIntents();
+          }
+        } catch (e) {
+          message.error('刪除失敗');
+        }
+      }
+    });
+  };
+
+  const openNew = () => {
+    setEditingId(null);
+    form.resetFields();
+    form.setFieldsValue({ intent_type: 'tool', status: 'enabled', confidence_threshold: 0.75, priority: 0 });
+    setModalVisible(true);
+  };
+
+  const openEdit = (record: IntentCatalogEntry) => {
+    setEditingId(record.intent_id);
+    form.resetFields();
+    form.setFieldsValue({
+      ...record,
+      nl_examples: record.nl_examples?.join('\n') || '',
+      ...record.config
+    });
+    setModalVisible(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      const formValues = await form.validateFields();
+      const { intent_id, name, description, priority, status, nl_examples, ...configFields } = formValues;
+      const payload: Partial<IntentCatalogEntry> = {
+        intent_id,
+        name,
+        description,
+        priority,
+        status,
+        agent_scope: 'orchestrator',
+        nl_examples: nl_examples ? nl_examples.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
+        config: { ...configFields }
+      };
+
+      if (editingId) {
+        await intentCatalogApi.update(editingId, payload);
+        message.success('更新成功');
+      } else {
+        await intentCatalogApi.create(payload);
+        message.success('新增成功');
+      }
+      setModalVisible(false);
+      loadIntents();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const columns = [
+    { title: 'Intent ID', dataIndex: 'intent_id', key: 'intent_id', render: (text: string) => <Text code>{text}</Text> },
+    { title: '名稱', dataIndex: 'name', key: 'name' },
+    { title: '說明', dataIndex: 'description', key: 'description', ellipsis: true },
+    {
+      title: '類型', dataIndex: ['config', 'intent_type'], key: 'intent_type',
+      render: (type: string) => {
+        const color = type === 'tool' ? 'green' : type === 'workflow' ? 'blue' : 'orange';
+        return <Tag color={color}>{type || '-'}</Tag>;
+      }
+    },
+    {
+      title: '工具', dataIndex: ['config', 'tool_name'], key: 'tool_name',
+      render: (tool: string) => tool ? <Tag color="geekblue">{tool}</Tag> : '-'
+    },
+    { title: '優先度', dataIndex: 'priority', key: 'priority' },
+    {
+      title: '信賴度', dataIndex: ['config', 'confidence_threshold'], key: 'confidence',
+      render: (val: number) => val != null ? `${(val * 100).toFixed(0)}%` : '-'
+    },
+    {
+      title: '狀態', dataIndex: 'status', key: 'status',
+      render: (status: string) => <Tag color={status === 'enabled' ? 'green' : 'default'}>{status === 'enabled' ? '啟用' : '停用'}</Tag>
+    },
+    {
+      title: '操作', key: 'action',
+      render: (_: unknown, record: IntentCatalogEntry) => (
+        <Space size="small">
+          <Button type="text" icon={<EyeOutlined />} onClick={() => { setCurrentIntent(record); setDetailVisible(true); }} />
+          <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.intent_id)} />
+        </Space>
+      )
+    }
+  ];
+
+  return (
+    <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+      <Row gutter={16}>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="總意圖數" value={total} prefix={<AimOutlined />} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="工具型" value={intents.filter(i => i.config?.intent_type === 'tool').length} valueStyle={{ color: token.colorSuccess }} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="工作流型" value={intents.filter(i => i.config?.intent_type === 'workflow').length} valueStyle={{ color: token.colorInfo }} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="備援型" value={intents.filter(i => i.config?.intent_type === 'fallback').length} valueStyle={{ color: token.colorWarning }} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card size="small">
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <Space>
+            <Input.Search placeholder="搜尋描述或ID" onSearch={(v) => { setSearch(v); setPage(1); }} style={{ width: 200 }} allowClear />
+            <Select value={intentType} onChange={(v) => { setIntentType(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部類型', value: '' }, { label: 'tool', value: 'tool' }, { label: 'workflow', value: 'workflow' }, { label: 'fallback', value: 'fallback' }]} />
+            <Select value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部狀態', value: '' }, { label: '啟用', value: 'enabled' }, { label: '停用', value: 'disabled' }]} />
+            <Button icon={<ReloadOutlined />} onClick={loadIntents}>重新整理</Button>
+            <Button icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)}>設定</Button>
+          </Space>
+          <Space>
+            <Button icon={<CloudSyncOutlined />} onClick={handleSyncQdrant} loading={isSyncing}>同步到Qdrant</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>新增意圖</Button>
+          </Space>
+        </div>
+
+        <Table
+          columns={columns}
+          dataSource={intents}
+          rowKey="intent_id"
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (p, ps) => { setPage(p); setPageSize(ps); }
+          }}
+        />
+      </Card>
+
+      <Drawer title="意圖詳細資訊" size="large" open={detailVisible} onClose={() => setDetailVisible(false)}>
+        {currentIntent && (
+          <Tabs defaultActiveKey="1" items={[
+            {
+              key: '1',
+              label: '基本資訊',
+              children: (
+                <Descriptions bordered column={1} size="small">
+                  <Descriptions.Item label="Intent ID"><Text code>{currentIntent.intent_id}</Text></Descriptions.Item>
+                  <Descriptions.Item label="名稱">{currentIntent.name}</Descriptions.Item>
+                  <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
+                  <Descriptions.Item label="狀態"><Tag color={currentIntent.status === 'enabled' ? 'green' : 'default'}>{currentIntent.status}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="優先度">{currentIntent.priority}</Descriptions.Item>
+                  <Descriptions.Item label="類型"><Tag>{String(currentIntent.config?.intent_type || '-')}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="工具">{String(currentIntent.config?.tool_name || '-')}</Descriptions.Item>
+                  <Descriptions.Item label="信賴度">{currentIntent.config?.confidence_threshold ? `${(Number(currentIntent.config.confidence_threshold) * 100).toFixed(0)}%` : '-'}</Descriptions.Item>
+                </Descriptions>
+              )
+            },
+            {
+              key: '2',
+              label: 'NL Examples',
+              children: (
+                <Card size="small">
+                  <ol style={{ paddingLeft: 20, margin: 0 }}>
+                    {currentIntent.nl_examples?.map((ex, i) => <li key={i} style={{ marginBottom: 8 }}>{ex}</li>) || <li>無範例</li>}
+                  </ol>
+                </Card>
+              )
+            }
+          ]} />
+        )}
+      </Drawer>
+
+      <Modal title={editingId ? '編輯 Orchestrator 意圖' : '新增 Orchestrator 意圖'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={handleSave} width={700}>
+        <Form form={form} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="intent_id" label="Intent ID" rules={[{ required: true }]}>
+                <Input placeholder="例如: orch_web_search" disabled={!!editingId} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="name" label="名稱" rules={[{ required: true }]}>
+                <Input placeholder="例如: 上網搜尋" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="description" label="說明">
+            <TextArea placeholder="描述此意圖的用途" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="intent_type" label="類型" rules={[{ required: true }]}>
+                <Select options={[{ label: 'tool', value: 'tool' }, { label: 'workflow', value: 'workflow' }, { label: 'fallback', value: 'fallback' }]} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="tool_name" label="工具名稱">
+                <Input placeholder="例如: web_search" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="confidence_threshold" label="信賴度">
+                <InputNumber min={0} max={1} step={0.05} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="priority" label="優先度">
+                <InputNumber style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="status" label="狀態">
+                <Select options={[{ label: '啟用', value: 'enabled' }, { label: '停用', value: 'disabled' }]} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="nl_examples" label="NL Examples">
+            <TextArea placeholder="每行一個自然語言範例" rows={4} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Drawer title="Orchestrator 設定" width={480} open={settingsVisible} onClose={() => setSettingsVisible(false)} extra={<Button type="primary" onClick={handleSaveSettings}>儲存設定</Button>}>
+        <Alert message="變更提醒" description="修改 Embedding 模型或維度後，必須重新執行「同步到 Qdrant」，否則查詢可能失效。" type="warning" showIcon style={{ marginBottom: 16 }} />
+        <Form form={settingsForm} layout="vertical">
+          <Form.Item name="embeddingModel" label="Embedding 模型" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="embeddingDimension" label="Embedding 維度" rules={[{ required: true }]}>
+            <InputNumber style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="matchThreshold" label="比對閾值 (Match Threshold)" rules={[{ required: true }]}>
+            <InputNumber min={0} max={1} step={0.05} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+        <Divider />
+        <Descriptions column={1} size="small" bordered>
+          <Descriptions.Item label="目前模型">{settings.embeddingModel}</Descriptions.Item>
+          <Descriptions.Item label="目前維度">{settings.embeddingDimension}</Descriptions.Item>
+          <Descriptions.Item label="目前閾值">{settings.matchThreshold}</Descriptions.Item>
+        </Descriptions>
+      </Drawer>
+    </Space>
+  );
+}
+
+function DataAgentPanel() {
+  const { message, modal } = App.useApp();
+  const { token } = theme.useToken();
+  const [form] = Form.useForm();
+  const [settingsForm] = Form.useForm();
+
+  const [intents, setIntents] = useState<IntentCatalogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const [search, setSearch] = useState('');
+  const [intentType, setIntentType] = useState<string>('');
+  const [group, setGroup] = useState<string>('');
+  const [strategy, setStrategy] = useState<string>('');
+
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [currentIntent, setCurrentIntent] = useState<IntentCatalogEntry | null>(null);
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settings, setSettings] = useState({ embeddingModel: '', embeddingDimension: 1536, smallLlmModel: '', largeLlmModel: '' });
+  const [models, setModels] = useState<string[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const loadIntents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await intentCatalogApi.list({
+        agent_scope: 'data_agent',
+        page,
+        page_size: pageSize,
+        search: search || undefined,
+        intent_type: intentType || undefined,
+        group: group || undefined,
+        generation_strategy: strategy || undefined,
+      });
+      if (res.data.code === 0) {
+        setIntents(res.data.data.records || []);
+        setTotal(res.data.data.total || 0);
+      } else {
+        message.error('載入失敗');
+      }
+    } catch (e) {
+      message.error('載入意圖失敗');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, search, intentType, group, strategy, message]);
+
+  useEffect(() => {
+    loadIntents();
+  }, [loadIntents]);
+
+  const fetchModels = async () => {
+    try {
+      const res = await intentCatalogApi.listModels('data_agent');
+      setModels(res.data.models || []);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const res = await paramsApi.list();
+      if (res.data.code === 0) {
+        const p = res.data.data.reduce((acc, curr) => ({ ...acc, [curr.param_key]: curr.param_value }), {} as Record<string, string>);
+        const newSettings = {
+          embeddingModel: p['da.embedding_model'] || '',
+          embeddingDimension: Number(p['da.embedding_dimension']) || 1536,
+          smallLlmModel: p['da.small_llm_model'] || '',
+          largeLlmModel: p['da.large_llm_model'] || '',
+        };
+        setSettings(newSettings);
+        settingsForm.setFieldsValue(newSettings);
+      }
+    } catch (e) {
+      message.error('載入設定失敗');
+    }
+  };
+
+  useEffect(() => {
+    if (settingsVisible) {
+      loadSettings();
+      fetchModels();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsVisible]);
+
+  const handleSyncQdrant = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await intentCatalogApi.syncToQdrant({ agent_scope: 'data_agent', model: settings.embeddingModel });
       if (res.data.code === 0) {
         message.success(`同步成功，共 ${res.data.data.synced_count} 筆`);
+      } else {
+        message.error('同步失敗');
       }
-    } catch (e: unknown) {
-      message.error('同步失敗');
+    } catch (e) {
+      message.error('同步發生錯誤');
     } finally {
-      setSyncing(false);
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      const vals = await settingsForm.validateFields();
+      const isEmbeddingChanged = vals.embeddingModel !== settings.embeddingModel || vals.embeddingDimension !== settings.embeddingDimension;
+      const isLlmChanged = vals.smallLlmModel !== settings.smallLlmModel || vals.largeLlmModel !== settings.largeLlmModel;
+
+      if (!isEmbeddingChanged && !isLlmChanged) {
+        message.info('設定無變更');
+        return;
+      }
+
+      modal.confirm({
+        title: '確認儲存設定變更？',
+        content: (
+          <div>
+            {isEmbeddingChanged && <Alert message="Embedding 變更" description={`模型: ${settings.embeddingModel} -> ${vals.embeddingModel}`} type="warning" showIcon style={{ marginBottom: 8 }} />}
+            {isLlmChanged && <Alert message="LLM 變更" description={`Small: ${settings.smallLlmModel} -> ${vals.smallLlmModel}`} type="info" showIcon />}
+          </div>
+        ),
+        onOk: async () => {
+          try {
+            await Promise.all([
+              paramsApi.update('da.embedding_model', vals.embeddingModel),
+              paramsApi.update('da.embedding_dimension', String(vals.embeddingDimension)),
+              paramsApi.update('da.small_llm_model', vals.smallLlmModel),
+              paramsApi.update('da.large_llm_model', vals.largeLlmModel),
+            ]);
+            message.success('設定已儲存');
+            setSettings(vals);
+            setSettingsVisible(false);
+          } catch (e) {
+            message.error('儲存設定失敗');
+          }
+        }
+      });
+    } catch (e) {
+      // validation failed
     }
   };
 
@@ -143,12 +564,14 @@ export default function IntentCatalog({ scope }: IntentCatalogProps) {
     modal.confirm({
       title: '確認刪除',
       content: `確定要刪除意圖 ${id} 嗎？`,
+      okType: 'danger',
       onOk: async () => {
         try {
           await intentCatalogApi.delete(id);
           message.success('刪除成功');
-          loadData();
-        } catch (e: unknown) {
+          if (intents.length === 1 && page > 1) setPage(page - 1);
+          else loadIntents();
+        } catch (e) {
           message.error('刪除失敗');
         }
       }
@@ -159,7 +582,7 @@ export default function IntentCatalog({ scope }: IntentCatalogProps) {
     setEditingId(null);
     form.resetFields();
     form.setFieldsValue({ status: 'enabled', priority: 0 });
-    setIsModalOpen(true);
+    setModalVisible(true);
   };
 
   const openEdit = (record: IntentCatalogEntry) => {
@@ -169,25 +592,28 @@ export default function IntentCatalog({ scope }: IntentCatalogProps) {
       ...record,
       nl_examples: record.nl_examples?.join('\n') || '',
       ...record.config,
-      example_sqls: (record.config?.example_sqls as string[])?.join('\n---\n') || ''
+      example_sqls: Array.isArray(record.config?.example_sqls) ? record.config.example_sqls.join('\n---\n') : ''
     });
-    setIsModalOpen(true);
+    setModalVisible(true);
   };
 
   const handleSave = async () => {
     try {
-      const vals = await form.validateFields();
-      const { intent_id, name, description, priority, status, nl_examples, ...config } = vals;
-      
+      const formValues = await form.validateFields();
+      const { intent_id, name, description, priority, status, nl_examples, ...configFields } = formValues;
       const payload: Partial<IntentCatalogEntry> = {
-        intent_id, name, description, priority, status,
-        agent_scope: activeScope,
+        intent_id,
+        name: name || configFields.bpa_domain_intent || intent_id,
+        description,
+        priority,
+        status,
+        agent_scope: 'data_agent',
         nl_examples: nl_examples ? nl_examples.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
-        config: { ...config }
+        config: { ...configFields }
       };
 
-      if (activeScope === 'data_agent' && config.example_sqls) {
-        payload.config!.example_sqls = config.example_sqls.split('\n---\n').map((s: string) => s.trim()).filter(Boolean);
+      if (configFields.example_sqls && typeof configFields.example_sqls === 'string') {
+        payload.config!.example_sqls = configFields.example_sqls.split('\n---\n').map((s: string) => s.trim()).filter(Boolean);
       }
 
       if (editingId) {
@@ -197,177 +623,282 @@ export default function IntentCatalog({ scope }: IntentCatalogProps) {
         await intentCatalogApi.create(payload);
         message.success('新增成功');
       }
-      setIsModalOpen(false);
-      loadData();
-    } catch (e: unknown) {
-      message.error('儲存失敗');
+      setModalVisible(false);
+      loadIntents();
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const stats = useMemo(() => {
-    if (activeScope === 'orchestrator') {
-      const tool = data.filter(d => d.config?.intent_type === 'tool').length;
-      const wf = data.filter(d => d.config?.intent_type === 'workflow').length;
-      const fb = data.filter(d => d.config?.intent_type === 'fallback').length;
-      return [
-        { title: '總意圖數', value: total },
-        { title: '工具型', value: tool, color: '#52c41a' },
-        { title: '工作流型', value: wf, color: '#1677ff' },
-        { title: '備援型', value: fb, color: '#fa8c16' },
-      ];
-    } else {
-      const tpl = data.filter(d => d.config?.generation_strategy === 'template').length;
-      const sLLM = data.filter(d => d.config?.generation_strategy === 'small_llm').length;
-      const lLLM = data.filter(d => d.config?.generation_strategy === 'large_llm').length;
-      return [
-        { title: '總意圖數', value: total },
-        { title: '模板策略', value: tpl, color: '#52c41a' },
-        { title: '小型LLM策略', value: sLLM, color: '#1677ff' },
-        { title: '大型LLM策略', value: lLLM, color: '#722ed1' },
-      ];
-    }
-  }, [data, total, activeScope]);
-
-  const columns = useMemo(() => {
-    const base: TableColumnsType<IntentCatalogEntry> = [
-      { title: '意圖 ID', dataIndex: 'intent_id', render: (t: string) => <Text code>{t}</Text> },
-      { title: '名稱', dataIndex: 'name' },
-      { title: '描述', dataIndex: 'description', ellipsis: true },
-    ];
-    
-    if (activeScope === 'orchestrator') {
-      base.push(
-        { title: '類型', dataIndex: ['config', 'intent_type'], render: (t: string) => {
-          const c = t === 'tool' ? 'green' : t === 'workflow' ? 'blue' : 'orange';
-          return <Tag color={c}>{t}</Tag>;
-        }},
-        { title: '工具', dataIndex: ['config', 'tool_name'], render: (t: string) => t ? <Tag color="geekblue">{t}</Tag> : '-' },
-        { title: '信心閾值', dataIndex: ['config', 'confidence_threshold'], render: (t: number) => t ? `${(t*100).toFixed(0)}%` : '-' }
-      );
-    } else {
-      base.push(
-        { title: '類型', dataIndex: ['config', 'intent_type'], render: (t: string) => <Tag color="blue">{t}</Tag> },
-        { title: '群組', dataIndex: ['config', 'group'], render: (t: string) => t ? <Tag color="geekblue">{t}</Tag> : '-' },
-        { title: '策略', dataIndex: ['config', 'generation_strategy'], render: (t: string) => {
-          const c = t === 'template' ? 'green' : t === 'small_llm' ? 'blue' : 'purple';
-          return <Tag color={c}>{t}</Tag>;
-        }},
-        { title: '表', dataIndex: ['config', 'tables'], render: (t: string[]) => t?.map(x => <Tag key={x}>{x}</Tag>) || '-' }
-      );
-    }
-
-    base.push(
-      { title: '狀態', dataIndex: 'status', render: (t: string) => <Tag color={t === 'enabled' ? 'green' : 'default'}>{t === 'enabled' ? '啟用' : '停用'}</Tag> },
-      { title: '優先級', dataIndex: 'priority' },
-      { title: 'NL', dataIndex: 'nl_examples', render: (t: string[]) => t?.length || 0 },
-      { title: '操作', dataIndex: 'action', render: (_: unknown, r: IntentCatalogEntry) => (
-        <Space>
-          <a onClick={() => setViewItem(r)}>查看</a>
-          <a onClick={() => openEdit(r)}>編輯</a>
-          <a onClick={() => handleDelete(r.intent_id)} style={{ color: 'red' }}>刪除</a>
+  const columns = [
+    { title: 'Intent ID', dataIndex: 'intent_id', key: 'intent_id', render: (text: string) => <Text code>{text}</Text> },
+    { title: 'Domain Intent', dataIndex: ['config', 'bpa_domain_intent'], key: 'bpa_domain_intent' },
+    { title: '說明', dataIndex: 'description', key: 'description', ellipsis: true },
+    { title: '類型', dataIndex: ['config', 'intent_type'], key: 'intent_type' },
+    { title: '群組', dataIndex: ['config', 'group'], key: 'group' },
+    { title: '策略', dataIndex: ['config', 'generation_strategy'], key: 'generation_strategy' },
+    {
+      title: '表', dataIndex: ['config', 'tables'], key: 'tables',
+      render: (tables: string[]) => Array.isArray(tables) ? tables.map(t => <Tag key={t}>{t}</Tag>) : '-'
+    },
+    {
+      title: '範例', key: 'examples',
+      render: (_: unknown, record: IntentCatalogEntry) => {
+        const nlCount = record.nl_examples?.length || 0;
+        const sqlCount = Array.isArray(record.config?.example_sqls) ? record.config.example_sqls.length : 0;
+        return <Text>{nlCount} NL / {sqlCount} SQL</Text>;
+      }
+    },
+    {
+      title: '操作', key: 'action',
+      render: (_: unknown, record: IntentCatalogEntry) => (
+        <Space size="small">
+          <Button type="text" icon={<EyeOutlined />} onClick={() => { setCurrentIntent(record); setDetailVisible(true); }} />
+          <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.intent_id)} />
         </Space>
-      )}
-    );
-    return base;
-  }, [activeScope]);
+      )
+    }
+  ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        {stats.map(s => (
-          <Col span={6} key={s.title}>
-            <Statistic title={s.title} value={s.value} styles={{ content: { color: s.color } }} />
-          </Col>
-        ))}
+    <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+      <Row gutter={16}>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="總意圖數" value={total} prefix={<DatabaseOutlined />} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="模板策略" value={intents.filter(i => i.config?.generation_strategy === 'template').length} valueStyle={{ color: token.colorSuccess }} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="小型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'small_llm').length} valueStyle={{ color: token.colorInfo }} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
+            <Statistic title="大型LLM策略" value={intents.filter(i => i.config?.generation_strategy === 'large_llm').length} valueStyle={{ color: token.colorPrimary }} />
+          </Card>
+        </Col>
       </Row>
 
-      <Space style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <Space>
-          <Input.Search placeholder="搜尋意圖 ID / 名稱" value={search} onChange={e => setSearch(e.target.value)} onSearch={loadData} style={{ width: 200 }} />
-          <Select value={status} onChange={setStatus} style={{ width: 120 }} options={[{label:'全部狀態',value:''},{label:'啟用',value:'enabled'},{label:'停用',value:'disabled'}]} />
-          {activeScope === 'orchestrator' ? (
-            <Select value={orchIntentType} onChange={setOrchIntentType} style={{ width: 120 }} options={[{label:'全部類型',value:''},{label:'Tool',value:'tool'},{label:'Workflow',value:'workflow'},{label:'Fallback',value:'fallback'}]} />
-          ) : (
-            <>
-              <Select value={daGroup} onChange={setDaGroup} style={{ width: 100 }} options={[{label:'全群組',value:''}, ...Array.from('ABCDEF').map(x=>({label:x,value:x}))]} />
-              <Select value={daGenStrategy} onChange={setDaGenStrategy} style={{ width: 140 }} options={[{label:'全策略',value:''},{label:'Template',value:'template'},{label:'Small LLM',value:'small_llm'},{label:'Large LLM',value:'large_llm'}]} />
-            </>
-          )}
-          <Button icon={<ReloadOutlined />} onClick={loadData}>重整</Button>
-        </Space>
-        <Space>
-          <Button icon={<SettingOutlined />} onClick={() => setIsSettingsOpen(true)}>設定</Button>
-          <Button icon={<SyncOutlined />} onClick={handleSync} loading={syncing}>同步 Qdrant</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>新增</Button>
-        </Space>
-      </Space>
+      <Card size="small">
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <Space>
+            <Input.Search placeholder="搜尋" onSearch={(v) => { setSearch(v); setPage(1); }} style={{ width: 160 }} allowClear />
+            <Select value={intentType} onChange={(v) => { setIntentType(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部類型', value: '' }, ...['aggregate', 'filter', 'join', 'time_series', 'ranking', 'comparison'].map(x => ({ label: x, value: x }))]} />
+            <Select value={group} onChange={(v) => { setGroup(v); setPage(1); }} style={{ width: 100 }} options={[{ label: '全部群組', value: '' }, ...Array.from('ABCDEF').map(x => ({ label: x, value: x }))]} />
+            <Select value={strategy} onChange={(v) => { setStrategy(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部策略', value: '' }, { label: 'template', value: 'template' }, { label: 'small_llm', value: 'small_llm' }, { label: 'large_llm', value: 'large_llm' }]} />
+            <Button icon={<ReloadOutlined />} onClick={loadIntents}>重新整理</Button>
+            <Button icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)}>設定</Button>
+          </Space>
+          <Space>
+            <Button icon={<CloudSyncOutlined />} onClick={handleSyncQdrant} loading={isSyncing}>同步到Qdrant</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>新增意圖</Button>
+          </Space>
+        </div>
 
-      <Table columns={columns} dataSource={data} rowKey="intent_id" loading={loading} pagination={{ pageSize: 20 }} />
+        <Table
+          columns={columns}
+          dataSource={intents}
+          rowKey="intent_id"
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (p, ps) => { setPage(p); setPageSize(ps); }
+          }}
+        />
+      </Card>
 
-      <Drawer title="意圖詳情" open={!!viewItem} onClose={() => setViewItem(null)} width={600} destroyOnHidden>
-        {viewItem && (
-          <Tabs items={[
-            { key: 'basic', label: '基本資訊', children: <pre>{JSON.stringify(viewItem, null, 2)}</pre> },
-            { key: 'nl', label: 'NL Examples', children: <ul>{viewItem.nl_examples?.map((e, i) => <li key={i}>{e}</li>)}</ul> },
-            ...(activeScope === 'data_agent' ? [{ key: 'sql', label: 'SQL Template', children: <pre>{String(viewItem.config?.sql_template || '無')}</pre> }] : [])
+      <Drawer title="DataAgent 意圖詳細資訊" size="large" open={detailVisible} onClose={() => setDetailVisible(false)}>
+        {currentIntent && (
+          <Tabs defaultActiveKey="1" items={[
+            {
+              key: '1',
+              label: '基本資訊',
+              children: (
+                <Descriptions bordered column={1} size="small">
+                  <Descriptions.Item label="Intent ID"><Text code>{currentIntent.intent_id}</Text></Descriptions.Item>
+                  <Descriptions.Item label="Domain Intent">{String(currentIntent.config?.bpa_domain_intent || '-')}</Descriptions.Item>
+                  <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
+                  <Descriptions.Item label="查詢類型"><Tag>{String(currentIntent.config?.intent_type || '-')}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="群組"><Tag>{String(currentIntent.config?.group || '-')}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="生成策略"><Tag>{String(currentIntent.config?.generation_strategy || '-')}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="Is Template">{currentIntent.config?.generation_strategy === 'template' ? 'Yes' : 'No'}</Descriptions.Item>
+                  <Descriptions.Item label="關聯表">
+                    {Array.isArray(currentIntent.config?.tables) ? currentIntent.config.tables.map((t: string) => <Tag key={t}>{t}</Tag>) : '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="核心欄位">
+                    {Array.isArray(currentIntent.config?.core_fields) ? currentIntent.config.core_fields.map((f: string) => <Tag key={f}>{f}</Tag>) : '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              )
+            },
+            {
+              key: '2',
+              label: 'NL Examples',
+              children: (
+                <Card size="small">
+                  <ol style={{ paddingLeft: 20, margin: 0 }}>
+                    {currentIntent.nl_examples?.map((ex, i) => {
+                      const sqls = Array.isArray(currentIntent.config?.example_sqls) ? currentIntent.config.example_sqls : [];
+                      return (
+                        <li key={i} style={{ marginBottom: 16 }}>
+                          <Text strong>{ex}</Text>
+                          {sqls[i] && (
+                            <pre style={{ background: token.colorInfoBg, padding: 8, borderRadius: 4, marginTop: 4 }}>
+                              {String(sqls[i])}
+                            </pre>
+                          )}
+                        </li>
+                      );
+                    }) || <li>無範例</li>}
+                  </ol>
+                </Card>
+              )
+            },
+            {
+              key: '3',
+              label: 'SQL Template',
+              children: (
+                <Card size="small" extra={
+                  <Button type="text" icon={<CopyOutlined />} onClick={() => {
+                    navigator.clipboard.writeText(String(currentIntent.config?.sql_template || ''));
+                    message.success('已複製 SQL Template');
+                  }}>複製</Button>
+                }>
+                  <pre style={{ margin: 0 }}>{String(currentIntent.config?.sql_template || '無')}</pre>
+                </Card>
+              )
+            }
           ]} />
         )}
       </Drawer>
 
-      <Modal title={editingId ? '編輯意圖' : '新增意圖'} open={isModalOpen} onCancel={() => setIsModalOpen(false)} onOk={handleSave} width={700} destroyOnHidden>
+      <Modal title={editingId ? '編輯 DataAgent 意圖' : '新增 DataAgent 意圖'} open={modalVisible} onCancel={() => setModalVisible(false)} onOk={handleSave} width={800}>
         <Form form={form} layout="vertical">
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="intent_id" label="意圖 ID" rules={[{ required: true }]}><Input disabled={!!editingId} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="name" label="名稱" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={8}>
+              <Form.Item name="intent_id" label="Intent ID" rules={[{ required: true }]}>
+                <Input disabled={!!editingId} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="bpa_domain_intent" label="Domain Intent">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="name" label="名稱 (系統用)">
+                <Input />
+              </Form.Item>
+            </Col>
           </Row>
-          <Form.Item name="description" label="描述"><TextArea rows={2} /></Form.Item>
-          
-          {activeScope === 'orchestrator' ? (
-            <Row gutter={16}>
-              <Col span={8}><Form.Item name="intent_type" label="類型" rules={[{ required: true }]}><Select options={[{label:'tool',value:'tool'},{label:'workflow',value:'workflow'},{label:'fallback',value:'fallback'}]} /></Form.Item></Col>
-              <Col span={8}><Form.Item name="tool_name" label="工具名稱"><Input /></Form.Item></Col>
-              <Col span={8}><Form.Item name="confidence_threshold" label="信心閾值"><InputNumber min={0} max={1} step={0.05} style={{width:'100%'}} /></Form.Item></Col>
-            </Row>
-          ) : (
-            <>
-              <Row gutter={16}>
-                <Col span={8}><Form.Item name="bpa_domain_intent" label="BPA 領域意圖"><Input /></Form.Item></Col>
-                <Col span={8}><Form.Item name="intent_type" label="查詢類型" rules={[{ required: true }]}><Select options={['aggregate','filter','join','time_series','ranking','comparison'].map(x=>({label:x,value:x}))} /></Form.Item></Col>
-                <Col span={8}><Form.Item name="group" label="群組" rules={[{ required: true }]}><Select options={Array.from('ABCDEF').map(x=>({label:x,value:x}))} /></Form.Item></Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={8}><Form.Item name="generation_strategy" label="生成策略" rules={[{ required: true }]}><Select options={[{label:'template',value:'template'},{label:'small_llm',value:'small_llm'},{label:'large_llm',value:'large_llm'}]} /></Form.Item></Col>
-                <Col span={16}><Form.Item name="tables" label="關聯表"><Select mode="tags" /></Form.Item></Col>
-              </Row>
-              <Form.Item name="core_fields" label="核心欄位"><Select mode="tags" /></Form.Item>
-              <Form.Item name="sql_template" label="SQL Template"><TextArea rows={3} style={{fontFamily:'monospace'}} /></Form.Item>
-              <Form.Item name="example_sqls" label="Example SQLs (用 \n---\n 分隔)"><TextArea rows={3} style={{fontFamily:'monospace'}} /></Form.Item>
-            </>
-          )}
-
-          <Form.Item name="nl_examples" label="NL Examples (每行一個)"><TextArea rows={4} /></Form.Item>
+          <Form.Item name="description" label="說明">
+            <TextArea rows={2} />
+          </Form.Item>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="priority" label="優先級"><InputNumber min={0} style={{width:'100%'}} /></Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="狀態"><Select options={[{label:'啟用',value:'enabled'},{label:'停用',value:'disabled'}]} /></Form.Item></Col>
+            <Col span={8}>
+              <Form.Item name="intent_type" label="查詢類型" rules={[{ required: true }]}>
+                <Select options={['aggregate', 'filter', 'join', 'time_series', 'ranking', 'comparison'].map(x => ({ label: x, value: x }))} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="group" label="群組" rules={[{ required: true }]}>
+                <Select options={Array.from('ABCDEF').map(x => ({ label: x, value: x }))} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="generation_strategy" label="生成策略" rules={[{ required: true }]}>
+                <Select options={[{ label: 'template', value: 'template' }, { label: 'small_llm', value: 'small_llm' }, { label: 'large_llm', value: 'large_llm' }]} />
+              </Form.Item>
+            </Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="tables" label="關聯表 (按 Enter 新增)">
+                <Select mode="tags" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="core_fields" label="核心欄位 (按 Enter 新增)">
+                <Select mode="tags" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="status" label="狀態">
+                <Select options={[{ label: '啟用', value: 'enabled' }, { label: '停用', value: 'disabled' }]} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="priority" label="優先度">
+                <InputNumber style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="nl_examples" label="NL Examples (每行一個)">
+            <TextArea rows={4} />
+          </Form.Item>
+          <Form.Item name="example_sqls" label="Example SQLs (用 \n---\n 分隔，與 NL 對應)">
+            <TextArea rows={4} style={{ fontFamily: 'monospace' }} placeholder="SELECT * FROM table\n---\nSELECT count(*) FROM table" />
+          </Form.Item>
+          <Form.Item name="sql_template" label="SQL Template">
+            <TextArea rows={4} style={{ fontFamily: 'monospace' }} />
+          </Form.Item>
         </Form>
       </Modal>
 
-      <Drawer title={`${activeScope === 'orchestrator' ? 'Orchestrator' : 'Data Agent'} 設定`} open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} destroyOnHidden width={400}>
+      <Drawer title="DataAgent 設定" width={480} open={settingsVisible} onClose={() => setSettingsVisible(false)} extra={<Button type="primary" onClick={handleSaveSettings}>儲存設定</Button>}>
+        <Divider >Embedding 向量模型</Divider>
+        <Alert message="變更提醒" description="修改 Embedding 模型或維度後，必須重新執行「同步到 Qdrant」。" type="warning" showIcon style={{ marginBottom: 16 }} />
         <Form form={settingsForm} layout="vertical">
-          <Form.Item name="embeddingModel" label="Embedding Model"><Input /></Form.Item>
-          <Form.Item name="embeddingDimension" label="Embedding Dimension"><InputNumber style={{width:'100%'}} /></Form.Item>
-          {activeScope === 'orchestrator' ? (
-            <Form.Item name="matchThreshold" label="Match Threshold"><InputNumber min={0} max={1} step={0.05} style={{width:'100%'}} /></Form.Item>
-          ) : (
-            <>
-              <Form.Item name="smallLlmModel" label="Small LLM Model"><Input /></Form.Item>
-              <Form.Item name="largeLlmModel" label="Large LLM Model"><Input /></Form.Item>
-            </>
-          )}
-          <Button type="primary" onClick={handleSettingsSave} block>儲存設定</Button>
+          <Form.Item name="embeddingModel" label="Embedding 模型" rules={[{ required: true }]}>
+            <Select options={models.map(m => ({ label: m, value: m }))} />
+          </Form.Item>
+          <Form.Item name="embeddingDimension" label="Embedding 維度" rules={[{ required: true }]}>
+            <InputNumber style={{ width: '100%' }} />
+          </Form.Item>
+          
+          <Divider >SQL 生成 LLM</Divider>
+          <Alert message="變更提醒" description="修改 LLM 模型將影響 DataAgent 生成 SQL 的結果與品質。" type="info" showIcon style={{ marginBottom: 16 }} />
+          <Form.Item name="smallLlmModel" label="小型 LLM 模型 (small_llm)" rules={[{ required: true }]}>
+            <Select options={models.map(m => ({ label: m, value: m }))} />
+          </Form.Item>
+          <Form.Item name="largeLlmModel" label="大型 LLM 模型 (large_llm)" rules={[{ required: true }]}>
+            <Select options={models.map(m => ({ label: m, value: m }))} />
+          </Form.Item>
         </Form>
+        <Divider />
+        <Descriptions column={1} size="small" bordered>
+          <Descriptions.Item label="目前 Embedding">{settings.embeddingModel}</Descriptions.Item>
+          <Descriptions.Item label="目前維度">{settings.embeddingDimension}</Descriptions.Item>
+          <Descriptions.Item label="目前 Small LLM">{settings.smallLlmModel}</Descriptions.Item>
+          <Descriptions.Item label="目前 Large LLM">{settings.largeLlmModel}</Descriptions.Item>
+        </Descriptions>
       </Drawer>
+    </Space>
+  );
+}
+
+export default function IntentCatalog() {
+  return (
+    <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
+      <Tabs
+        defaultActiveKey="orchestrator"
+        items={[
+          { key: 'orchestrator', label: 'TopOrchestrator', children: <OrchestratorPanel /> },
+          { key: 'data_agent', label: 'DataAgent', children: <DataAgentPanel /> }
+        ]}
+      />
     </div>
   );
 }

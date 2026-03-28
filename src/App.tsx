@@ -140,13 +140,13 @@ function AppContent() {
               <Route path="task-session/scheduled" element={<TaskSessionScheduled />} />
               <Route path="under-development" element={<UnderDevelopment />} />
               <Route path="data-agent/schema" element={<SchemaPage />} />
-              <Route path="data-agent/intents" element={<IntentCatalog scope="data_agent" />} />
+
               <Route path="data-agent/playground" element={<QueryPlayground />} />
               <Route path="data-agent/datalake" element={<DataLakePage />} />
               <Route path="knowledge/ontology" element={<OntologyList />} />
               <Route path="knowledge/management" element={<KnowledgeBaseManagement />} />
               <Route path="knowledge/management/:id" element={<KnowledgeBaseDetail />} />
-              <Route path="intent-orchestration" element={<IntentCatalog scope="orchestrator" />} />
+              <Route path="intent-orchestration" element={<IntentCatalog />} />
             </Route>
           </Routes>
         </AntApp>

@@ -1,0 +1,113 @@
+services:
+  arango:
+    image: arangodb:3.12
+    container_name: arangodb
+    ports:
+      - "8529:8529"
+    environment:
+      ARANGO_ROOT_PASSWORD: abc_desktop_2026
+      ARANGO_NO_AUTH: "1"
+    volumes:
+      - arango-data:/var/lib/arangodb3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8529/_api/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.16.3
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  seaweedfs-ai-box-master:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-ai-box-master
+    ports:
+      - "9333:9333"
+      - "9334:9334"
+      - "19333:19333"
+    command: master -mdir=/data
+    volumes:
+      - seaweed-aibox-master-data:/data
+    restart: unless-stopped
+
+  seaweedfs-ai-box-volume:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-ai-box-volume
+    ports:
+      - "8080:8080"
+    command: volume -dir=/data -max=5 -mserver=seaweedfs-ai-box-master:9333 -port=8080
+    volumes:
+      - seaweed-aibox-volume-data:/data
+    depends_on:
+      - seaweedfs-ai-box-master
+    restart: unless-stopped
+
+  seaweedfs-ai-box-filer:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-ai-box-filer
+    ports:
+      - "8333:8333"
+      - "8888:8888"
+    command: filer -port=8888 -s3 -s3.port=8333 -master=seaweedfs-ai-box-master:9333
+    volumes:
+      - seaweed-aibox-filer-data:/data
+    depends_on:
+      - seaweedfs-ai-box-master
+    restart: unless-stopped
+
+  seaweedfs-datalake-master:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-datalake-master
+    ports:
+      - "9335:9333"
+      - "19335:19333"
+    command: master -mdir=/data -port=9333 -defaultReplication=000
+    volumes:
+      - seaweed-datalake-master-data:/data
+    restart: unless-stopped
+
+  seaweedfs-datalake-filer:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-datalake-filer
+    ports:
+      - "8889:8889"
+      - "8334:8334"
+    command: filer -port=8889 -s3 -s3.port=8334 -master=seaweedfs-datalake-master:9333
+    volumes:
+      - seaweed-datalake-filer-data:/data
+    depends_on:
+      - seaweedfs-datalake-master
+    restart: unless-stopped
+
+volumes:
+  arango-data:
+  qdrant-data:
+  redis-data:
+  seaweed-aibox-master-data:
+  seaweed-aibox-volume-data:
+  seaweed-aibox-filer-data:
+  seaweed-datalake-master-data:
+  seaweed-datalake-filer-data:

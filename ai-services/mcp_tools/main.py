@@ -1,13 +1,3 @@
-"""
-MCP Tools Service - External Tool Integration
-
-Provides MCP (Model Context Protocol) tool execution.
-
-# Last Update: 2026-03-18 03:45:00
-# Author: Daniel Chung
-# Version: 1.0.0
-"""
-
 import asyncio
 import os
 from typing import Any, Optional
@@ -19,14 +9,13 @@ from pydantic import BaseModel
 app = FastAPI(
     title="AIBox MCP Tools Service",
     description="MCP tool execution service.",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
 
-
-TOOL_REGISTRY = {
+_TOOL_REGISTRY = {
     "calculator": {
         "name": "Calculator",
         "description": "Perform mathematical calculations",
@@ -35,12 +24,17 @@ TOOL_REGISTRY = {
     "web_search": {
         "name": "Web Search",
         "description": "Search the web for information",
-        "parameters": {"query": "str", "limit": "int"},
+        "parameters": {"query": "str", "num": "int", "location": "str?"},
     },
     "weather": {
         "name": "Weather",
-        "description": "Get weather information for a location",
-        "parameters": {"location": "str"},
+        "description": "Get current weather for a location",
+        "parameters": {"city": "str?", "lat": "float?", "lon": "float?", "units": "str?"},
+    },
+    "forecast": {
+        "name": "Forecast",
+        "description": "Get weather forecast for the next few days",
+        "parameters": {"city": "str?", "lat": "float?", "lon": "float?", "days": "int?", "units": "str?"},
     },
     "code_executor": {
         "name": "Code Executor",
@@ -48,6 +42,22 @@ TOOL_REGISTRY = {
         "parameters": {"code": "str"},
     },
 }
+
+_tool_instances: dict[str, Any] = {}
+
+
+def _get_tool(name: str) -> Any:
+    if name not in _tool_instances:
+        if name == "web_search":
+            from tools.web_search.web_search_tool import WebSearchTool
+            _tool_instances[name] = WebSearchTool()
+        elif name == "weather":
+            from tools.weather.weather_tool import WeatherTool
+            _tool_instances[name] = WeatherTool()
+        elif name == "forecast":
+            from tools.weather.forecast_tool import ForecastTool
+            _tool_instances[name] = ForecastTool()
+    return _tool_instances.get(name)
 
 
 class ToolCall(BaseModel):
@@ -80,37 +90,49 @@ async def execute_calculator(expression: str) -> float | str:
         allowed_chars = set("0123456789+-*/.() ")
         if not all(c in allowed_chars for c in expression):
             raise ValueError("Invalid characters in expression")
-
         result = eval(expression)  # noqa: S307
         return result
     except Exception as e:
         return f"Error: {str(e)}"
 
 
-async def execute_web_search(query: str, limit: int = 5) -> dict:
+async def execute_web_search(query: str, num: int = 10, location: Optional[str] = None) -> dict:
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                "https://api.duckduckgo.com/",
-                params={"q": query, "format": "json", "no_html": 1},
-            )
-            response.raise_for_status()
-            data = response.json()
-            return {
-                "query": query,
-                "results": data.get("RelatedTopics", [])[:limit],
-            }
+        from tools.web_search.web_search_tool import WebSearchInput
+        tool = _get_tool("web_search")
+        if tool is None:
+            return {"error": "WebSearchTool not available"}
+        inp = WebSearchInput(query=query, num=num, location=location)
+        result = await tool.execute(inp)
+        return result.model_dump()
     except Exception as e:
         return {"error": str(e)}
 
 
-async def execute_weather(location: str) -> dict:
-    return {
-        "location": location,
-        "temperature": "20°C",
-        "condition": "Partly Cloudy",
-        "humidity": "65%",
-    }
+async def execute_weather(city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None, units: str = "metric") -> dict:
+    try:
+        from tools.weather.weather_tool import WeatherInput
+        tool = _get_tool("weather")
+        if tool is None:
+            return {"error": "WeatherTool not available"}
+        inp = WeatherInput(city=city, lat=lat, lon=lon, units=units)
+        result = await tool.execute(inp)
+        return result.model_dump()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def execute_forecast(city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None, days: int = 3, units: str = "metric") -> dict:
+    try:
+        from tools.weather.forecast_tool import ForecastInput
+        tool = _get_tool("forecast")
+        if tool is None:
+            return {"error": "ForecastTool not available"}
+        inp = ForecastInput(city=city, lat=lat, lon=lon, days=days, units=units)
+        result = await tool.execute(inp)
+        return result.model_dump()
+    except Exception as e:
+        return {"error": str(e)}
 
 
 async def execute_code(code: str) -> dict:
@@ -130,35 +152,36 @@ async def execute_tool(tool_name: str, parameters: dict[str, Any]) -> ToolResult
             case "web_search":
                 result = await execute_web_search(
                     parameters.get("query", ""),
-                    parameters.get("limit", 5),
+                    parameters.get("num", 10),
+                    parameters.get("location"),
                 )
             case "weather":
-                result = await execute_weather(parameters.get("location", ""))
+                result = await execute_weather(
+                    city=parameters.get("city"),
+                    lat=parameters.get("lat"),
+                    lon=parameters.get("lon"),
+                    units=parameters.get("units", "metric"),
+                )
+            case "forecast":
+                result = await execute_forecast(
+                    city=parameters.get("city"),
+                    lat=parameters.get("lat"),
+                    lon=parameters.get("lon"),
+                    days=parameters.get("days", 3),
+                    units=parameters.get("units", "metric"),
+                )
             case "code_executor":
                 result = await execute_code(parameters.get("code", ""))
             case _:
-                return ToolResult(
-                    tool=tool_name,
-                    success=False,
-                    result=None,
-                    error=f"Unknown tool: {tool_name}",
-                )
-
+                return ToolResult(tool=tool_name, success=False, result=None, error=f"Unknown tool: {tool_name}")
         return ToolResult(tool=tool_name, success=True, result=result)
-
     except Exception as e:
         return ToolResult(tool=tool_name, success=False, result=None, error=str(e))
 
 
 @app.get("/", response_model=ServiceInfo)
 def root() -> ServiceInfo:
-    return ServiceInfo(
-        service="mcp_tools",
-        description="MCP tool execution",
-        version="1.0.0",
-        port=8004,
-        status="running",
-    )
+    return ServiceInfo(service="mcp_tools", description="MCP tool execution", version="2.0.0", port=8004, status="running")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -168,7 +191,7 @@ def health() -> HealthResponse:
 
 @app.get("/tools")
 async def list_tools() -> dict:
-    return {"tools": TOOL_REGISTRY}
+    return {"tools": _TOOL_REGISTRY}
 
 
 @app.post("/execute", response_model=ToolResult)
@@ -185,8 +208,7 @@ async def execute_batch(calls: list[ToolCall]) -> list[ToolResult]:
 
 @app.post("/chat-with-tools")
 async def chat_with_tools(messages: list[dict], tools: list[str]) -> dict:
-    tool_schemas = [TOOL_REGISTRY[t] for t in tools if t in TOOL_REGISTRY]
-
+    tool_schemas = [_TOOL_REGISTRY[t] for t in tools if t in _TOOL_REGISTRY]
     system_prompt = f"""You have access to the following tools:
 {', '.join([f"{t['name']}: {t['description']}" for t in tool_schemas])}
 

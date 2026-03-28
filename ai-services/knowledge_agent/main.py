@@ -258,6 +258,7 @@ class TriggerRequest(BaseModel):
     file_id: str
     local_path: str
     root_id: str
+    session_key: str | None = None
 
 
 @app.post("/pipeline/trigger")
@@ -266,8 +267,12 @@ async def trigger_pipeline(body: TriggerRequest) -> dict[str, object]:
     from kb_pipeline.arango_ops import ArangoOps
 
     arango = ArangoOps()
-    vector_result = vectorize_task.delay(body.file_id, body.local_path, body.root_id)
-    graph_result = graph_task.delay(body.file_id, body.local_path)
+    vector_result = vectorize_task.delay(
+        body.file_id, body.local_path, body.root_id, session_key=body.session_key
+    )
+    graph_result = graph_task.delay(
+        body.file_id, body.local_path, session_key=body.session_key
+    )
     arango.set_task_id(
         body.file_id, vector_task_id=vector_result.id, graph_task_id=graph_result.id
     )

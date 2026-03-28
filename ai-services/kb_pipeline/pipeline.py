@@ -177,19 +177,25 @@ class Pipeline:
             )
             if entities or relations:
                 self.arango.upsert_graph(file_id, entities, relations)
+                self.arango.update_status(file_id, graph_status="completed")
+                self.arango.log_event(
+                    file_id,
+                    "graph",
+                    "end",
+                    f"Completed: {len(entities)} entities, {len(relations)} relations stored",
+                )
+                return GraphResult(
+                    entities=len(entities),
+                    relations=len(relations),
+                    status="completed",
+                )
 
-            self.arango.update_status(file_id, graph_status="completed")
-            self.arango.log_event(
-                file_id,
-                "graph",
-                "end",
-                f"Completed: {len(entities)} entities, {len(relations)} relations stored",
+            reason = "graph: LLM returned 0 entities and 0 relations"
+            self.arango.update_status(
+                file_id, graph_status="failed", failed_reason=reason
             )
-            return GraphResult(
-                entities=len(entities),
-                relations=len(relations),
-                status="completed",
-            )
+            self.arango.log_event(file_id, "graph", "error", reason)
+            return GraphResult(entities=0, relations=0, status="failed")
 
         except Exception as exc:
             reason = f"graph: {type(exc).__name__}: {exc}"

@@ -173,6 +173,7 @@ async def embed_sync() -> EmbedSyncResponse:
                     "core_fields": intent.get("core_fields", []),
                     "nl_examples": nl_examples,
                     "example_sqls": intent.get("example_sqls", []),
+                    "tool_name": str(intent.get("tool_name", "")),
                 },
             }
             points.append(point)

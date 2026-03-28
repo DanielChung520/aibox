@@ -1,13 +1,16 @@
 """
 AITask Service - AI Chat Service
 
-Provides natural language conversation with streaming support.
+Provides natural language conversation with streaming support,
+and 5W1H tagging for chat sessions.
 
-# Last Update: 2026-03-18 03:30:00
+# Last Update: 2026-03-27 12:23:10
 # Author: Daniel Chung
-# Version: 1.0.0
+# Version: 1.1.0
 """
 
+import json
+import logging
 import os
 from typing import AsyncGenerator, Optional
 
@@ -16,10 +19,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+logger = logging.getLogger("aitask")
+
 app = FastAPI(
     title="AIBox AITask Service",
-    description="AI Chat service with streaming support.",
-    version="1.0.0",
+    description="AI Chat service with streaming support and 5W1H tagging.",
+    version="1.1.0",
 )
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -56,6 +61,22 @@ class ServiceInfo(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     service: str
+
+
+class TaggingMessage(BaseModel):
+    role: str
+    content: str
+
+
+class Tag5W1HRequest(BaseModel):
+    session_key: str
+    messages: list[TaggingMessage]
+    model: Optional[str] = None
+
+
+class Tag5W1HResponse(BaseModel):
+    session_key: str
+    tags: dict[str, str]
 
 
 @app.get("/", response_model=ServiceInfo)
@@ -167,3 +188,85 @@ async def list_models() -> dict:
             return response.json()
         except httpx.HTTPError as e:
             raise HTTPException(status_code=502, detail=f"Ollama connection failed: {str(e)}")
+
+
+TAGGING_MODEL = os.getenv("TAGGING_MODEL", "qwen3-coder:30b")
+
+TAG_5W1H_PROMPT = """分析以下對話內容，提取 5W1H 標籤。
+回覆必須是嚴格的 JSON 格式，包含以下欄位（值使用繁體中文，若無法判斷則填 "未知"）：
+{
+  "who": "涉及的人或角色",
+  "what": "討論的主題或事項",
+  "when": "涉及的時間",
+  "where": "涉及的地點或範圍",
+  "why": "目的或原因",
+  "how": "方法或方式"
+}
+
+對話內容：
+"""
+
+
+def _build_tagging_messages(conversation: list[TaggingMessage]) -> list[dict[str, str]]:
+    conversation_text = "\n".join(
+        f"[{m.role}]: {m.content}" for m in conversation if m.content.strip()
+    )
+    return [
+        {"role": "system", "content": "你是一個標籤提取助手，只輸出 JSON，不要輸出其他內容。"},
+        {"role": "user", "content": f"{TAG_5W1H_PROMPT}{conversation_text}"},
+    ]
+
+
+def _parse_tags_response(raw: str) -> dict[str, str]:
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        cleaned = "\n".join(lines).strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            parsed = json.loads(cleaned[start : end + 1])
+        else:
+            raise
+
+    default_keys = ("who", "what", "when", "where", "why", "how")
+    return {k: str(parsed.get(k, "未知")) for k in default_keys}
+
+
+@app.post("/v1/chat/tag-5w1h", response_model=Tag5W1HResponse)
+async def tag_5w1h(request: Tag5W1HRequest) -> Tag5W1HResponse:
+    model = request.model or TAGGING_MODEL
+    messages = _build_tagging_messages(request.messages)
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        try:
+            response = await client.post(
+                f"{OLLAMA_BASE_URL}/api/chat",
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                    "temperature": 0.3,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            raw_content: str = data.get("message", {}).get("content", "")
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Ollama connection failed: {str(e)}",
+            )
+
+    try:
+        tags = _parse_tags_response(raw_content)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning("5W1H parse failed for session %s: %s | raw: %s", request.session_key, e, raw_content)
+        tags = {k: "未知" for k in ("who", "what", "when", "where", "why", "how")}
+
+    return Tag5W1HResponse(session_key=request.session_key, tags=tags)

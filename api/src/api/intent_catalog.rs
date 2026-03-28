@@ -5,9 +5,9 @@
 //! 以 agent_scope 欄位區分不同 Agent 的意圖（orchestrator / data_agent / …）
 //! sync-qdrant / models 路由依 scope 代理轉發到對應 Python 服務
 //!
-//! # Last Update: 2026-03-29 02:07:44
+//! # Last Update: 2026-03-29 02:31:29
 //! # Author: Daniel Chung
-//! # Version: 1.1.0
+//! # Version: 1.2.0
 
 use crate::config::CONFIG;
 use crate::db::get_db;
@@ -91,7 +91,17 @@ async fn list_catalog(
         bind_entries.push(("intent_type".into(), serde_json::json!(intent_type)));
     }
 
-    // ── orchestrator-specific filters ──
+    // ── orchestrator-specific filters (BPA routing model) ──
+    if let Some(bpa_id) = params.get("bpa_id").filter(|v| !v.trim().is_empty()) {
+        filters.push("d.bpa_id == @bpa_id".into());
+        bind_entries.push(("bpa_id".into(), serde_json::json!(bpa_id)));
+    }
+
+    if let Some(domain) = params.get("domain").filter(|v| !v.trim().is_empty()) {
+        filters.push("d.domain == @domain".into());
+        bind_entries.push(("domain".into(), serde_json::json!(domain)));
+    }
+
     if let Some(tool_name) = params.get("tool_name").filter(|v| !v.trim().is_empty()) {
         filters.push("d.tool_name == @tool_name".into());
         bind_entries.push(("tool_name".into(), serde_json::json!(tool_name)));

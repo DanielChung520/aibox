@@ -5,9 +5,20 @@
              Top Orchestrator 意圖寫入 ArangoDB intent_catalog 集合。
              agent_scope="data_agent"  → Qdrant: data_agent_intents
              agent_scope="orchestrator" → Qdrant: orchestrator_intents
-@lastUpdate  2026-03-29 00:15:16
+
+             Orchestrator schema (v2) — BPA 路由模型：
+               intent_type       : "chat" | "task"
+               domain            : "general" | "order" | "material" | "finance" | "data_query" | ...
+               bpa_id            : 目標 BPA ID（"order-bpa", "material-bpa", "finance-bpa",
+                                   "data-agent", null for chat）
+               task_type         : "query" | "action" | "workflow"（intent_type=task 才需要）
+               capabilities      : BPA 對應的 capability 清單
+               confidence_threshold : 低信心回問閾值（預設 0.7）
+@lastUpdate  2026-03-29 02:24:57
 @author      Daniel Chung
-@version     1.0.0
+@version     1.1.0
+@history
+- 2026-03-29 02:24:57 | Daniel Chung | 1.1.0 | Orchestrator 改為 BPA 路由模型（intent_type=chat/task）
 """
 
 import json
@@ -82,6 +93,44 @@ def make_doc(intent_id: str, agent_scope: str, name: str, description: str,
         "updated_at": TS,
         "updated_by": "system",
     }
+
+
+def make_orch_doc(
+    intent_id: str,
+    name: str,
+    description: str,
+    intent_type: str,  # "chat" | "task"
+    domain: str,       # "general" | "order" | "material" | "finance" | "data_query"
+    bpa_id: str | None,
+    capabilities: list[str],
+    nl_examples: list[str],
+    task_type: str = "",          # "query" | "action" | "workflow"（task 才填）
+    confidence_threshold: float = 0.7,
+    priority: int = 0,
+) -> dict:
+    """Build an orchestrator intent document (BPA routing model v2)."""
+    doc: dict = {
+        "_key": intent_id,
+        "intent_id": intent_id,
+        "agent_scope": ORCH,
+        "name": name,
+        "description": description,
+        "intent_type": intent_type,
+        "domain": domain,
+        "capabilities": capabilities,
+        "nl_examples": nl_examples,
+        "confidence_threshold": confidence_threshold,
+        "priority": priority,
+        "status": "enabled",
+        "created_at": TS,
+        "updated_at": TS,
+        "updated_by": "system",
+    }
+    if bpa_id:
+        doc["bpa_id"] = bpa_id
+    if task_type:
+        doc["task_type"] = task_type
+    return doc
 
 
 DA = "data_agent"
@@ -894,133 +943,141 @@ GROUP_F = [
 # Orchestrator Intents (7 intents)
 # ===========================================================================
 
+# ===========================================================================
+# Orchestrator Intents (7 intents) — BPA Routing Model v2
+# intent_type: "chat" | "task"
+# bpa_id: target BPA ("order-bpa", "material-bpa", "finance-bpa", "data-agent")
+# ===========================================================================
+
 ORCHESTRATOR_INTENTS = [
-    make_doc(
-        "orch_chat", ORCH,
-        name="一般問答/閒聊",
-        description="處理一般性問答、閒聊、問候、情感表達等不需要執行業務操作的對話",
-        intent_type="filter",
-        group="對話",
-        tables=[],
-        generation_strategy="template",
-        sql_template="",
-        core_fields=[],
+    make_orch_doc(
+        "orch_chat",
+        name="一般問答 / 閒聊",
+        description="處理一般性問答、閒聊、問候、情感表達等不需要執行業務操作的對話。intent=chat 直接由 LLM 回覆，不路由到任何 BPA。",
+        intent_type="chat",
+        domain="general",
+        bpa_id=None,
+        capabilities=[],
+        confidence_threshold=0.7,
+        priority=0,
         nl_examples=[
             "你好",
             "謝謝你的幫助",
             "今天天氣怎麼樣",
             "系統功能有哪些",
+            "你是誰",
         ],
-        tool_name="chat_response",
     ),
-    make_doc(
-        "orch_data_query", ORCH,
+    make_orch_doc(
+        "orch_data_query",
         name="資料查詢（路由至 Data Agent）",
-        description="使用者要查詢 SAP 資料（採購、庫存、物料、供應商等），需路由至 Data Agent 處理",
-        intent_type="filter",
-        group="資料查詢",
-        tables=[],
-        generation_strategy="template",
-        sql_template="",
-        core_fields=[],
+        description="使用者查詢 SAP 資料（採購、庫存、物料、供應商等），路由至 Data Agent NL→SQL Pipeline 處理。",
+        intent_type="task",
+        domain="data_query",
+        bpa_id="data-agent",
+        capabilities=["data_query", "nl2sql", "report_generation"],
+        task_type="query",
+        confidence_threshold=0.7,
+        priority=10,
         nl_examples=[
             "查詢採購訂單",
             "物料庫存多少",
             "供應商清單",
             "各工廠庫存",
             "庫存異動記錄",
+            "採購總金額",
         ],
-        tool_name="route_to_data_agent",
     ),
-    make_doc(
-        "orch_order_query", ORCH,
+    make_orch_doc(
+        "orch_order_query",
         name="訂單查詢",
-        description="查詢銷售訂單、採購訂單、退貨訂單等業務訂單狀態與明細",
-        intent_type="filter",
-        group="訂單管理",
-        tables=[],
-        generation_strategy="template",
-        sql_template="",
-        core_fields=[],
+        description="查詢銷售訂單、採購訂單、退貨訂單等業務訂單狀態與明細，路由至 Order BPA 處理。",
+        intent_type="task",
+        domain="order",
+        bpa_id="order-bpa",
+        capabilities=["order_query"],
+        task_type="query",
+        confidence_threshold=0.7,
+        priority=8,
         nl_examples=[
             "訂單 OR-001 的狀態",
             "查詢客戶 C001 的未結訂單",
             "今天有哪些新訂單",
             "訂單進度如何",
+            "查訂單",
         ],
-        tool_name="route_to_order_bpa",
     ),
-    make_doc(
-        "orch_order_action", ORCH,
-        name="訂單操作（退貨/更新）",
-        description="對訂單執行業務操作，如退貨申請、訂單狀態更新、取消訂單等需要寫入操作",
-        intent_type="filter",
-        group="訂單管理",
-        tables=[],
-        generation_strategy="template",
-        sql_template="",
-        core_fields=[],
+    make_orch_doc(
+        "orch_order_action",
+        name="訂單操作（退貨 / 更新）",
+        description="對訂單執行業務操作，如退貨申請、訂單狀態更新、取消訂單等寫入操作，路由至 Order BPA。",
+        intent_type="task",
+        domain="order",
+        bpa_id="order-bpa",
+        capabilities=["order_update", "return_process", "refund_execute"],
+        task_type="action",
+        confidence_threshold=0.75,
+        priority=9,
         nl_examples=[
             "幫我退貨訂單 OR-001",
             "取消訂單 OR-002",
             "更新訂單交期",
             "申請退款",
         ],
-        tool_name="route_to_order_bpa",
     ),
-    make_doc(
-        "orch_material_mgmt", ORCH,
+    make_orch_doc(
+        "orch_material_mgmt",
         name="物料管理業務流程",
-        description="涉及物料主資料維護、庫存調整、請購等需要 BPA 協作的業務流程",
-        intent_type="filter",
-        group="物料管理",
-        tables=[],
-        generation_strategy="template",
-        sql_template="",
-        core_fields=[],
+        description="涉及物料主資料維護、庫存調整、請購等需要 Material BPA 協作的業務流程。",
+        intent_type="task",
+        domain="material",
+        bpa_id="material-bpa",
+        capabilities=["material_master", "inventory_adjustment", "purchase_requisition"],
+        task_type="workflow",
+        confidence_threshold=0.75,
+        priority=7,
         nl_examples=[
             "新增物料主資料",
             "調整庫存",
             "建立請購單",
             "物料狀態變更",
         ],
-        tool_name="route_to_material_bpa",
     ),
-    make_doc(
-        "orch_finance_query", ORCH,
+    make_orch_doc(
+        "orch_finance_query",
         name="財務查詢",
-        description="查詢財務相關資料，如發票、付款記錄、會計憑證等",
-        intent_type="filter",
-        group="財務",
-        tables=[],
-        generation_strategy="template",
-        sql_template="",
-        core_fields=[],
+        description="查詢財務相關資料，如發票、付款記錄、會計憑證等，路由至 Finance BPA。",
+        intent_type="task",
+        domain="finance",
+        bpa_id="finance-bpa",
+        capabilities=["finance_report", "invoice_query"],
+        task_type="query",
+        confidence_threshold=0.7,
+        priority=6,
         nl_examples=[
             "查詢發票狀態",
             "付款記錄",
             "會計期間結帳",
             "應付帳款查詢",
         ],
-        tool_name="route_to_finance_bpa",
     ),
-    make_doc(
-        "orch_report", ORCH,
-        name="報表生成",
-        description="生成各類業務報表，如採購報表、庫存報表、財務報表等，涉及跨模組資料彙整",
-        intent_type="aggregate",
-        group="報表",
-        tables=[],
-        generation_strategy="large_llm",
-        sql_template="",
-        core_fields=[],
+    make_orch_doc(
+        "orch_report",
+        name="跨模組報表生成",
+        description="生成涉及多個業務模組的彙整報表，如採購+庫存報表、財務摘要等，需要多 BPA 協作的 workflow。",
+        intent_type="task",
+        domain="data_query",
+        bpa_id="data-agent",
+        capabilities=["report_generation", "cross_module_query"],
+        task_type="workflow",
+        confidence_threshold=0.75,
+        priority=5,
         nl_examples=[
             "產生本月採購報表",
             "庫存月報",
             "供應商績效報告",
             "產生財務摘要報表",
         ],
-        tool_name="route_to_report_workflow",
     ),
 ]
 

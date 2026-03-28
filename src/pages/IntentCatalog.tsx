@@ -1,9 +1,9 @@
 /**
  * @file        統一意圖目錄管理頁面
  * @description 支援 TopOrchestrator / DataAgent 分頁切換的意圖 CRUD 管理
- * @lastUpdate  2026-03-29 02:07:44
+ * @lastUpdate  2026-03-29 02:24:57
  * @author      Daniel Chung
- * @version     2.1.0
+ * @version     2.2.0
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -26,6 +26,7 @@ function OrchestratorPanel() {
   const { token } = theme.useToken();
   const [form] = Form.useForm();
   const [settingsForm] = Form.useForm();
+  const watchedIntentType = Form.useWatch('intent_type', form);
 
   const [intents, setIntents] = useState<IntentCatalogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -166,7 +167,7 @@ function OrchestratorPanel() {
   const openNew = () => {
     setEditingId(null);
     form.resetFields();
-    form.setFieldsValue({ intent_type: 'tool', status: 'enabled', confidence_threshold: 0.75, priority: 0 });
+    form.setFieldsValue({ intent_type: 'task', status: 'enabled', confidence_threshold: 0.7, priority: 0 });
     setModalVisible(true);
   };
 
@@ -176,6 +177,9 @@ function OrchestratorPanel() {
     form.setFieldsValue({
       ...record,
       nl_examples: record.nl_examples?.join('\n') || '',
+      capabilities: record.capabilities || [],
+      domain: record.domain ? [record.domain] : [],
+      bpa_id: record.bpa_id ? [record.bpa_id] : [],
     });
     setModalVisible(true);
   };
@@ -183,7 +187,11 @@ function OrchestratorPanel() {
   const handleSave = async () => {
     try {
       const formValues = await form.validateFields();
-      const { intent_id, name, description, priority, status, nl_examples, intent_type, tool_name, confidence_threshold } = formValues;
+      const { 
+        intent_id, name, description, priority, status, nl_examples, 
+        intent_type, domain, bpa_id, task_type, capabilities, confidence_threshold 
+      } = formValues;
+
       const payload: Partial<IntentCatalogEntry> = {
         intent_id,
         name,
@@ -193,7 +201,10 @@ function OrchestratorPanel() {
         agent_scope: 'orchestrator',
         nl_examples: nl_examples ? nl_examples.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
         intent_type,
-        tool_name,
+        domain: Array.isArray(domain) ? domain[0] : domain,
+        bpa_id: Array.isArray(bpa_id) ? bpa_id[0] : bpa_id,
+        task_type: intent_type === 'task' ? task_type : undefined,
+        capabilities: Array.isArray(capabilities) ? capabilities : [],
         confidence_threshold,
       };
 
@@ -214,19 +225,25 @@ function OrchestratorPanel() {
   const columns = [
     { title: 'Intent ID', dataIndex: 'intent_id', key: 'intent_id', render: (text: string) => <Text code>{text}</Text> },
     { title: '名稱', dataIndex: 'name', key: 'name' },
-    { title: '說明', dataIndex: 'description', key: 'description', ellipsis: true },
-    {
+    { 
       title: '類型', dataIndex: 'intent_type', key: 'intent_type',
       render: (type: string) => {
-        const color = type === 'tool' ? 'green' : type === 'workflow' ? 'blue' : 'orange';
+        const color = type === 'chat' ? 'blue' : type === 'task' ? 'green' : 'default';
         return <Tag color={color}>{type || '-'}</Tag>;
       }
     },
-    {
-      title: '工具', dataIndex: 'tool_name', key: 'tool_name',
-      render: (tool: string) => tool ? <Tag color="geekblue">{tool}</Tag> : '-'
+    { 
+      title: 'Domain', dataIndex: 'domain', key: 'domain',
+      render: (domain: string) => domain ? <Tag>{domain}</Tag> : '-'
     },
-    { title: '優先度', dataIndex: 'priority', key: 'priority' },
+    { 
+      title: 'BPA', dataIndex: 'bpa_id', key: 'bpa_id',
+      render: (bpa: string) => bpa ? <Tag color="geekblue">{bpa}</Tag> : '-'
+    },
+    { 
+      title: 'Task Type', dataIndex: 'task_type', key: 'task_type',
+      render: (task: string) => task ? <Tag color="purple">{task}</Tag> : '-'
+    },
     {
       title: '信賴度', dataIndex: 'confidence_threshold', key: 'confidence',
       render: (val: number) => val != null ? `${(val * 100).toFixed(0)}%` : '-'
@@ -257,17 +274,17 @@ function OrchestratorPanel() {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="工具型" value={intents.filter(i => i.intent_type === 'tool').length} styles={{ content: { color: token.colorSuccess } }} />
+            <Statistic title="Chat 型" value={intents.filter(i => i.intent_type === 'chat').length} styles={{ content: { color: token.colorSuccess } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="工作流型" value={intents.filter(i => i.intent_type === 'workflow').length} styles={{ content: { color: token.colorInfo } }} />
+            <Statistic title="Task 型" value={intents.filter(i => i.intent_type === 'task').length} styles={{ content: { color: token.colorInfo } }} />
           </Card>
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Statistic title="備援型" value={intents.filter(i => i.intent_type === 'fallback').length} styles={{ content: { color: token.colorWarning } }} />
+            <Statistic title="已啟用" value={intents.filter(i => i.status === 'enabled').length} styles={{ content: { color: token.colorSuccess } }} />
           </Card>
         </Col>
       </Row>
@@ -276,7 +293,7 @@ function OrchestratorPanel() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
           <Space>
             <Input.Search placeholder="搜尋描述或ID" onSearch={(v) => { setSearch(v); setPage(1); }} style={{ width: 200 }} allowClear />
-            <Select value={intentType} onChange={(v) => { setIntentType(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部類型', value: '' }, { label: 'tool', value: 'tool' }, { label: 'workflow', value: 'workflow' }, { label: 'fallback', value: 'fallback' }]} />
+            <Select value={intentType} onChange={(v) => { setIntentType(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部類型', value: '' }, { label: 'chat', value: 'chat' }, { label: 'task', value: 'task' }]} />
             <Select value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部狀態', value: '' }, { label: '啟用', value: 'enabled' }, { label: '停用', value: 'disabled' }]} />
             <Button icon={<ReloadOutlined />} onClick={loadIntents}>重新整理</Button>
             <Button icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)}>設定</Button>
@@ -315,9 +332,16 @@ function OrchestratorPanel() {
                   <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
                   <Descriptions.Item label="狀態"><Tag color={currentIntent.status === 'enabled' ? 'green' : 'default'}>{currentIntent.status}</Tag></Descriptions.Item>
                   <Descriptions.Item label="優先度">{currentIntent.priority}</Descriptions.Item>
-                   <Descriptions.Item label="類型"><Tag>{currentIntent.intent_type || '-'}</Tag></Descriptions.Item>
-                   <Descriptions.Item label="工具">{currentIntent.tool_name || '-'}</Descriptions.Item>
-                   <Descriptions.Item label="信賴度">{currentIntent.confidence_threshold != null ? `${(currentIntent.confidence_threshold * 100).toFixed(0)}%` : '-'}</Descriptions.Item>
+                  <Descriptions.Item label="類型"><Tag color={currentIntent.intent_type === 'chat' ? 'blue' : 'green'}>{currentIntent.intent_type || '-'}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="Domain"><Tag>{currentIntent.domain || '-'}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="BPA ID">{currentIntent.bpa_id ? <Tag color="geekblue">{currentIntent.bpa_id}</Tag> : '-'}</Descriptions.Item>
+                  {currentIntent.intent_type === 'task' && (
+                    <Descriptions.Item label="Task Type"><Tag color="purple">{currentIntent.task_type || '-'}</Tag></Descriptions.Item>
+                  )}
+                  <Descriptions.Item label="Capabilities">
+                    {currentIntent.capabilities?.length ? currentIntent.capabilities.map((c: string) => <Tag key={c}>{c}</Tag>) : '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="信賴度">{currentIntent.confidence_threshold != null ? `${(currentIntent.confidence_threshold * 100).toFixed(0)}%` : '-'}</Descriptions.Item>
                 </Descriptions>
               )
             },
@@ -327,7 +351,7 @@ function OrchestratorPanel() {
               children: (
                 <Card size="small">
                   <ol style={{ paddingLeft: 20, margin: 0 }}>
-                    {currentIntent.nl_examples?.map((ex, i) => <li key={i} style={{ marginBottom: 8 }}>{ex}</li>) || <li>無範例</li>}
+                    {currentIntent.nl_examples?.map((ex: string, i: number) => <li key={i} style={{ marginBottom: 8 }}>{ex}</li>) || <li>無範例</li>}
                   </ol>
                 </Card>
               )
@@ -356,15 +380,49 @@ function OrchestratorPanel() {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="intent_type" label="類型" rules={[{ required: true }]}>
-                <Select options={[{ label: 'tool', value: 'tool' }, { label: 'workflow', value: 'workflow' }, { label: 'fallback', value: 'fallback' }]} />
+                <Select options={[{ label: 'chat（直接回覆）', value: 'chat' }, { label: 'task（路由 BPA）', value: 'task' }]} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="tool_name" label="工具名稱">
-                <Input placeholder="例如: web_search" />
+              <Form.Item name="domain" label="Domain">
+                <Select mode="tags" maxCount={1} options={[
+                  { label: 'general', value: 'general' },
+                  { label: 'order', value: 'order' },
+                  { label: 'material', value: 'material' },
+                  { label: 'finance', value: 'finance' },
+                  { label: 'data_query', value: 'data_query' }
+                ]} placeholder="請選擇或輸入" />
               </Form.Item>
             </Col>
             <Col span={8}>
+              <Form.Item name="bpa_id" label="BPA ID">
+                <Select mode="tags" maxCount={1} options={[
+                  { label: 'order-bpa', value: 'order-bpa' },
+                  { label: 'material-bpa', value: 'material-bpa' },
+                  { label: 'finance-bpa', value: 'finance-bpa' },
+                  { label: 'data-agent', value: 'data-agent' }
+                ]} placeholder="請選擇或輸入" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            {watchedIntentType === 'task' && (
+              <Col span={8}>
+                <Form.Item name="task_type" label="Task Type">
+                  <Select options={[
+                    { label: 'query', value: 'query' },
+                    { label: 'action', value: 'action' },
+                    { label: 'workflow', value: 'workflow' }
+                  ]} allowClear placeholder="請選擇" />
+                </Form.Item>
+              </Col>
+            )}
+            <Col span={watchedIntentType === 'task' ? 8 : 12}>
+              <Form.Item name="capabilities" label="Capabilities">
+                <Select mode="tags" placeholder="輸入後按 Enter" />
+              </Form.Item>
+            </Col>
+            <Col span={watchedIntentType === 'task' ? 8 : 12}>
               <Form.Item name="confidence_threshold" label="信賴度">
                 <InputNumber min={0} max={1} step={0.05} style={{ width: '100%' }} />
               </Form.Item>

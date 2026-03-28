@@ -479,11 +479,7 @@ async fn seed_model_providers(db: &Database<ReqwestClient>) -> Result<(), String
             status: "enabled".to_string(),
             sort_order: 1,
             models: vec![
-                LLMModel { model_id: "llama3".to_string(), name: "llama3".to_string(), display_name: Some("Llama 3".to_string()), context_window: Some(8192), input_cost_per_1k: None, output_cost_per_1k: None, supports_vision: Some(false), status: "enabled".to_string() },
-                LLMModel { model_id: "llama3.1".to_string(), name: "llama3.1".to_string(), display_name: Some("Llama 3.1".to_string()), context_window: Some(128000), input_cost_per_1k: None, output_cost_per_1k: None, supports_vision: Some(false), status: "enabled".to_string() },
-                LLMModel { model_id: "mistral".to_string(), name: "mistral".to_string(), display_name: Some("Mistral".to_string()), context_window: Some(8192), input_cost_per_1k: None, output_cost_per_1k: None, supports_vision: Some(false), status: "enabled".to_string() },
-                LLMModel { model_id: "qwen2.5".to_string(), name: "qwen2.5".to_string(), display_name: Some("Qwen 2.5".to_string()), context_window: Some(32768), input_cost_per_1k: None, output_cost_per_1k: None, supports_vision: Some(false), status: "enabled".to_string() },
-                LLMModel { model_id: "codellama".to_string(), name: "codellama".to_string(), display_name: Some("Code Llama".to_string()), context_window: Some(16384), input_cost_per_1k: None, output_cost_per_1k: None, supports_vision: Some(false), status: "enabled".to_string() },
+                LLMModel { model_id: "llama3.2:latest".to_string(), name: "llama3.2:latest".to_string(), display_name: Some("Llama 3.2".to_string()), context_window: Some(128000), input_cost_per_1k: None, output_cost_per_1k: None, supports_vision: Some(false), temperature: Some(0.7), status: "enabled".to_string() },
             ],
             created_at: Utc::now().to_rfc3339(),
             updated_at: Utc::now().to_rfc3339(),
@@ -499,9 +495,9 @@ async fn seed_model_providers(db: &Database<ReqwestClient>) -> Result<(), String
             status: "disabled".to_string(),
             sort_order: 2,
             models: vec![
-                LLMModel { model_id: "gpt-4o".to_string(), name: "gpt-4o".to_string(), display_name: Some("GPT-4o".to_string()), context_window: Some(128000), input_cost_per_1k: Some(0.005), output_cost_per_1k: Some(0.015), supports_vision: Some(true), status: "enabled".to_string() },
-                LLMModel { model_id: "gpt-4-turbo".to_string(), name: "gpt-4-turbo".to_string(), display_name: Some("GPT-4 Turbo".to_string()), context_window: Some(128000), input_cost_per_1k: Some(0.01), output_cost_per_1k: Some(0.03), supports_vision: Some(true), status: "enabled".to_string() },
-                LLMModel { model_id: "gpt-3.5-turbo".to_string(), name: "gpt-3.5-turbo".to_string(), display_name: Some("GPT-3.5 Turbo".to_string()), context_window: Some(16385), input_cost_per_1k: Some(0.0005), output_cost_per_1k: Some(0.0015), supports_vision: Some(false), status: "enabled".to_string() },
+                LLMModel { model_id: "gpt-4o".to_string(), name: "gpt-4o".to_string(), display_name: Some("GPT-4o".to_string()), context_window: Some(128000), input_cost_per_1k: Some(0.005), output_cost_per_1k: Some(0.015), supports_vision: Some(true), temperature: Some(0.7), status: "enabled".to_string() },
+                LLMModel { model_id: "gpt-4-turbo".to_string(), name: "gpt-4-turbo".to_string(), display_name: Some("GPT-4 Turbo".to_string()), context_window: Some(128000), input_cost_per_1k: Some(0.01), output_cost_per_1k: Some(0.03), supports_vision: Some(true), temperature: Some(0.7), status: "enabled".to_string() },
+                LLMModel { model_id: "gpt-3.5-turbo".to_string(), name: "gpt-3.5-turbo".to_string(), display_name: Some("GPT-3.5 Turbo".to_string()), context_window: Some(16385), input_cost_per_1k: Some(0.0005), output_cost_per_1k: Some(0.0015), supports_vision: Some(false), temperature: Some(0.7), status: "enabled".to_string() },
             ],
             created_at: Utc::now().to_rfc3339(),
             updated_at: Utc::now().to_rfc3339(),
@@ -517,8 +513,8 @@ async fn seed_model_providers(db: &Database<ReqwestClient>) -> Result<(), String
             status: "disabled".to_string(),
             sort_order: 3,
             models: vec![
-                LLMModel { model_id: "claude-3-5-sonnet".to_string(), name: "claude-3-5-sonnet".to_string(), display_name: Some("Claude 3.5 Sonnet".to_string()), context_window: Some(200000), input_cost_per_1k: Some(0.003), output_cost_per_1k: Some(0.015), supports_vision: Some(true), status: "enabled".to_string() },
-                LLMModel { model_id: "claude-3-opus".to_string(), name: "claude-3-opus".to_string(), display_name: Some("Claude 3 Opus".to_string()), context_window: Some(200000), input_cost_per_1k: Some(0.015), output_cost_per_1k: Some(0.075), supports_vision: Some(true), status: "enabled".to_string() },
+                LLMModel { model_id: "claude-3-5-sonnet".to_string(), name: "claude-3-5-sonnet".to_string(), display_name: Some("Claude 3.5 Sonnet".to_string()), context_window: Some(200000), input_cost_per_1k: Some(0.003), output_cost_per_1k: Some(0.015), supports_vision: Some(true), temperature: Some(0.7), status: "enabled".to_string() },
+                LLMModel { model_id: "claude-3-opus".to_string(), name: "claude-3-opus".to_string(), display_name: Some("Claude 3 Opus".to_string()), context_window: Some(200000), input_cost_per_1k: Some(0.015), output_cost_per_1k: Some(0.075), supports_vision: Some(true), temperature: Some(0.7), status: "enabled".to_string() },
             ],
             created_at: Utc::now().to_rfc3339(),
             updated_at: Utc::now().to_rfc3339(),
@@ -792,6 +788,7 @@ pub struct LLMModel {
     pub input_cost_per_1k: Option<f64>,
     pub output_cost_per_1k: Option<f64>,
     pub supports_vision: Option<bool>,
+    pub temperature: Option<f64>,
     pub status: String,
 }
 

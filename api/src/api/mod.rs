@@ -3,7 +3,7 @@
 //! # Description
 //! API 路由定義
 //!
-//! # Last Update: 2026-03-25 20:35:00
+//! # Last Update: 2026-03-28 10:22:08
 //! # Author: Daniel Chung
 //! # Version: 1.1.0
 
@@ -11,7 +11,7 @@ use reqwest;
 use crate::auth::verify_jwt;
 use crate::middleware::auth::jwt_auth_middleware;
 use crate::db::{
-    get_db, CreateAgentRequest, CreateRoleRequest, Function, FunctionRoleAuth, Role, RoleFunction, SystemParam, UpdateParamRequest, User, Agent, ModelProvider, LLMModel,
+    get_db, CreateAgentRequest, CreateRoleRequest, CreateToolRequest, Function, FunctionRoleAuth, Role, RoleFunction, SystemParam, UpdateParamRequest, User, Agent, Tool, ToolLog, ModelProvider, LLMModel,
 };
 use crate::models::*;
 use axum::{
@@ -27,6 +27,7 @@ use tower_http::cors::{Any, CorsLayer};
 pub mod sse;
 pub mod ws;
 pub mod ai;
+pub mod chat;
 pub mod billing;
 pub mod services;
 pub mod health;
@@ -36,6 +37,10 @@ pub mod da_query;
 pub mod knowledge;
 pub mod ontology;
 pub mod themes;
+pub mod web_search;
+pub mod weather;
+pub mod intent;
+pub mod orch_intents;
 
 pub fn create_router() -> Router {
     let cors = CorsLayer::new()
@@ -60,6 +65,8 @@ pub fn create_router() -> Router {
         .route("/api/v1/functions/{key}/roles", get(get_function_roles).put(set_function_roles))
         .route("/api/v1/agents", get(list_agents).post(create_agent))
         .route("/api/v1/agents/{key}", get(get_agent).put(update_agent).delete(delete_agent))
+        .route("/api/v1/tools", get(list_tools).post(create_tool))
+        .route("/api/v1/tools/{key}", get(get_tool).put(update_tool).delete(delete_tool))
         .route("/api/v1/agents/{key}/favorite", patch(toggle_agent_favorite))
         .route("/api/v1/model-providers", get(list_model_providers).post(create_model_provider))
         .route("/api/v1/model-providers/{key}", get(get_model_provider).put(update_model_provider).delete(delete_model_provider))
@@ -104,12 +111,16 @@ pub fn create_router() -> Router {
         .merge(sse::create_sse_router())
         .merge(ws::create_ws_router())
         .merge(ai::create_ai_router())
+        .merge(chat::create_chat_router())
         .merge(billing::create_billing_router())
         .merge(services::create_services_router())
         .merge(health::create_health_router())
         .merge(da::create_da_router())
         .merge(da_intents::create_da_intents_router())
         .merge(da_query::create_da_query_router())
+        .merge(web_search::create_web_search_router())
+        .merge(weather::create_weather_router())
+        .merge(orch_intents::create_orch_intents_router())
         .layer(cors)
 }
 
@@ -1051,6 +1062,188 @@ async fn delete_agent(Path(key): Path<String>) -> Result<impl IntoResponse, Stat
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
     Ok(Json(ApiResponse::success("Agent deleted".to_string())))
+}
+
+async fn list_tools(headers: HeaderMap, Query(params): Query<std::collections::HashMap<String, String>>) -> Result<impl IntoResponse, StatusCode> {
+    let db = get_db();
+    let tool_type = params.get("tool_type").map(|s| s.as_str());
+
+    let (user_key, user_roles) = if let Some(token) = headers.get(AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    {
+        if let Ok(claims) = verify_jwt(token) {
+            let raw_users: Vec<serde_json::Value> = db
+                .aql_bind_vars(
+                    "FOR u IN users FILTER u.username == @username LIMIT 1 RETURN u",
+                    [("username", serde_json::json!(claims.claims.username))].into(),
+                )
+                .await
+                .unwrap_or_default();
+            let raw_user = raw_users.into_iter().next();
+            let role_keys: Vec<String> = raw_user.as_ref()
+                .and_then(|u| u.get("role_keys"))
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+                .unwrap_or_default();
+            let uk = raw_user.as_ref()
+                .and_then(|u| u.get("_key"))
+                .and_then(|v| v.as_str())
+                .map(String::from)
+                .unwrap_or_default();
+            (Some(uk), Some(role_keys))
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
+
+    let tool_filter = if let Some(t) = tool_type {
+        format!(" && t.tool_type == '{}'", t)
+    } else {
+        String::new()
+    };
+    let query = format!(
+        "FOR t IN tools FILTER (t.visibility == null || t.visibility == 'public' || t.visibility == 'role' || t.visibility == 'account'){} SORT t.created_at DESC RETURN t",
+        tool_filter
+    );
+    let all_tools: Vec<Tool> = db.aql_str(&query).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let filtered: Vec<Tool> = match (&user_key, &user_roles) {
+        (Some(uk), Some(roles)) => all_tools
+            .into_iter()
+            .filter(|t| {
+                match t.visibility.as_deref().unwrap_or("public") {
+                    "public" => true,
+                    "role" => {
+                        let tool_roles = t.visibility_roles.as_deref().unwrap_or(&[]);
+                        roles.iter().any(|r| tool_roles.contains(r))
+                    }
+                    "account" => {
+                        let tool_accounts = t.visibility_accounts.as_deref().unwrap_or(&[]);
+                        tool_accounts.contains(uk)
+                    }
+                    _ => true,
+                }
+            })
+            .collect(),
+        _ => all_tools
+            .into_iter()
+            .filter(|t| matches!(t.visibility.as_deref().unwrap_or("public"), "public"))
+            .collect(),
+    };
+
+    Ok(Json(ApiResponse::success(filtered)))
+}
+
+async fn create_tool(Json(payload): Json<CreateToolRequest>) -> Result<impl IntoResponse, StatusCode> {
+    let db = get_db();
+
+    let key = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let tool = Tool {
+        _key: Some(key.clone()),
+        code: payload.code,
+        name: payload.name,
+        description: payload.description,
+        tool_type: payload.tool_type,
+        icon: payload.icon,
+        status: payload.status.unwrap_or_else(|| "online".to_string()),
+        usage_count: 0,
+        group_key: payload.group_key,
+        intent_tags: payload.intent_tags,
+        endpoint_url: payload.endpoint_url,
+        input_schema: payload.input_schema,
+        output_schema: payload.output_schema,
+        timeout_ms: payload.timeout_ms,
+        llm_model: payload.llm_model,
+        temperature: payload.temperature,
+        max_tokens: payload.max_tokens,
+        auth_config: payload.auth_config,
+        visibility: payload.visibility.or_else(|| Some("public".to_string())),
+        visibility_roles: payload.visibility_roles,
+        visibility_accounts: payload.visibility_accounts,
+        created_by: payload.created_by,
+        updated_by: None,
+        created_at: now.clone(),
+        updated_at: now,
+    };
+
+    let col = db.collection("tools").await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    col.create_document(tool.clone(), Default::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ApiResponse::success(tool)))
+}
+
+async fn get_tool(Path(key): Path<String>) -> Result<impl IntoResponse, StatusCode> {
+    let db = get_db();
+    let mut tools: Vec<Tool> = db
+        .aql_bind_vars(
+            "FOR t IN tools FILTER t._key == @key LIMIT 1 RETURN t",
+            [("key", serde_json::json!(key))].into(),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let tool = tools.pop().ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(ApiResponse::success(tool)))
+}
+
+async fn update_tool(Path(key): Path<String>, Json(payload): Json<serde_json::Value>) -> Result<impl IntoResponse, StatusCode> {
+    if payload.is_null() || payload.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let db = get_db();
+    let col = db.collection("tools").await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    eprintln!("update_tool: key={} payload={}", key, payload);
+    let existing: Vec<serde_json::Value> = db
+        .aql_bind_vars("FOR t IN tools FILTER t._key == @key LIMIT 1 RETURN t", [("key", serde_json::json!(key))].into())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let old = existing.into_iter().next().ok_or(StatusCode::NOT_FOUND)?;
+
+    let mut update_data = payload.clone();
+    if let Some(obj) = update_data.as_object_mut() {
+        if !obj.contains_key("created_by") {
+            if let Some(cb) = old.get("created_by") {
+                obj.insert("created_by".to_string(), cb.clone());
+            }
+        }
+        obj.insert("updated_at".to_string(), serde_json::json!(chrono::Utc::now().to_rfc3339()));
+    }
+
+    col.update_document(&key, update_data, Default::default())
+        .await
+        .map_err(|e| {
+            eprintln!("Update tool error: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let mut tools: Vec<Tool> = db
+        .aql_bind_vars(
+            "FOR t IN tools FILTER t._key == @key LIMIT 1 RETURN t",
+            [("key", serde_json::json!(key))].into(),
+        )
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let tool = tools.pop().ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(ApiResponse::success(tool)))
+}
+
+async fn delete_tool(Path(key): Path<String>) -> Result<impl IntoResponse, StatusCode> {
+    let db = get_db();
+    let col = db.collection("tools").await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    col.remove_document::<serde_json::Value>(&key, Default::default(), None)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    Ok(Json(ApiResponse::success("Tool deleted".to_string())))
 }
 
 async fn toggle_agent_favorite(Path(key): Path<String>) -> Result<impl IntoResponse, StatusCode> {

@@ -3,7 +3,7 @@
 //! # Description
 //! ArangoDB 數據庫連接與操作
 //!
-//! # Last Update: 2026-03-25 15:07:58
+//! # Last Update: 2026-03-28 10:22:08
 //! # Author: Daniel Chung
 //! # Version: 1.1.0
 
@@ -12,6 +12,9 @@ use arangors::{Connection as ArangoConnection, Database};
 use chrono::Utc;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+
+static ARANGO_URL: OnceCell<String> = OnceCell::new();
+static ARANGO_CREDS: OnceCell<(String, String)> = OnceCell::new();
 
 pub mod knowledge;
 pub mod ontology;
@@ -25,6 +28,9 @@ pub async fn init() -> Result<(), String> {
     let password = std::env::var("ARANGODB_PASSWORD").unwrap_or_default();
     let db_name = std::env::var("ARANGODB_DATABASE").unwrap_or_else(|_| "abc_desktop".into());
 
+    ARANGO_URL.set(url.clone()).ok();
+    ARANGO_CREDS.set((username.clone(), password.clone())).ok();
+
     let conn = ArangoConnection::establish_jwt(&url, &username, &password)
         .await
         .map_err(|e| format!("ArangoDB connection failed: {e}"))?;
@@ -37,6 +43,7 @@ pub async fn init() -> Result<(), String> {
         .map_err(|e| format!("Cannot access database '{db_name}': {e}"))?;
 
     ensure_collections(&db).await?;
+    ensure_indexes(&db).await?;
     seed_defaults(&db).await?;
 
     DB.set(db).map_err(|_| "DB already initialized".to_string())
@@ -69,13 +76,67 @@ async fn ensure_collections(db: &Database<ReqwestClient>) -> Result<(), String> 
         .map(|c| c.name)
         .collect();
 
-    for name in &["users", "roles", "system_params", "functions", "role_functions", "agents", "model_providers", "theme_templates", "knowledge_roots", "knowledge_files", "ontologies", "job_logs", "knowledge_graphs", "knowledge_graph_edges"] {
+    let docs = ["users", "roles", "system_params", "functions", "role_functions", "agents", "tools", "tool_logs", "model_providers", "theme_templates", "knowledge_roots", "knowledge_files", "ontologies", "job_logs", "knowledge_graphs", "knowledge_graph_edges", "chat_sessions", "chat_messages", "orch_intents"];
+    for name in docs {
         if !existing.contains(&name.to_string()) {
             db.create_collection(name)
                 .await
                 .map_err(|e| format!("Cannot create collection '{name}': {e}"))?;
         }
     }
+
+    // chat_session_files: Edge collection binding session ↔ uploaded files
+    let edge_collections = ["chat_session_files"];
+    for name in edge_collections {
+        if !existing.contains(&name.to_string()) {
+            db.create_collection(name)
+                .await
+                .map_err(|e| format!("Cannot create edge collection '{name}': {e}"))?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn ensure_indexes(_db: &Database<ReqwestClient>) -> Result<(), String> {
+    let idx_specs: &[(&str, &[&str])] = &[
+        ("chat_messages", &["session_key", "created_at"]),
+        ("knowledge_files", &["session_key"]),
+        ("job_logs", &["session_key"]),
+        ("knowledge_graphs", &["file_id"]),
+        ("knowledge_graph_edges", &["file_id"]),
+    ];
+
+    let base_url = ARANGO_URL.get().ok_or("ARANGO_URL not set")?;
+    let (user, pass) = ARANGO_CREDS.get().ok_or("ARANGO_CREDS not set")?;
+    let db_name = std::env::var("ARANGODB_DATABASE").unwrap_or_else(|_| "abc_desktop".into());
+
+    for (col_name, fields) in idx_specs {
+        let idx_body = serde_json::json!({
+            "type": "persistent",
+            "fields": fields,
+            "unique": false,
+            "sparse": false
+        });
+
+        let url = format!("{}/_db/{}/_api/index?collection={}", base_url, db_name, col_name);
+        let client = reqwest::Client::new();
+        let resp = client
+            .post(&url)
+            .basic_auth(user, Some(pass))
+            .json(&idx_body)
+            .send()
+            .await
+            .map_err(|e| format!("Index HTTP error on '{col_name}': {e}"))?;
+
+        if resp.status().is_success() || resp.status().as_u16() == 409 {
+            // 409 = index already exists, OK
+        } else {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Index creation failed on '{col_name}': {body}"));
+        }
+    }
+
     Ok(())
 }
 
@@ -89,6 +150,95 @@ async fn ensure_agent_defaults(db: &Database<ReqwestClient>) -> Result<(), Strin
     Ok(())
 }
 
+async fn ensure_websearch_params(db: &Database<ReqwestClient>) -> Result<(), String> {
+    let col = db
+        .collection("system_params")
+        .await
+        .map_err(|e| format!("system_params collection: {e}"))?;
+
+    let defaults: &[(&str, &str, &str)] = &[
+        ("web_search.serper_enabled", "false", "boolean"),
+        ("web_search.serper_api_key", "", "string"),
+        ("web_search.serpapi_enabled", "false", "boolean"),
+        ("web_search.serpapi_api_key", "", "string"),
+        ("web_search.scraper_enabled", "false", "boolean"),
+        ("web_search.scraper_api_key", "", "string"),
+        ("web_search.google_cse_enabled", "false", "boolean"),
+        ("web_search.google_cse_api_key", "", "string"),
+        ("web_search.google_cse_cx", "", "string"),
+    ];
+
+    let now = Utc::now().to_rfc3339();
+    for (key, value, param_type) in defaults {
+        let existing: Vec<serde_json::Value> = db
+            .aql_bind_vars(
+                "FOR p IN system_params FILTER p.param_key == @k LIMIT 1 RETURN p",
+                [("k", serde_json::json!(key))].into(),
+            )
+            .await
+            .map_err(|e| format!("AQL error on '{key}': {e}"))?;
+
+        if existing.is_empty() {
+            col.create_document(
+                SystemParam {
+                    _key: Some(key.to_string()),
+                    param_key: key.to_string(),
+                    param_value: value.to_string(),
+                    param_type: param_type.to_string(),
+                    require_restart: false,
+                    category: "web_search".to_string(),
+                    updated_at: now.clone(),
+                },
+                Default::default(),
+            )
+            .await
+            .map_err(|e| format!("Seed web_search param '{key}' failed: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
+async fn ensure_weather_params(db: &Database<ReqwestClient>) -> Result<(), String> {
+    let col = db
+        .collection("system_params")
+        .await
+        .map_err(|e| format!("system_params collection: {e}"))?;
+
+    let defaults: &[(&str, &str, &str)] = &[
+        ("weather.openweathermap_enabled", "true", "boolean"),
+        ("weather.openweathermap_api_key", "", "string"),
+    ];
+
+    let now = Utc::now().to_rfc3339();
+    for (key, value, param_type) in defaults {
+        let existing: Vec<serde_json::Value> = db
+            .aql_bind_vars(
+                "FOR p IN system_params FILTER p.param_key == @k LIMIT 1 RETURN p",
+                [("k", serde_json::json!(key))].into(),
+            )
+            .await
+            .map_err(|e| format!("AQL error on '{key}': {e}"))?;
+
+        if existing.is_empty() {
+            col.create_document(
+                SystemParam {
+                    _key: Some(key.to_string()),
+                    param_key: key.to_string(),
+                    param_value: value.to_string(),
+                    param_type: param_type.to_string(),
+                    require_restart: false,
+                    category: "weather".to_string(),
+                    updated_at: now.clone(),
+                },
+                Default::default(),
+            )
+            .await
+            .map_err(|e| format!("Seed weather param '{key}' failed: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 async fn seed_defaults(db: &Database<ReqwestClient>) -> Result<(), String> {
     seed_roles(db).await?;
     seed_users(db).await?;
@@ -99,6 +249,8 @@ async fn seed_defaults(db: &Database<ReqwestClient>) -> Result<(), String> {
     knowledge::seed_knowledge(db).await?;
     ontology::seed_ontologies(db).await?;
     ensure_agent_defaults(db).await?;
+    ensure_websearch_params(db).await?;
+    ensure_weather_params(db).await?;
     Ok(())
 }
 
@@ -399,9 +551,12 @@ pub struct SystemParam {
     pub _key: Option<String>,
     pub param_key: String,
     pub param_value: String,
+    #[serde(default)]
     pub param_type: String,
+    #[serde(default)]
     pub require_restart: bool,
     pub category: String,
+    #[serde(default)]
     pub updated_at: String,
 }
 
@@ -530,6 +685,74 @@ pub struct CreateAgentRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tool {
+    #[serde(rename = "_key")]
+    pub _key: Option<String>,
+    pub code: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub tool_type: Option<String>,
+    pub icon: Option<String>,
+    pub status: String,
+    pub usage_count: i32,
+    pub group_key: Option<String>,
+    pub intent_tags: Option<Vec<String>>,
+    pub endpoint_url: Option<String>,
+    pub input_schema: Option<serde_json::Value>,
+    pub output_schema: Option<serde_json::Value>,
+    pub timeout_ms: Option<i32>,
+    pub llm_model: Option<String>,
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<i32>,
+    pub auth_config: Option<serde_json::Value>,
+    pub visibility: Option<String>,
+    pub visibility_roles: Option<Vec<String>>,
+    pub visibility_accounts: Option<Vec<String>>,
+    pub created_by: Option<String>,
+    pub updated_by: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateToolRequest {
+    pub code: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub tool_type: Option<String>,
+    pub icon: Option<String>,
+    pub status: Option<String>,
+    pub group_key: Option<String>,
+    pub intent_tags: Option<Vec<String>>,
+    pub endpoint_url: Option<String>,
+    pub input_schema: Option<serde_json::Value>,
+    pub output_schema: Option<serde_json::Value>,
+    pub timeout_ms: Option<i32>,
+    pub llm_model: Option<String>,
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<i32>,
+    pub auth_config: Option<serde_json::Value>,
+    pub visibility: Option<String>,
+    pub visibility_roles: Option<Vec<String>>,
+    pub visibility_accounts: Option<Vec<String>>,
+    pub created_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolLog {
+    #[serde(rename = "_key")]
+    pub _key: Option<String>,
+    pub tool_key: String,
+    pub caller: Option<String>,
+    pub input_params: Option<serde_json::Value>,
+    pub output_result: Option<serde_json::Value>,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LLMModel {
     pub model_id: String,
     pub name: String,
@@ -556,4 +779,52 @@ pub struct ModelProvider {
     pub models: Vec<LLMModel>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+// ============= Chat Data Models =============
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSession {
+    #[serde(rename = "_key")]
+    pub _key: Option<String>,
+    pub title: Option<String>,
+    pub provider: String,
+    pub model: String,
+    pub status: String,           // "active", "archived"
+    pub tags_5w1h: Option<serde_json::Value>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessage {
+    #[serde(rename = "_key")]
+    pub _key: Option<String>,
+    pub session_key: String,
+    pub role: String,             // "user", "assistant", "system"
+    pub content: String,
+    pub tokens: Option<i32>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSessionRequest {
+    pub provider: Option<String>,
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSessionRequest {
+    pub title: Option<String>,
+    pub status: Option<String>,
+    pub tags_5w1h: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendMessageRequest {
+    pub content: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<i32>,
 }

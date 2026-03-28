@@ -14,7 +14,7 @@ use axum::{
 };
 use chrono::Utc;
 use futures::{stream, Stream, StreamExt};
-use std::{convert::Infallible, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::broadcast;
 
 /// SSE 事件结构
@@ -38,12 +38,33 @@ lazy_static::lazy_static! {
     };
 }
 
+/// Session-scoped broadcast channels for file status events
+lazy_static::lazy_static! {
+    static ref FILE_BROADCAST_TXS: Arc<std::sync::Mutex<HashMap<String, broadcast::Sender<SseEvent>>>> = {
+        Arc::new(std::sync::Mutex::new(HashMap::new()))
+    };
+}
+
+const FILE_BROADCAST_CAPACITY: usize = 50;
+
+/// Get or create a broadcast sender for a session's file events
+pub fn get_or_create_file_broadcast_tx(session_key: &str) -> broadcast::Sender<SseEvent> {
+    let mut txs = FILE_BROADCAST_TXS.lock().unwrap();
+    if let Some(tx) = txs.get(session_key) {
+        return tx.clone();
+    }
+    let (tx, _) = broadcast::channel(FILE_BROADCAST_CAPACITY);
+    txs.insert(session_key.to_string(), tx.clone());
+    tx
+}
+
 /// 创建 SSE 路由
 pub fn create_sse_router() -> Router {
     Router::new()
         .route("/api/v1/sse/chat/{context_id}", get(sse_chat))
         .route("/api/v1/sse/events", get(sse_events))
         .route("/api/v1/sse/notifications", get(sse_notifications))
+        .route("/api/v1/sse/session-files/{session_key}", get(sse_session_files))
 }
 
 /// SSE Chat 流 - 对应指定 context_id 的对话流
@@ -177,6 +198,71 @@ pub async fn sse_notifications() -> Sse<impl Stream<Item = Result<Event, Infalli
 /// 广播 SSE 事件到所有订阅者
 pub fn broadcast_sse_event(event: SseEvent) {
     let _ = BROADCAST_TX.send(event);
+}
+
+/// Broadcast a file_status event to the session's broadcast channel
+pub fn broadcast_file_status_event(session_key: &str, payload: serde_json::Value) {
+    let tx = get_or_create_file_broadcast_tx(session_key);
+    let event = SseEvent {
+        event: "file_status".to_string(),
+        data: payload.to_string(),
+        id: None,
+        retry: Some(5000),
+    };
+    let _ = tx.send(event);
+}
+
+/// SSE stream for session file status events
+pub async fn sse_session_files(
+    Path(session_key): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let tx = get_or_create_file_broadcast_tx(&session_key);
+    let mut rx = tx.subscribe();
+
+    let initial_stream = stream::iter(vec![Ok(
+        Event::default().event("connected").data(
+            serde_json::json!({
+                "session_key": session_key,
+                "timestamp": Utc::now().to_rfc3339(),
+                "message": "Subscribed to file status events"
+            })
+            .to_string(),
+        ),
+    )]);
+
+    let event_stream = stream::unfold(rx, move |mut rx| async move {
+        match rx.recv().await {
+            Ok(event) => Some((
+                Ok(Event::default().event(&event.event).data(&event.data)),
+                rx,
+            )),
+            Err(broadcast::error::RecvError::Lagged(n)) => {
+                Some((
+                    Ok(Event::default()
+                        .event("heartbeat")
+                        .data(format!(r#"{{"lagged_events":{}}}"#, n))),
+                    rx,
+                ))
+            }
+            Err(broadcast::error::RecvError::Closed) => None,
+        }
+    });
+
+    let heartbeat_stream = stream::unfold((), |_| async {
+        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        Some((
+            Ok(Event::default()
+                .event("heartbeat")
+                .data(serde_json::json!({ "timestamp": Utc::now().to_rfc3339() }).to_string())),
+            (),
+        ))
+    });
+
+    Sse::new(
+        initial_stream
+            .chain(event_stream)
+            .chain(heartbeat_stream),
+    )
 }
 
 #[cfg(test)]

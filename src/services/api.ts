@@ -1,9 +1,9 @@
 /**
  * @file        API 服務層
  * @description Axios 實例配置、API 請求封裝、所有業務 API 接口定義
- * @lastUpdate  2026-03-25 15:07:58
+ * @lastUpdate  2026-03-28 10:22:08
  * @author      Daniel Chung
- * @version     1.4.0
+ * @version     1.5.0
  * @history
  * - 2026-03-25 15:07:58 | Daniel Chung | 1.4.0 | 新增 activate() 方法到 themeTemplateApi
  * - 2026-03-24 23:01:20 | Daniel Chung | 1.3.0 | 新增 Knowledge Base 介面定義與 API 方法
@@ -174,6 +174,59 @@ export const agentApi = {
   toggleFavorite: (key: string) => api.patch<{ code: number; data: Agent }>(`/api/v1/agents/${key}/favorite`, {}),
 };
 
+// ============= Tool Registry =============
+
+export interface Tool {
+  _key?: string;
+  code: string;
+  name: string;
+  description?: string;
+  tool_type?: 'mcp' | 'builtin' | 'custom';
+  icon?: string;
+  status?: 'online' | 'maintenance' | 'deprecated' | 'registering';
+  usage_count?: number;
+  group_key?: string;
+  intent_tags?: string[];
+  endpoint_url?: string;
+  input_schema?: Record<string, unknown>;
+  output_schema?: Record<string, unknown>;
+  timeout_ms?: number;
+  llm_model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  auth_config?: Record<string, unknown>;
+  visibility?: 'public' | 'role' | 'account';
+  visibility_roles?: string[];
+  visibility_accounts?: string[];
+  created_by?: string;
+  updated_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ToolLog {
+  _key?: string;
+  tool_key: string;
+  caller?: string;
+  input_params?: Record<string, unknown>;
+  output_result?: Record<string, unknown>;
+  success: boolean;
+  error_message?: string;
+  duration_ms?: number;
+  created_at?: string;
+}
+
+export const toolApi = {
+  list: (toolType?: string) => {
+    const url = toolType ? `/api/v1/tools?tool_type=${toolType}` : '/api/v1/tools';
+    return api.get<{ code: number; data: Tool[] }>(url);
+  },
+  get: (key: string) => api.get<{ code: number; data: Tool }>(`/api/v1/tools/${key}`),
+  create: (data: Partial<Tool>) => api.post('/api/v1/tools', data),
+  update: (key: string, data: Partial<Tool>) => api.put(`/api/v1/tools/${key}`, data),
+  delete: (key: string) => api.delete(`/api/v1/tools/${key}`),
+};
+
 export const functionApi = {
   list: () => api.get<{ code: number; data: Function[] }>('/api/v1/functions'),
   get: (key: string) => api.get<{ code: number; data: Function }>(`/api/v1/functions/${key}`),
@@ -219,6 +272,97 @@ export const modelProviderApi = {
   update: (key: string, data: Partial<ModelProvider>) => api.put(`/api/v1/model-providers/${key}`, data),
   delete: (key: string) => api.delete(`/api/v1/model-providers/${key}`),
   sync: (key: string) => api.post(`/api/v1/model-providers/${key}/sync`),
+};
+
+// ===== Session Files =====
+
+export interface SessionFile {
+  file_key: string;
+  filename: string;
+  file_size: number;
+  file_type: string;
+  vector_status: string;
+  graph_status: string;
+  failed_reason?: string;
+  upload_time: string;
+  graph_stats: {
+    nodes: number;
+    edges: number;
+  };
+}
+
+export interface FileStatusPayload {
+  file_key: string;
+  vector_status?: string;
+  graph_status?: string;
+  failed_reason?: string;
+  graph_stats?: { nodes: number; edges: number };
+}
+
+export const sessionFilesApi = {
+  list: (sessionKey: string) =>
+    api.get<ApiResponse<SessionFile[]>>(`/api/v1/chat/sessions/${encodeURIComponent(sessionKey)}/files`),
+  upload: (sessionKey: string, formData: FormData) =>
+    api.post<ApiResponse<SessionFile>>(`/api/v1/chat/sessions/${encodeURIComponent(sessionKey)}/files`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  delete: (sessionKey: string, fileKey: string) =>
+    api.delete<ApiMessage>(`/api/v1/chat/sessions/${encodeURIComponent(sessionKey)}/files?file_key=${encodeURIComponent(fileKey)}`),
+};
+
+// ===== Chat (任務聊天) =====
+
+export interface ChatSession {
+  _key: string;
+  title: string | null;
+  provider: string;
+  model: string;
+  status: string;
+  tags_5w1h: Record<string, string> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  _key: string;
+  session_key: string;
+  role: string;
+  content: string;
+  thinking?: string | null;
+  tokens: number | null;
+  created_at: string;
+}
+
+export interface CreateSessionRequest {
+  title?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface SendMessageRequest {
+  content: string;
+  provider?: string;
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+export interface SessionWithMessages {
+  session: ChatSession;
+  messages: ChatMessage[];
+}
+
+export const chatApi = {
+  createSession: (data: CreateSessionRequest) =>
+    api.post<ApiResponse<ChatSession>>('/api/v1/chat/sessions', data),
+  listSessions: () =>
+    api.get<ApiResponse<ChatSession[]>>('/api/v1/chat/sessions'),
+  getSession: (key: string) =>
+    api.get<ApiResponse<SessionWithMessages>>(`/api/v1/chat/sessions/${key}`),
+  updateSession: (key: string, data: { title?: string; status?: string; tags_5w1h?: Record<string, string> }) =>
+    api.put<ApiResponse<ChatSession>>(`/api/v1/chat/sessions/${key}`, data),
+  deleteSession: (key: string) =>
+    api.delete<ApiResponse<string>>(`/api/v1/chat/sessions/${key}`),
 };
 
 export interface KbJobFile {
@@ -429,6 +573,27 @@ export interface ServiceListResponse {
 export const servicesApi = {
   list: () => api.get<ServiceListResponse>('/api/v1/services'),
   get: (name: string) => api.get<{ service: ServiceInfo }>(`/api/v1/services/${name}`),
+  restart: (name: string) => api.post<{ success: boolean; message: string }>(`/api/v1/services/${name}/restart`),
+};
+
+// ===== Health Check (基礎設施健檢) =====
+
+export interface HealthServices {
+  main_api: boolean;
+  chat_api: boolean;
+  arangodb: boolean;
+  qdrant: boolean;
+}
+
+export interface HealthResponse {
+  status: string;
+  version: string;
+  uptime: number;
+  services: HealthServices;
+}
+
+export const healthApi = {
+  check: () => api.get<HealthResponse>('/health'),
 };
 
 // ===== Knowledge Base (知識庫) =====

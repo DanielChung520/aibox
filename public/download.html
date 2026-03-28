@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABC Desktop - 下載</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 20px}
+.container{max-width:720px;width:100%}
+h1{font-size:2rem;margin-bottom:8px;color:#fff}
+.subtitle{color:#94a3b8;margin-bottom:40px;font-size:1rem}
+.version-badge{display:inline-block;background:#3b82f6;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85rem;margin-left:8px;vertical-align:middle}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px;margin-bottom:16px;transition:border-color .2s}
+.card:hover{border-color:#3b82f6}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.card-title{font-size:1.1rem;font-weight:600;color:#fff}
+.card-meta{font-size:0.8rem;color:#64748b}
+.card-desc{color:#94a3b8;font-size:0.9rem;margin-bottom:16px}
+.btn{display:inline-block;background:#3b82f6;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:500;font-size:0.9rem;transition:background .2s}
+.btn:hover{background:#2563eb}
+.btn-size{color:#64748b;font-size:0.8rem;margin-left:12px}
+.section-title{font-size:1.2rem;color:#fff;margin:32px 0 16px;padding-bottom:8px;border-bottom:1px solid #334155}
+.steps{color:#94a3b8;font-size:0.9rem;line-height:1.8;padding-left:20px}
+.steps li{margin-bottom:4px}
+.steps code{background:#334155;padding:2px 6px;border-radius:4px;font-size:0.85rem;color:#e2e8f0}
+.footer{margin-top:48px;color:#475569;font-size:0.8rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ABC Desktop <span class="version-badge">v1.0.0</span></h1>
+  <p class="subtitle">AI 驅動的桌面管理系統</p>
+
+  <h2 class="section-title">📦 下載安裝包</h2>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">macOS — Apple Silicon (M1/M2/M3/M4)</span>
+      <span class="card-meta">2026-03-28</span>
+    </div>
+    <p class="card-desc">適用於 2020 年後的 Mac（M 系列晶片）</p>
+    <a class="btn" href="/abc-desktop.dmg" download>下載 DMG</a>
+    <span class="btn-size">6.5 MB</span>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">macOS — Intel</span>
+      <span class="card-meta">2026-03-28</span>
+    </div>
+    <p class="card-desc">適用於 2020 年前的 Mac（Intel 處理器）</p>
+    <a class="btn" href="/abc-desktop-intel.dmg" download>下載 DMG</a>
+    <span class="btn-size">6.7 MB</span>
+  </div>
+
+  <div class="card" style="opacity:0.5">
+    <div class="card-header">
+      <span class="card-title">Windows x64</span>
+      <span class="card-meta">即將推出</span>
+    </div>
+    <p class="card-desc">適用於 Windows 10/11 64 位元</p>
+    <span class="btn" style="background:#475569;cursor:not-allowed">尚未提供</span>
+  </div>
+
+  <h2 class="section-title">🔧 安裝說明</h2>
+  <ol class="steps">
+    <li>下載對應架構的 <code>.dmg</code> 檔案</li>
+    <li>雙擊打開 DMG</li>
+    <li>將 <strong>ABC管理系统</strong> 拖到 <strong>Applications</strong> 資料夾</li>
+    <li>第一次開啟會被 macOS 安全性阻擋 → <strong>右鍵 app → 打開 → 確認</strong></li>
+    <li>應用程式會自動連線到雲端服務</li>
+  </ol>
+
+  <h2 class="section-title">📋 版本紀錄</h2>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">v1.0.0</span>
+      <span class="card-meta">2026-03-28</span>
+    </div>
+    <p class="card-desc">
+      首次正式發佈。包含完整的 Tauri 桌面殼、自動更新機制、PWA 遠端前端載入。<br>
+      支援：用戶管理、角色權限、系統設置、AI 對話、意圖決策管理、工具授權、服務狀態監控。
+    </p>
+  </div>
+
+  <p class="footer">© 2026 ABC Desktop. Powered by Tauri + React.</p>
+</div>
+</body>
+</html>

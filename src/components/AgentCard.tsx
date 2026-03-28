@@ -1,7 +1,7 @@
 /**
  * @file        Agent 卡片組件
  * @description 顯示 Agent 信息卡片，支持收藏、編輯、刪除和對話操作
- * @lastUpdate  2026-03-24 22:33:13
+ * @lastUpdate  2026-03-28 10:02:17
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -14,7 +14,7 @@ import {
   DeleteOutlined, 
   HeartOutlined, 
   HeartFilled,
-  MessageOutlined 
+  MessageOutlined,
 } from '@ant-design/icons';
 import { iconMap } from '../utils/icons';
 import { useContentTokens } from '../contexts/AppThemeProvider';
@@ -36,6 +36,12 @@ interface AgentCardProps {
   onChat?: (agentId: string) => void;
   onFavorite?: (agentId: string, isFavorite: boolean) => void;
   isFavorite?: boolean;
+  actionLabel?: string;
+  actionIcon?: React.ReactNode;
+  onAction?: (agentId: string) => void;
+  actionDisabled?: boolean;
+  actionStyle?: React.CSSProperties;
+  showMenu?: boolean;
 }
 
 const statusColors: Record<string, { color: string; text: string }> = {
@@ -51,7 +57,13 @@ export default function AgentCard({
   onDelete, 
   onChat,
   onFavorite, 
-  isFavorite: initialIsFavorite = false 
+  isFavorite: initialIsFavorite = false,
+  actionLabel,
+  actionIcon,
+  onAction,
+  actionDisabled,
+  actionStyle,
+  showMenu = true,
 }: AgentCardProps) {
   const { token } = theme.useToken();
   const contentTokens = useContentTokens();
@@ -100,9 +112,8 @@ export default function AgentCard({
         border: isHovered ? `1px solid ${contentTokens.colorPrimary}80` : undefined,
         width: '100%',
       }}
-      onClick={() => !isDisabled && onChat?.(agent.id)}
+      onClick={() => !isDisabled && !actionDisabled && (onAction || onChat)?.(agent.id)}
     >
-      {/* 卡片頭部 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ 
@@ -146,18 +157,20 @@ export default function AgentCard({
             />
           </Tooltip>
           
-          <Dropdown 
-            menu={{ items: menuItems }} 
-            trigger={['click']}
-            placement="bottomRight"
-          >
-            <Button 
-              type="text" 
-              size="small"
-              icon={<MoreOutlined />}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </Dropdown>
+          {showMenu && (
+            <Dropdown 
+              menu={{ items: menuItems }} 
+              trigger={['click']}
+              placement="bottomRight"
+            >
+              <Button 
+                type="text" 
+                size="small"
+                icon={<MoreOutlined />}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Dropdown>
+          )}
         </div>
       </div>
 
@@ -173,22 +186,22 @@ export default function AgentCard({
         {agent.description || '暂无描述'}
       </div>
 
-      {/* 卡片底部 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ color: metaColor, fontSize: 12 }}>
           使用次數: {agent.usageCount}
         </div>
         <Button 
-          type={isHovered ? 'primary' : 'default'}
+          type={isHovered && !actionDisabled ? 'primary' : 'default'}
           size="small"
-          icon={<MessageOutlined />}
-          disabled={isDisabled}
+          icon={actionIcon ?? <MessageOutlined />}
+          disabled={isDisabled || actionDisabled}
+          style={actionStyle}
           onClick={(e) => {
             e.stopPropagation();
-            if (!isDisabled) onChat?.(agent.id);
+            if (!isDisabled && !actionDisabled) (onAction || onChat)?.(agent.id);
           }}
         >
-          對話
+          {actionLabel ?? '對話'}
         </Button>
       </div>
     </Card>

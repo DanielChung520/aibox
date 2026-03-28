@@ -1,243 +1,339 @@
 /**
- * @file        效率工具代理頁面
- * @description 效率工具代理功能，展示各種效率提升的 AI 代理工具
- * @lastUpdate  2026-03-25 15:54:25
+ * @file        工具註冊頁面
+ * @description 效率工具註冊管理，支持卡片與表格混合視圖，admin 授權控制
+ * @lastUpdate  2026-03-28 10:22:08
  * @author      Daniel Chung
- * @version     1.0.1
+ * @version     2.0.0
  */
 
 import { useState, useEffect } from 'react';
-import { Tabs, Input, Row, Col, Button, Empty, App, Spin, Switch } from 'antd';
-import { SearchOutlined, PlusOutlined, ReloadOutlined, HeartOutlined } from '@ant-design/icons';
+import { Tabs, Input, Row, Col, Button, Empty, App, Spin, Table, Tag, Tooltip, Space, Segmented } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import { 
+  SearchOutlined, PlusOutlined, ReloadOutlined, 
+  AppstoreOutlined, UnorderedListOutlined,
+  SafetyCertificateOutlined, CheckCircleOutlined, StopOutlined,
+  EditOutlined, DeleteOutlined, ToolOutlined,
+} from '@ant-design/icons';
 import AgentCard from '../components/AgentCard';
-import AgentFormModal from '../components/AgentFormModal';
-import { agentApi, Agent as ApiAgent } from '../services/api';
+import ToolFormModal from '../components/ToolFormModal';
+import { toolApi, Tool } from '../services/api';
 import { authStore } from '../stores/auth';
 import { useContentTokens } from '../contexts/AppThemeProvider';
+import { iconMap } from '../utils/icons';
 
 const groupConfig = [
-  { key: 'all', label: '全部', icon: 'AppstoreOutlined' },
-  { key: 'productivity', label: '生產力', icon: 'ThunderboltOutlined' },
-  { key: 'document', label: '文檔處理', icon: 'FileTextOutlined' },
-  { key: 'data', label: '數據處理', icon: 'DatabaseOutlined' },
-  { key: 'language', label: '語言翻譯', icon: 'TranslationOutlined' },
-  { key: 'entertainment', label: '創意娛樂', icon: 'SmileOutlined' },
+  { key: 'all', label: '全部' },
+  { key: 'search', label: '搜尋工具' },
+  { key: 'data', label: '數據處理' },
+  { key: 'utility', label: '實用工具' },
+  { key: 'language', label: '語言處理' },
+  { key: 'automation', label: '自動化' },
 ];
 
 export default function BrowseTools() {
   const { message } = App.useApp();
   const contentTokens = useContentTokens();
+  const isAdmin = authStore.getState().user?.role_key === 'admin';
+  const currentUser = authStore.getState().user;
   const [activeTab, setActiveTab] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [agents, setAgents] = useState<ApiAgent[]>([]);
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [tools, setTools] = useState<Tool[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<ApiAgent | null>(null);
+  const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
 
-  const fetchAgents = async () => {
+  const fetchTools = async () => {
     setLoading(true);
     try {
-      const res = await agentApi.list('tool');
-      const data = res.data.data || [];
-      setAgents(data);
-      const favs = new Set<string>();
-      data.forEach((a: ApiAgent) => {
-        if (a.is_favorite && a._key) favs.add(a._key);
-      });
-      setFavorites(favs);
+      const res = await toolApi.list();
+      setTools(res.data.data || []);
     } catch (err) {
-      console.error('Failed to fetch agents:', err);
+      console.error('Failed to fetch tools:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAgents();
+    fetchTools();
   }, []);
 
-  const mapApiToCard = (agent: ApiAgent) => ({
-    id: agent._key || '',
-    name: agent.name,
-    description: agent.description || '',
-    icon: agent.icon || 'RobotOutlined',
-    status: agent.status || 'online',
-    usageCount: agent.usage_count || 0,
-    groupKey: agent.group_key || 'productivity',
+  const isAuthorized = (tool: Tool): boolean => {
+    const vis = tool.visibility || 'public';
+    if (vis === 'public') return true;
+    if (vis === 'account') return (tool.visibility_accounts || []).includes(currentUser?.username || '');
+    if (vis === 'role') return (tool.visibility_roles || []).includes(currentUser?.role_key || '');
+    return false;
+  };
+
+  const mapToolToCard = (tool: Tool) => ({
+    id: tool._key || '',
+    name: tool.name,
+    description: tool.description || '',
+    icon: tool.icon || 'ToolOutlined',
+    status: (tool.status || 'online') as 'online' | 'maintenance' | 'deprecated' | 'registering',
+    usageCount: tool.usage_count || 0,
+    groupKey: tool.group_key || 'utility',
   });
 
-  const filteredAgents = agents.map(mapApiToCard).filter((agent: any) => {
-    if (activeTab !== 'all' && agent.groupKey !== activeTab) {
-      return false;
-    }
-    if (showFavoritesOnly && !favorites.has(agent.id)) {
+  const filteredTools = tools.filter((tool) => {
+    if (activeTab !== 'all' && tool.group_key !== activeTab) {
       return false;
     }
     if (searchText) {
       const search = searchText.toLowerCase();
       return (
-        agent.name.toLowerCase().includes(search) ||
-        agent.description.toLowerCase().includes(search)
+        tool.name.toLowerCase().includes(search) ||
+        (tool.description || '').toLowerCase().includes(search)
       );
     }
     return true;
   });
 
-  const handleFavorite = async (agentId: string, isFavorite: boolean) => {
-    try {
-      await agentApi.toggleFavorite(agentId);
-      setFavorites((prev) => {
-        const next = new Set(prev);
-        if (isFavorite) {
-          next.add(agentId);
-        } else {
-          next.delete(agentId);
-        }
-        return next;
-      });
-    } catch (err) {
-      console.error('Failed to toggle favorite:', err);
-    }
-  };
-
-  const handleChat = (agentId: string) => {
-    const agent = agents.find((a) => a._key === agentId);
-    message.info(`啟動與 ${agent?.name} 的對話...`);
-  };
-
-  const handleEdit = (agentId: string) => {
-    const agent = agents.find((a) => a._key === agentId);
-    setEditingAgent(agent || null);
+  const handleAuth = (toolKey: string) => {
+    const tool = tools.find((t) => t._key === toolKey);
+    setEditingTool(tool || null);
     setModalMode('edit');
     setModalOpen(true);
   };
 
-  const handleDelete = async (agentId: string) => {
+  const handleEdit = (toolKey: string) => {
+    const tool = tools.find((t) => t._key === toolKey);
+    setEditingTool(tool || null);
+    setModalMode('edit');
+    setModalOpen(true);
+  };
+
+  const handleDelete = async (toolKey: string) => {
     try {
-      await agentApi.delete(agentId);
+      await toolApi.delete(toolKey);
       message.success('刪除成功');
-      fetchAgents();
+      fetchTools();
     } catch (err) {
-      console.error('Failed to delete agent:', err);
+      console.error('Failed to delete tool:', err);
       message.error('刪除失敗');
     }
   };
 
   const handleCreate = () => {
-    setEditingAgent(null);
+    setEditingTool(null);
     setModalMode('create');
     setModalOpen(true);
   };
 
-  const handleFormSubmit = async (values: any) => {
+  const handleFormSubmit = async (values: Partial<Tool>) => {
     try {
-      const currentUser = authStore.getState().user;
       const apiData: Record<string, unknown> = {
+        code: values.code,
         name: values.name,
         description: values.description || '',
+        tool_type: values.tool_type || 'custom',
         icon: values.icon || '',
         status: values.status || 'online',
-        group_key: values.groupKey || activeTab,
-        source: values.source === true ? 'third_party' : (values.source || 'local'),
-        endpoint_url: values.endpointUrl || '',
-        api_key: values.apiKey || '',
-        auth_type: values.authType || 'none',
-        llm_model: values.llmModel || '',
+        group_key: values.group_key || activeTab,
+        intent_tags: values.intent_tags || [],
+        endpoint_url: values.endpoint_url || '',
+        input_schema: values.input_schema,
+        output_schema: values.output_schema,
+        timeout_ms: values.timeout_ms ?? 30000,
+        llm_model: values.llm_model || '',
         temperature: values.temperature ?? 0.7,
-        max_tokens: values.maxTokens ?? 2000,
-        system_prompt: values.systemPrompt || '',
-        knowledge_bases: values.knowledgeBases || [],
-        data_sources: values.dataSources || [],
-        tools: values.tools || [],
-        opening_lines: values.openingLines || [],
-        capabilities: values.capabilities || [],
-        visibility: values.visibility || 'private',
+        max_tokens: values.max_tokens ?? 2000,
+        visibility: values.visibility || 'public',
         visibility_roles: values.visibility_roles || [],
+        visibility_accounts: values.visibility_accounts || [],
       };
-
       if (modalMode === 'create') {
-        apiData.agent_type = values.agentType || 'tool';
         apiData.created_by = currentUser?.username || 'unknown';
-      }
-
-      if (modalMode === 'create') {
-        await agentApi.create(apiData);
-        message.success(`新增 Agent: ${values.name}`);
-      } else if (editingAgent?._key) {
-        await agentApi.update(editingAgent._key, apiData);
-        message.success(`更新 Agent: ${values.name}`);
+        await toolApi.create(apiData);
+        message.success(`新增工具: ${values.name}`);
+      } else if (editingTool?._key) {
+        await toolApi.update(editingTool._key, apiData);
+        message.success(`更新工具: ${values.name}`);
       }
       setModalOpen(false);
-      fetchAgents();
+      fetchTools();
     } catch (err) {
+      console.error('Failed to submit tool:', err);
       message.error('操作失敗');
     }
   };
 
   const handleRefresh = () => {
-    fetchAgents();
+    fetchTools();
   };
+
+  const tableColumns: ColumnsType<Tool> = [
+    {
+      title: '工具名稱',
+      dataIndex: 'name',
+      key: 'name',
+      width: 180,
+      render: (text: string, record: Tool) => {
+        const IconComp = record.icon ? iconMap[record.icon as keyof typeof iconMap] : null;
+        return (
+          <Space>
+            {IconComp ? <IconComp /> : <ToolOutlined />}
+            {text}
+          </Space>
+        );
+      },
+    },
+    { title: '代碼', dataIndex: 'code', key: 'code', width: 120 },
+    {
+      title: '類型',
+      dataIndex: 'tool_type',
+      key: 'tool_type',
+      width: 100,
+      render: (type: string) => {
+        const colors: Record<string, string> = { mcp: 'blue', builtin: 'green', custom: 'orange' };
+        const labels: Record<string, string> = { mcp: 'MCP', builtin: '內建', custom: '自訂' };
+        return <Tag color={colors[type] || 'default'}>{labels[type] || type}</Tag>;
+      },
+    },
+    {
+      title: '狀態',
+      dataIndex: 'status',
+      key: 'status',
+      width: 80,
+      render: (status: string) => {
+        const statusMap: Record<string, { color: string; text: string }> = {
+          online: { color: 'green', text: '在線' },
+          maintenance: { color: 'gold', text: '維修中' },
+          deprecated: { color: 'red', text: '已作廢' },
+          registering: { color: 'orange', text: '審查中' },
+        };
+        const info = statusMap[status] || { color: 'default', text: status };
+        return <Tag color={info.color}>{info.text}</Tag>;
+      },
+    },
+    {
+      title: '授權',
+      dataIndex: 'visibility',
+      key: 'visibility',
+      width: 80,
+      render: (vis: string) => {
+        const visMap: Record<string, { color: string; text: string }> = {
+          public: { color: 'green', text: '公開' },
+          role: { color: 'blue', text: '角色' },
+          account: { color: 'purple', text: '帳號' },
+        };
+        const info = visMap[vis] || { color: 'default', text: vis };
+        return <Tag color={info.color}>{info.text}</Tag>;
+      },
+    },
+    { title: '使用次數', dataIndex: 'usage_count', key: 'usage_count', width: 90, sorter: (a: Tool, b: Tool) => (a.usage_count || 0) - (b.usage_count || 0) },
+    { title: 'LLM', dataIndex: 'llm_model', key: 'llm_model', width: 100, render: (v: string) => v || '-' },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 120,
+      render: (_: unknown, record: Tool) => {
+        if (!isAdmin) return null;
+        return (
+          <Space>
+            <Tooltip title="編輯">
+              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record._key || '')} />
+            </Tooltip>
+            <Tooltip title="刪除">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record._key || '')} />
+            </Tooltip>
+          </Space>
+        );
+      },
+    },
+  ];
 
   const tabItems = groupConfig.map((group) => ({
     key: group.key,
     label: group.label,
     children: (
       <div>
-        <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
+        <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
           <Input
-            placeholder="搜索 Agent 名稱或描述..."
+            placeholder="搜索工具名稱或描述..."
             prefix={<SearchOutlined />}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             style={{ maxWidth: 300 }}
             allowClear
           />
-          {activeTab !== 'all' && (
-            <Button icon={<PlusOutlined />} onClick={handleCreate}>新增 Agent</Button>
+          {activeTab !== 'all' && isAdmin && (
+            <Button icon={<PlusOutlined />} onClick={handleCreate}>新增工具</Button>
           )}
           <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
             刷新
           </Button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
-            <HeartOutlined style={{ color: contentTokens.colorError }} />
-            <span>我的收藏</span>
-            <Switch 
-              checked={showFavoritesOnly} 
-              onChange={setShowFavoritesOnly} 
-              size="small"
+          <div style={{ marginLeft: 'auto' }}>
+            <Segmented
+              value={viewMode}
+              onChange={(v) => setViewMode(v as 'card' | 'table')}
+              options={[
+                { value: 'card', icon: <AppstoreOutlined /> },
+                { value: 'table', icon: <UnorderedListOutlined /> },
+              ]}
             />
           </div>
         </div>
 
-        {filteredAgents.length > 0 ? (
-          <Row gutter={[16, 16]} style={{ margin: 0 }}>
-            {filteredAgents.map((agent) => (
-              <Col 
-                key={agent.id} 
-                xs={24} 
-                sm={12} 
-                md={12} 
-                lg={8} 
-                xl={6}
-                style={{ marginBottom: 16 }}
-              >
-                <AgentCard
-                    agent={agent}
-                    isFavorite={favorites.has(agent.id)}
-                    onFavorite={handleFavorite}
-                    onChat={handleChat}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                />
-              </Col>
-            ))}
-          </Row>
+        {filteredTools.length > 0 ? (
+          viewMode === 'card' ? (
+            <Row gutter={[16, 16]} style={{ margin: 0 }}>
+              {filteredTools.map((tool) => {
+                const cardAgent = mapToolToCard(tool);
+                return (
+                  <Col 
+                    key={cardAgent.id} 
+                    xs={24} 
+                    sm={12} 
+                    md={12} 
+                    lg={8} 
+                    xl={6}
+                    style={{ marginBottom: 16 }}
+                  >
+                    <AgentCard
+                      agent={cardAgent}
+                      onEdit={isAdmin ? handleEdit : undefined}
+                      onDelete={isAdmin ? handleDelete : undefined}
+                      showMenu={isAdmin}
+                      {...(isAdmin ? {
+                        actionLabel: '授權',
+                        actionIcon: <SafetyCertificateOutlined />,
+                        onAction: handleAuth,
+                      } : isAuthorized(tool) ? {
+                        actionLabel: '已授權',
+                        actionIcon: <CheckCircleOutlined />,
+                        actionDisabled: true,
+                        actionStyle: { color: contentTokens.colorSuccess, borderColor: contentTokens.colorSuccess },
+                      } : {
+                        actionLabel: '禁止',
+                        actionIcon: <StopOutlined />,
+                        actionDisabled: true,
+                      })}
+                    />
+                  </Col>
+                );
+              })}
+            </Row>
+          ) : (
+            <Table
+              columns={tableColumns}
+              dataSource={filteredTools}
+              rowKey="_key"
+              pagination={{ pageSize: 20 }}
+              size="middle"
+              style={{
+                boxShadow: contentTokens.tableShadow,
+                borderRadius: contentTokens.borderRadius,
+              }}
+            />
+          )
         ) : (
           <Empty
-            description="沒有找到匹配的 Agent"
+            description="沒有找到匹配的工具"
             style={{ marginTop: 48 }}
           />
         )}
@@ -255,39 +351,13 @@ export default function BrowseTools() {
           style={{ marginTop: -8 }}
         />
       </Spin>
-       <AgentFormModal
-         open={modalOpen}
-         agent={editingAgent ? {
-           id: editingAgent._key || '',
-           name: editingAgent.name,
-           description: editingAgent.description || '',
-           icon: editingAgent.icon || 'RobotOutlined',
-           status: editingAgent.status || 'online',
-           usageCount: editingAgent.usage_count || 0,
-           groupKey: editingAgent.group_key || 'productivity',
-          agentType: editingAgent.agent_type,
-          source: editingAgent.source,
-          endpointUrl: editingAgent.endpoint_url,
-          apiKey: editingAgent.api_key,
-          authType: editingAgent.auth_type,
-          llmModel: editingAgent.llm_model,
-          temperature: editingAgent.temperature,
-          maxTokens: editingAgent.max_tokens,
-          systemPrompt: editingAgent.system_prompt,
-          knowledgeBases: editingAgent.knowledge_bases,
-          dataSources: editingAgent.data_sources,
-          tools: editingAgent.tools,
-          openingLines: editingAgent.opening_lines,
-          capabilities: editingAgent.capabilities,
-          visibility: editingAgent.visibility || 'private',
-          visibility_roles: editingAgent.visibility_roles || [],
-        } : undefined}
+      <ToolFormModal
+        open={modalOpen}
+        tool={editingTool}
         mode={modalMode}
         onCancel={() => setModalOpen(false)}
         onSubmit={handleFormSubmit}
-        onDelete={handleDelete}
-        groupKey={activeTab !== 'all' ? activeTab : undefined}
-        defaultAgentType="tool"
+        onDelete={isAdmin ? handleDelete : undefined}
       />
     </div>
   );

@@ -51,3 +51,15 @@ __pycache__/
 *.deb
 *.rpm
 *.AppImage
+
+# Temporary files (AI agent artifacts)
+.tmp/
+
+# Test results / debug artifacts
+test-results/
+tests/
+api/api_log.txt
+dom_dump.json
+
+# Local data directory
+data/

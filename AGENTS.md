@@ -1,7 +1,7 @@
 ---
-lastUpdate: 2026-03-25 15:20:55
+lastUpdate: 2026-03-27 21:12:40
 author: Daniel Chung
-version: 1.4.1
+version: 1.5.0
 ---
 # AGENTS.md - Daniel Chung Guide for ABC Desktop
 
@@ -54,6 +54,50 @@ version: 1.4.1
 | 修改資料庫資料                     | INSERT / UPDATE / DELETE 任何集合資料 | 可能影響線上資料或破壞資料完整性 |
 
 **正確做法**：先問「我可以 revert 這個檔案嗎？」或「我可以修改 XX 集合的資料嗎？」，等待回覆後再執行。
+
+---
+
+### 1.6 Temporary Files Management（臨時檔案管理）
+
+**原則**：非必要請勿在專案目錄根層新增任何臨時檔案。所有臨時檔案應統一放置於 `.tmp/` 目錄。
+
+#### 允許的臨時檔案位置
+
+| 目錄        | 用途                                   |
+| ----------- | -------------------------------------- |
+| `.tmp/`     | 所有 AI Agent 測試腳本、截圖、傾印檔  |
+
+#### 禁止的行為
+
+- ❌ 將 `.cjs`、`.mjs`、`.js` 等測試腳本直接放在專案根目錄
+- ❌ 將截圖檔案 (`*.png`) 直接放在專案根目錄
+- ❌ 將任何除錯用的臨時檔案散落在 `src/`、`tests/`、`api/` 等正常目錄之外
+
+#### 正確做法
+
+```bash
+# 臨時測試腳本 → .tmp/
+# ❌ 錯誤
+node test-chat.mjs
+# ✅ 正確
+mkdir -p .tmp && mv test-chat.mjs .tmp/
+
+# 臨時截圖 → .tmp/
+# ❌ 錯誤
+mv screenshot.png ./screenshot.png
+# ✅ 正確
+mkdir -p .tmp && mv screenshot.png .tmp/
+```
+
+#### 定期清理
+
+`.tmp/` 目錄需定期清理，避免累積無用檔案。建議每次開發結束後主動移除不再需要的臨時檔案，或使用以下指令：
+
+```bash
+# 清理 .tmp 目錄（確認後再刪除）
+ls .tmp/    # 先確認內容
+rm -rf .tmp/*   # 確認無誤後執行清理
+```
 
 ---
 
@@ -972,6 +1016,7 @@ npm run tauri build -- --target x86_64-apple-darwin
 
 | 日期       | 版本  | 更新者       | 變更內容                                                             |
 | ---------- | ----- | ------------ | -------------------------------------------------------------------- |
+| 2026-03-27 | 1.5.0 | Daniel Chung | 新增 Temporary Files Management 規範，禁止在根目錄放置臨時檔案，統一使用 `.tmp/` 目錄 |
 | 2026-03-25 | 1.4.1 | Daniel Chung | 新增資料庫資料修改必須事先確認規則                                    |
 | 2026-03-19 | 1.4.0 | Daniel Chung | 新增 Safe Operation Rules，破壞性操作必須事先取得同意                |
 | 2026-03-18 | 1.3.0 | Daniel Chung | 新增 Tauri Desktop 桌面殼開發規範                                    |

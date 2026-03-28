@@ -1,7 +1,7 @@
 ---
-lastUpdate: 2026-03-22 15:30:00
+lastUpdate: 2026-03-29 02:42:47
 author: Daniel Chung (with AI assistance)
-version: 2.0.0
+version: 2.1.0
 status: Complete Draft
 ---
 
@@ -13,6 +13,7 @@ status: Complete Draft
 |------|------|----------|--------|
 | 1.0 | 2024-03-19 | 初始版本，定義基礎架構與通信協議 | 原作者 |
 | 2.0 | 2026-03-22 | 補齊持久化、權限、協議工程細節、意圖檢測增強、BPA Registry 治理 | Daniel Chung |
+| 2.1 | 2026-03-29 | 新增 Intent Catalog Schema 章節，補充 response_strategy 欄位設計 | Daniel Chung |
 
 ---
 
@@ -143,6 +144,35 @@ status: Complete Draft
 | **消息中轉** | BPA ↔ 用戶多輪對話中轉 | Top 只做 relay，不推導任務狀態 |
 | **上下文管理** | 管理對話歷史與實體記憶 | 對話事件流為 SSOT (Single Source of Truth) |
 | **指代消解** | 解析"它/那個"等指代詞 | 僅在檢測到指代詞時觸發，避免不必要的 LLM 呼叫 |
+
+### 2.1.1 Intent Catalog Schema（BPA 路由模型欄位說明）
+
+Orchestrator 使用 ArangoDB `intent_catalog` collection 儲存意圖定義，每筆 orchestrator intent 包含以下欄位：
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `intent_id` | string | ✅ | 唯一識別碼，如 `orch_chat` |
+| `intent_type` | `"chat"` \| `"task"` | ✅ | **感知**：閒聊或業務任務 |
+| `domain` | string | ✅ | **判斷**：業務領域，如 `order`, `finance`, `general` |
+| `bpa_id` | string \| null | — | **行動**：路由目標 BPA ID，chat 型為 null |
+| `task_type` | `"query"` \| `"action"` \| `"workflow"` | — | task 型才填，操作類型 |
+| `capabilities` | string[] | ✅ | BPA routing 匹配用能力標籤 |
+| `confidence_threshold` | float | ✅ | 低於此值時觸發 `clarify_first`，預設 0.7 |
+| `response_strategy` | string | ✅ | **策略**：遇到此意圖時系統採取的應對策略（見下表） |
+| `nl_examples` | string[] | ✅ | 自然語言範例，用於 Qdrant RAG 向量比對 |
+
+#### response_strategy 策略值說明
+
+三階段設計哲學：**感知**（識別用戶說什麼）→ **判斷**（決定路由到哪裡）→ **行動/策略**（用哪種方式應對）。
+
+`response_strategy` 表達第三階段「如何應對」：
+
+| 策略值 | 語義 | 典型場景 |
+|--------|------|----------|
+| `direct_llm` | 直接由 LLM 回覆，不路由到任何 BPA | `orch_chat`（閒聊、問候） |
+| `handoff_bpa` | 直接 handoff 給 BPA 執行，不需用戶確認 | `orch_order_query`, `orch_finance_query`（純查詢） |
+| `confirm_then_execute` | 展示執行計劃給用戶確認後再 handoff | `orch_order_action`, `orch_material_mgmt`（寫入操作） |
+| `clarify_first` | 先反問用戶釐清意圖，再決定路由 | 信心度低（< `confidence_threshold`）時動態觸發 |
 
 ### 2.2 意圖檢測增強
 

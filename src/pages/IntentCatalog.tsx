@@ -1,9 +1,9 @@
 /**
  * @file        統一意圖目錄管理頁面
  * @description 支援 TopOrchestrator / DataAgent 分頁切換的意圖 CRUD 管理
- * @lastUpdate  2026-03-29 02:24:57
+ * @lastUpdate  2026-03-29 02:42:47
  * @author      Daniel Chung
- * @version     2.2.0
+ * @version     2.3.0
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -47,6 +47,13 @@ function OrchestratorPanel() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settings, setSettings] = useState({ embeddingModel: '', embeddingDimension: 1536, matchThreshold: 0.75 });
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const STRATEGY_COLORS: Record<string, string> = {
+    direct_llm: 'blue',
+    confirm_then_execute: 'orange',
+    clarify_first: 'gold',
+    handoff_bpa: 'green',
+  };
 
   const loadIntents = useCallback(async () => {
     setLoading(true);
@@ -180,6 +187,7 @@ function OrchestratorPanel() {
       capabilities: record.capabilities || [],
       domain: record.domain ? [record.domain] : [],
       bpa_id: record.bpa_id ? [record.bpa_id] : [],
+      response_strategy: record.response_strategy || '',
     });
     setModalVisible(true);
   };
@@ -189,7 +197,7 @@ function OrchestratorPanel() {
       const formValues = await form.validateFields();
       const { 
         intent_id, name, description, priority, status, nl_examples, 
-        intent_type, domain, bpa_id, task_type, capabilities, confidence_threshold 
+        intent_type, domain, bpa_id, task_type, response_strategy, capabilities, confidence_threshold 
       } = formValues;
 
       const payload: Partial<IntentCatalogEntry> = {
@@ -204,6 +212,7 @@ function OrchestratorPanel() {
         domain: Array.isArray(domain) ? domain[0] : domain,
         bpa_id: Array.isArray(bpa_id) ? bpa_id[0] : bpa_id,
         task_type: intent_type === 'task' ? task_type : undefined,
+        response_strategy: response_strategy || undefined,
         capabilities: Array.isArray(capabilities) ? capabilities : [],
         confidence_threshold,
       };
@@ -243,6 +252,12 @@ function OrchestratorPanel() {
     { 
       title: 'Task Type', dataIndex: 'task_type', key: 'task_type',
       render: (task: string) => task ? <Tag color="purple">{task}</Tag> : '-'
+    },
+    {
+      title: 'Strategy',
+      dataIndex: 'response_strategy',
+      key: 'response_strategy',
+      render: (s: string) => s ? <Tag color={STRATEGY_COLORS[s] || 'default'}>{s}</Tag> : '-'
     },
     {
       title: '信賴度', dataIndex: 'confidence_threshold', key: 'confidence',
@@ -338,6 +353,11 @@ function OrchestratorPanel() {
                   {currentIntent.intent_type === 'task' && (
                     <Descriptions.Item label="Task Type"><Tag color="purple">{currentIntent.task_type || '-'}</Tag></Descriptions.Item>
                   )}
+                  <Descriptions.Item label="Response Strategy">
+                    {currentIntent.response_strategy
+                      ? <Tag color={STRATEGY_COLORS[currentIntent.response_strategy] || 'default'}>{currentIntent.response_strategy}</Tag>
+                      : '-'}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Capabilities">
                     {currentIntent.capabilities?.length ? currentIntent.capabilities.map((c: string) => <Tag key={c}>{c}</Tag>) : '-'}
                   </Descriptions.Item>
@@ -414,6 +434,22 @@ function OrchestratorPanel() {
                     { label: 'action', value: 'action' },
                     { label: 'workflow', value: 'workflow' }
                   ]} allowClear placeholder="請選擇" />
+                </Form.Item>
+              </Col>
+            )}
+            {watchedIntentType === 'task' && (
+              <Col span={8}>
+                <Form.Item name="response_strategy" label="Response Strategy">
+                  <Select
+                    options={[
+                      { label: 'direct_llm', value: 'direct_llm' },
+                      { label: 'handoff_bpa', value: 'handoff_bpa' },
+                      { label: 'confirm_then_execute', value: 'confirm_then_execute' },
+                      { label: 'clarify_first', value: 'clarify_first' },
+                    ]}
+                    allowClear
+                    placeholder="請選擇"
+                  />
                 </Form.Item>
               </Col>
             )}

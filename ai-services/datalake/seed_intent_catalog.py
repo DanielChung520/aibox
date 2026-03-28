@@ -7,17 +7,23 @@
              agent_scope="orchestrator" → Qdrant: orchestrator_intents
 
              Orchestrator schema (v2) — BPA 路由模型：
-               intent_type       : "chat" | "task"
-               domain            : "general" | "order" | "material" | "finance" | "data_query" | ...
-               bpa_id            : 目標 BPA ID（"order-bpa", "material-bpa", "finance-bpa",
-                                   "data-agent", null for chat）
-               task_type         : "query" | "action" | "workflow"（intent_type=task 才需要）
-               capabilities      : BPA 對應的 capability 清單
-               confidence_threshold : 低信心回問閾值（預設 0.7）
-@lastUpdate  2026-03-29 02:24:57
+               intent_type         : "chat" | "task"
+               domain              : "general" | "order" | "material" | "finance" | "data_query" | ...
+               bpa_id              : 目標 BPA ID（"order-bpa", "material-bpa", "finance-bpa",
+                                     "data-agent", null for chat）
+               task_type           : "query" | "action" | "workflow"（intent_type=task 才需要）
+               capabilities        : BPA routing 匹配用能力標籤
+               confidence_threshold: 低信心回問閾值（預設 0.7）
+               response_strategy   : 應對策略
+                                     "direct_llm"          - 直接由 LLM 回覆，不路由
+                                     "handoff_bpa"         - 直接 handoff BPA，不需確認
+                                     "confirm_then_execute" - 展示計劃給用戶確認後再執行
+                                     "clarify_first"        - 先反問用戶釐清意圖
+@lastUpdate  2026-03-29 02:42:47
 @author      Daniel Chung
-@version     1.1.0
+@version     1.2.0
 @history
+- 2026-03-29 02:42:47 | Daniel Chung | 1.2.0 | 新增 response_strategy 欄位（感知/判斷/行動三階段）
 - 2026-03-29 02:24:57 | Daniel Chung | 1.1.0 | Orchestrator 改為 BPA 路由模型（intent_type=chat/task）
 """
 
@@ -107,8 +113,16 @@ def make_orch_doc(
     task_type: str = "",          # "query" | "action" | "workflow"（task 才填）
     confidence_threshold: float = 0.7,
     priority: int = 0,
+    response_strategy: str = "",  # "direct_llm" | "handoff_bpa" | "confirm_then_execute" | "clarify_first"
 ) -> dict:
-    """Build an orchestrator intent document (BPA routing model v2)."""
+    """Build an orchestrator intent document (BPA routing model v2).
+
+    response_strategy 語義：
+      direct_llm           - 直接由 LLM 回覆，不路由到任何 BPA（用於 chat）
+      handoff_bpa          - 直接 handoff 給 BPA 執行，不需用戶確認（純查詢）
+      confirm_then_execute - 展示計劃給用戶確認後再執行（寫入/操作類）
+      clarify_first        - 先反問用戶釐清意圖（信心度低、意圖模糊時）
+    """
     doc: dict = {
         "_key": intent_id,
         "intent_id": intent_id,
@@ -130,6 +144,8 @@ def make_orch_doc(
         doc["bpa_id"] = bpa_id
     if task_type:
         doc["task_type"] = task_type
+    if response_strategy:
+        doc["response_strategy"] = response_strategy
     return doc
 
 
@@ -960,6 +976,7 @@ ORCHESTRATOR_INTENTS = [
         capabilities=[],
         confidence_threshold=0.7,
         priority=0,
+        response_strategy="direct_llm",
         nl_examples=[
             "你好",
             "謝謝你的幫助",
@@ -979,6 +996,7 @@ ORCHESTRATOR_INTENTS = [
         task_type="query",
         confidence_threshold=0.7,
         priority=10,
+        response_strategy="handoff_bpa",
         nl_examples=[
             "查詢採購訂單",
             "物料庫存多少",
@@ -999,6 +1017,7 @@ ORCHESTRATOR_INTENTS = [
         task_type="query",
         confidence_threshold=0.7,
         priority=8,
+        response_strategy="handoff_bpa",
         nl_examples=[
             "訂單 OR-001 的狀態",
             "查詢客戶 C001 的未結訂單",
@@ -1018,6 +1037,7 @@ ORCHESTRATOR_INTENTS = [
         task_type="action",
         confidence_threshold=0.75,
         priority=9,
+        response_strategy="confirm_then_execute",
         nl_examples=[
             "幫我退貨訂單 OR-001",
             "取消訂單 OR-002",
@@ -1036,6 +1056,7 @@ ORCHESTRATOR_INTENTS = [
         task_type="workflow",
         confidence_threshold=0.75,
         priority=7,
+        response_strategy="confirm_then_execute",
         nl_examples=[
             "新增物料主資料",
             "調整庫存",
@@ -1054,6 +1075,7 @@ ORCHESTRATOR_INTENTS = [
         task_type="query",
         confidence_threshold=0.7,
         priority=6,
+        response_strategy="handoff_bpa",
         nl_examples=[
             "查詢發票狀態",
             "付款記錄",
@@ -1072,6 +1094,7 @@ ORCHESTRATOR_INTENTS = [
         task_type="workflow",
         confidence_threshold=0.75,
         priority=5,
+        response_strategy="confirm_then_execute",
         nl_examples=[
             "產生本月採購報表",
             "庫存月報",

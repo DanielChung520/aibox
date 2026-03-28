@@ -1,9 +1,9 @@
 /**
  * @file        Unified Intent Catalog API 服務層
  * @description 統一意圖目錄 CRUD 接口，以 agent_scope 區分 orchestrator / data_agent
- * @lastUpdate  2026-03-29 02:24:57
+ * @lastUpdate  2026-03-29 02:42:47
  * @author      Daniel Chung
- * @version     1.2.0
+ * @version     1.3.0
  */
 
 import api from './api';
@@ -32,6 +32,7 @@ export interface IntentCatalogEntry {
   task_type?: 'query' | 'action' | 'workflow';
   capabilities?: string[];
   confidence_threshold?: number;
+  response_strategy?: 'direct_llm' | 'confirm_then_execute' | 'clarify_first' | 'handoff_bpa';
 
   // ── DataAgent (NL→SQL model) ──
   group?: string;
@@ -63,6 +64,7 @@ export interface IntentCatalogListParams {
   tool_name?: string;
   group?: string;
   generation_strategy?: string;
+  response_strategy?: string;
 }
 
 // ==================== API ====================

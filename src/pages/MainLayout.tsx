@@ -44,6 +44,11 @@ export default function MainLayout() {
   const textColor = shellTokens.logoColor;
   const primaryColor = contentTokens.colorPrimary;
   const contentBg = contentTokens.contentBg || contentTokens.colorBgBase;
+  const tooltipBgRaw = contentTokens.tooltipBg || contentTokens.containerBg;
+  const tooltipBgOpacity = (contentTokens.tooltipBgOpacity ?? 88) / 100;
+  const tooltipBg = tooltipBgRaw.startsWith('#') && tooltipBgRaw.length === 7
+    ? `${tooltipBgRaw}${Math.round(tooltipBgOpacity * 255).toString(16).padStart(2, '0')}`
+    : tooltipBgRaw;
 
   useEffect(() => {
     const unsubscribe = authStore.subscribe(() => {
@@ -130,7 +135,7 @@ export default function MainLayout() {
     <Layout style={{ minHeight: '100vh', background: contentTokens.pageBg || shellTokens.headerBg, display: 'flex', flexDirection: 'row' }}>
       <ConfigProvider
         theme={{
-          algorithm: theme.darkAlgorithm,
+          algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: { colorPrimary: contentTokens.colorPrimary },
           components: {
             Menu: {
@@ -139,6 +144,9 @@ export default function MainLayout() {
               darkItemHoverBg: shellTokens.menuItemHoverBg,
               darkItemSelectedBg: shellTokens.menuItemSelectedBg,
               darkItemSelectedColor: shellTokens.menuItemSelectedColor,
+            },
+            Tooltip: {
+              colorBgSpotlight: tooltipBg,
             },
           },
         }}

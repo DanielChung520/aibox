@@ -31,6 +31,7 @@ import DataLakePage from './pages/data-agent/DataLakePage';
 import OntologyList from './pages/knowledge/OntologyList';
 import KnowledgeBaseManagement from './pages/knowledge/KnowledgeBaseManagement';
 import KnowledgeBaseDetail from './pages/knowledge/KnowledgeBaseDetail';
+import IntentOrchestration from './pages/IntentOrchestration';
 import { authStore } from './stores/auth';
 import AppUpdater from './components/AppUpdater';
 
@@ -135,7 +136,7 @@ function AppContent() {
               <Route path="functions" element={<FunctionManagement />} />
               <Route path="browse-agent" element={<BrowseAgent />} />
               <Route path="browse-tools" element={<BrowseTools />} />
-              <Route path="task-session/chat" element={<TaskSessionChat />} />
+              <Route path="task-session/chat/:sessionKey?" element={<TaskSessionChat />} />
               <Route path="task-session/history" element={<TaskSessionHistory />} />
               <Route path="task-session/scheduled" element={<TaskSessionScheduled />} />
               <Route path="under-development" element={<UnderDevelopment />} />
@@ -146,6 +147,7 @@ function AppContent() {
               <Route path="knowledge/ontology" element={<OntologyList />} />
               <Route path="knowledge/management" element={<KnowledgeBaseManagement />} />
               <Route path="knowledge/management/:id" element={<KnowledgeBaseDetail />} />
+              <Route path="intent-orchestration" element={<IntentOrchestration />} />
             </Route>
           </Routes>
         </AntApp>

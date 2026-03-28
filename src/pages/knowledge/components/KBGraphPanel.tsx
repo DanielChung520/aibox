@@ -1,9 +1,9 @@
 /**
  * @file        知識庫圖譜面板元件
  * @description 使用 @antv/g6 v5 力導向圖視覺化知識圖譜節點與關聯
- * @lastUpdate  2026-03-26 21:22:20
+ * @lastUpdate  2026-03-26 23:33:21
  * @author      Daniel Chung
- * @version     2.2.0
+ * @version     2.3.0
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -12,9 +12,10 @@ import { Graph, NodeEvent, CanvasEvent } from '@antv/g6';
 import type { IElementEvent, IPointerEvent, NodeData, EdgeData } from '@antv/g6';
 import { ReloadOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import { knowledgeApi, GraphNode, GraphEdge } from '../../../services/api';
+import KBGraph3DPanel from './KBGraph3DPanel';
 
 const { Text } = Typography;
-type LayoutMode = 'force' | 'grid' | 'circular';
+type LayoutMode = 'force' | 'grid' | 'circular' | '3d';
 
 const NODE_COLOR_PALETTE = [
   '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -90,6 +91,9 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
   const [hasData, setHasData] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('force');
+  const [rawNodes, setRawNodes] = useState<GraphNode[]>([]);
+  const [rawEdges, setRawEdges] = useState<GraphEdge[]>([]);
+  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
   const instanceRef = useRef(0);
   const zoomRef = useRef(1);
 
@@ -136,6 +140,18 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
   }, []);
 
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setContainerSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (layoutMode === '3d') return;
     const g = graphRef.current;
     if (!g) return;
     g.setLayout(getLayout(layoutMode));
@@ -279,6 +295,8 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
         await silentRender(graph);
         if (instanceRef.current !== currentInstance) return;
         onDataLoaded?.(data.nodes || [], data.edges || []);
+        setRawNodes(data.nodes || []);
+        setRawEdges(data.edges || []);
         setHasData(true);
       } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
@@ -356,6 +374,17 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
           )}
         </div>
       )}
+      {layoutMode === '3d' && hasData && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
+          <KBGraph3DPanel
+            nodes={rawNodes}
+            edges={rawEdges}
+            width={containerSize.w}
+            height={containerSize.h}
+            onNodeSelect={onNodeSelect}
+          />
+        </div>
+      )}
       <div style={{
         position: 'absolute',
         top: token.paddingXS,
@@ -369,11 +398,13 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
         borderRadius: 8,
         padding: 6,
       }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <Button size="small" icon={<ZoomOutOutlined />} onClick={zoomOut} title="縮小" />
-          <Button size="small" icon={<ZoomInOutlined />} onClick={zoomIn} title="放大" />
-          <Button size="small" onClick={resetZoom} title="重置視角" style={{ fontSize: 10 }}>1:1</Button>
-        </div>
+        {layoutMode !== '3d' && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <Button size="small" icon={<ZoomOutOutlined />} onClick={zoomOut} title="縮小" />
+            <Button size="small" icon={<ZoomInOutlined />} onClick={zoomIn} title="放大" />
+            <Button size="small" onClick={resetZoom} title="重置視角" style={{ fontSize: 10 }}>1:1</Button>
+          </div>
+        )}
         <Segmented
           value={layoutMode}
           onChange={(v) => handleLayoutChange(v as LayoutMode)}
@@ -381,6 +412,7 @@ export default function KBGraphPanel({ fileId, graphStatus, onNodeSelect, onGrap
             { label: '力導圖', value: 'force' },
             { label: '網格', value: 'grid' },
             { label: '環形', value: 'circular' },
+            { label: '3D', value: '3d' },
           ]}
           size="small"
         />

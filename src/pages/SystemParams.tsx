@@ -1,7 +1,7 @@
 /**
  * @file        系統參數頁面
  * @description 系統參數配置，包含基本資訊、主題、窗口、備份等參數管理
- * @lastUpdate  2026-03-22 19:56:42
+ * @lastUpdate  2026-03-27 11:55:55
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -12,6 +12,7 @@ import { SaveOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { paramsApi, SystemParam } from '../services/api';
 import SystemParamsModels from './SystemParamsModels';
 import ThemeTemplateManagement from './ThemeTemplateManagement';
+import SystemParamsBasicTools from './SystemParamsBasicTools';
 
 interface ParamFormValues {
   [key: string]: any;
@@ -111,6 +112,7 @@ export default function SystemParams() {
   };
 
   const groupedParams = params.reduce((acc, param) => {
+    if (param.category === 'web_search') return acc;
     if (!acc[param.category]) {
       acc[param.category] = [];
     }
@@ -126,6 +128,7 @@ export default function SystemParams() {
     update: '更新设置',
     backup: '备份设置',
     knowledge: '知識庫參數',
+    task_chat: '任務聊天參數',
   };
 
   const renderParamInput = (param: SystemParam) => {
@@ -269,6 +272,11 @@ export default function SystemParams() {
       key: 'theme-templates',
       label: '樣板維護',
       children: <ThemeTemplateManagement />,
+    },
+    {
+      key: 'basic-tools',
+      label: '基礎工具',
+      children: <SystemParamsBasicTools />,
     },
     ...Object.entries(groupedParams).map(([category, categoryParams]) =>
       buildCategoryTab(category, categoryParams)

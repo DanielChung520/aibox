@@ -13,6 +13,7 @@ import {
   DEFAULT_CONTENT_LIGHT_TOKENS,
   DEFAULT_CONTENT_DARK_TOKENS,
 } from '../styles/theme/tokens';
+import { getCachedTemplates, setCachedTemplates } from '../services/offlineCache';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type EffectiveTheme = 'light' | 'dark';
@@ -68,15 +69,18 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   const [effectiveTheme, setEffectiveTheme] = useState<EffectiveTheme>(() =>
     resolveEffective(themeMode),
   );
-  const [templates, setTemplates] = useState<ThemeTemplate[]>([]);
+  const [templates, setTemplates] = useState<ThemeTemplate[]>(() => {
+    const cached = getCachedTemplates();
+    return cached ? (cached.templates as ThemeTemplate[]) : [];
+  });
 
   const loadTemplates = useCallback(async () => {
     try {
       const res = await themeTemplateApi.list();
-      setTemplates(res.data.data || []);
-    } catch {
-      setTemplates([]);
-    }
+      const data = res.data.data || [];
+      setTemplates(data);
+      setCachedTemplates(data);
+    } catch (e) { void e; }
   }, []);
 
   useEffect(() => {

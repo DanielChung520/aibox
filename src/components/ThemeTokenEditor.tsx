@@ -55,6 +55,8 @@ const CONTENT_COLOR_FIELDS: { key: ContentColorKey; label: string; group: string
   { key: 'btnSend', label: '發送按鈕', group: '按鈕' },
   { key: 'btnSendHover', label: '發送按鈕懸停', group: '按鈕' },
   { key: 'btnText', label: '按鈕文字', group: '按鈕' },
+  { key: 'tooltipBg', label: '提示背景', group: '提示 (Tooltip)' },
+  { key: 'tooltipText', label: '提示文字', group: '提示 (Tooltip)' },
 ];
 
 const CONTENT_SHADOW_FIELDS: { key: ContentColorKey; label: string }[] = [
@@ -239,6 +241,9 @@ export function ContentTokensForm() {
         </Form.Item>
         <Form.Item name={['tokens', 'bgOpacity']} label="內容背景透明度 (%)" style={{ marginBottom: 8 }}>
           <Slider min={0} max={100} tooltip={{ formatter: (v) => `${v}%` }} />
+        </Form.Item>
+        <Form.Item name={['tokens', 'tooltipBgOpacity']} label="提示背景透明度 (%)" style={{ marginBottom: 8 }}>
+          <Slider min={50} max={100} tooltip={{ formatter: (v) => `${v}%` }} />
         </Form.Item>
       </div>
       <Form.Item name={['tokens', 'fontFamily']} label="字體" style={{ marginBottom: 8 }}>

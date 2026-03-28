@@ -57,6 +57,9 @@ export const DEFAULT_CONTENT_LIGHT_TOKENS: ContentTokens = {
   cardShadowHover: '0 12px 40px rgba(30, 64, 175, 0.35)',
   tableShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
   bgOpacity: 100,
+  tooltipBg: '#1e293b',
+  tooltipText: '#f1f5f9',
+  tooltipBgOpacity: 88,
 };
 
 export const DEFAULT_CONTENT_DARK_TOKENS: ContentTokens = {
@@ -92,4 +95,7 @@ export const DEFAULT_CONTENT_DARK_TOKENS: ContentTokens = {
   cardShadowHover: '0 12px 40px rgba(100, 80, 220, 0.50)',
   tableShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
   bgOpacity: 100,
+  tooltipBg: '#1e293b',
+  tooltipText: '#f1f5f9',
+  tooltipBgOpacity: 88,
 };

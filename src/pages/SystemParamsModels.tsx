@@ -1,7 +1,7 @@
 /**
  * @file        SystemParamsModels.tsx
  * @description 模型 Provider 與模型管理頁面
- * @lastUpdate  2026-03-22 19:56:42
+ * @lastUpdate  2026-03-27 12:44:46
  * @author      Daniel Chung
  * @version     1.0.0
  */
@@ -20,6 +20,7 @@ import {
   App,
   Badge,
   Typography,
+  InputNumber,
 } from 'antd';
 import {
   PlusOutlined,
@@ -44,6 +45,11 @@ export default function SystemParamsModels() {
   const [editingProvider, setEditingProvider] = useState<ModelProvider | null>(null);
   const [syncingKeys, setSyncingKeys] = useState<Record<string, boolean>>({});
   const [form] = Form.useForm();
+  
+  const [modelModalVisible, setModelModalVisible] = useState(false);
+  const [editingModel, setEditingModel] = useState<LLMModel | null>(null);
+  const [editingProviderKey, setEditingProviderKey] = useState<string | null>(null);
+  const [modelForm] = Form.useForm();
 
   const fetchProviders = async () => {
     setLoading(true);
@@ -169,6 +175,99 @@ export default function SystemParamsModels() {
     setModalVisible(false);
   };
 
+  const openAddModelModal = (providerKey: string) => {
+    setEditingModel(null);
+    setEditingProviderKey(providerKey);
+    modelForm.resetFields();
+    modelForm.setFieldsValue({
+      status: 'enabled',
+      supports_vision: false,
+    });
+    setModelModalVisible(true);
+  };
+
+  const openEditModelModal = (providerKey: string, model: LLMModel) => {
+    setEditingModel(model);
+    setEditingProviderKey(providerKey);
+    modelForm.resetFields();
+    modelForm.setFieldsValue({
+      ...model,
+      status: model.status === 'active' || model.status === 'enabled' ? 'enabled' : 'disabled'
+    });
+    setModelModalVisible(true);
+  };
+
+  const handleModelModalOk = async () => {
+    try {
+      const values = await modelForm.validateFields();
+      if (!editingProviderKey) return;
+      
+      const provider = providers.find(p => p._key === editingProviderKey);
+      if (!provider) return;
+
+      const currentModels = provider.models || [];
+      let updatedModels: LLMModel[];
+
+      const newModel: LLMModel = {
+        ...values,
+      };
+
+      if (editingModel) {
+        updatedModels = currentModels.map(m => m.model_id === editingModel.model_id ? newModel : m);
+      } else {
+        if (currentModels.some(m => m.model_id === newModel.model_id)) {
+          message.error('該 Model ID 已存在');
+          return;
+        }
+        updatedModels = [...currentModels, newModel];
+      }
+
+      await modelProviderApi.update(editingProviderKey, { models: updatedModels });
+      message.success(editingModel ? '模型編輯成功' : '模型新增成功');
+      setModelModalVisible(false);
+      fetchProviders();
+    } catch (error: any) {
+      if (error.errorFields) return;
+      message.error(error.response?.data?.message || '操作失敗');
+    }
+  };
+
+  const handleModelModalCancel = () => {
+    setModelModalVisible(false);
+  };
+
+  const handleModelDelete = async (providerKey: string, modelId: string) => {
+    try {
+      const provider = providers.find(p => p._key === providerKey);
+      if (!provider) return;
+      
+      const updatedModels = (provider.models || []).filter(m => m.model_id !== modelId);
+      await modelProviderApi.update(providerKey, { models: updatedModels });
+      message.success('模型刪除成功');
+      fetchProviders();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '刪除失敗');
+    }
+  };
+
+  const handleModelStatusChange = async (checked: boolean, providerKey: string, modelId: string) => {
+    try {
+      const provider = providers.find(p => p._key === providerKey);
+      if (!provider) return;
+      
+      const newStatus = checked ? 'enabled' : 'disabled';
+      const updatedModels = (provider.models || []).map(m => 
+        m.model_id === modelId ? { ...m, status: newStatus } : m
+      );
+      
+      await modelProviderApi.update(providerKey, { models: updatedModels });
+      message.success('狀態更新成功');
+      fetchProviders();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '狀態更新失敗');
+    }
+  };
+
   const expandedRowRender = (record: ModelProvider) => {
     const modelColumns = [
       { title: 'Model ID', dataIndex: 'model_id', key: 'model_id' },
@@ -187,14 +286,46 @@ export default function SystemParamsModels() {
         title: '狀態',
         dataIndex: 'status',
         key: 'status',
-        render: (status: string) => (
-          <Badge status={status === 'active' ? 'success' : 'error'} text={status === 'active' ? '啟用' : '停用'} />
+        render: (status: string, model: LLMModel) => {
+          const isEnabled = status === 'active' || status === 'enabled';
+          return (
+            <Switch
+              checked={isEnabled}
+              onChange={(checked) => handleModelStatusChange(checked, record._key, model.model_id)}
+            />
+          );
+        }
+      },
+      {
+        title: '操作',
+        key: 'action',
+        render: (_: any, model: LLMModel) => (
+          <Space size="middle">
+            <Button type="text" icon={<EditOutlined />} onClick={() => openEditModelModal(record._key, model)}>
+              編輯
+            </Button>
+            <Popconfirm
+              title="確定要刪除這個模型嗎？"
+              onConfirm={() => handleModelDelete(record._key, model.model_id)}
+              okText="確定"
+              cancelText="取消"
+            >
+              <Button type="text" danger icon={<DeleteOutlined />}>
+                刪除
+              </Button>
+            </Popconfirm>
+          </Space>
         )
       }
     ];
 
     return (
         <div style={{ padding: '12px 16px', background: contentTokens.tableExpandedRowBg }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => openAddModelModal(record._key)}>
+            新增模型
+          </Button>
+        </div>
         <Table
           columns={modelColumns}
           dataSource={record.models || []}
@@ -296,8 +427,6 @@ export default function SystemParamsModels() {
          open={modalVisible}
          onOk={handleModalOk}
          onCancel={handleModalCancel}
-          destroyOnHidden
-         forceRender
        >
          <Form form={form} layout="vertical">
           <Form.Item
@@ -335,6 +464,51 @@ export default function SystemParamsModels() {
           </Form.Item>
           <Form.Item name="sort_order" label="排序">
             <Input type="number" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingModel ? '編輯模型' : '新增模型'}
+        open={modelModalVisible}
+        onOk={handleModelModalOk}
+        onCancel={handleModelModalCancel}
+      >
+        <Form form={modelForm} layout="vertical">
+          <Form.Item
+            name="model_id"
+            label="Model ID"
+            rules={[{ required: true, message: '請輸入 Model ID' }]}
+          >
+            <Input placeholder="例如: gpt-4o" disabled={!!editingModel} />
+          </Form.Item>
+          <Form.Item
+            name="name"
+            label="名稱"
+            rules={[{ required: true, message: '請輸入名稱' }]}
+          >
+            <Input placeholder="例如: GPT-4o" />
+          </Form.Item>
+          <Form.Item name="display_name" label="顯示名稱">
+            <Input placeholder="請輸入顯示名稱" />
+          </Form.Item>
+          <Form.Item name="context_window" label="Context Window">
+            <InputNumber style={{ width: '100%' }} placeholder="例如: 128000" />
+          </Form.Item>
+          <Form.Item name="input_cost_per_1k" label="輸入成本/1k">
+            <InputNumber style={{ width: '100%' }} step={0.001} placeholder="例如: 0.005" />
+          </Form.Item>
+          <Form.Item name="output_cost_per_1k" label="輸出成本/1k">
+            <InputNumber style={{ width: '100%' }} step={0.001} placeholder="例如: 0.015" />
+          </Form.Item>
+          <Form.Item name="supports_vision" label="視覺支援" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="status" label="狀態">
+            <Select>
+              <Select.Option value="enabled">啟用</Select.Option>
+              <Select.Option value="disabled">停用</Select.Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

@@ -1,6 +1,6 @@
 //! Intent Router - 意圖檢測 + 工具路由
 //!
-//! # Last Update: 2026-03-27 20:00:00
+//! # Last Update: 2026-03-28 12:03:42
 //! # Author: Daniel Chung
 //! # Version: 1.0.0
 
@@ -76,7 +76,7 @@ pub async fn detect_intent(
     intent_rag_url: &str,
     query: &str,
 ) -> Result<Option<(IntentMatchResult, String)>, IntentError> {
-    let url = format!("{}/intent-rag/intent/match", intent_rag_url);
+    let url = format!("{}/intent-rag/orchestrator/intent/match", intent_rag_url);
     let body = serde_json::json!({"query": query, "top_k": 3});
 
     let resp = client

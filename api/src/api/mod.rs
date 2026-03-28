@@ -41,6 +41,7 @@ pub mod web_search;
 pub mod weather;
 pub mod intent;
 pub mod orch_intents;
+pub mod intent_catalog;
 
 pub fn create_router() -> Router {
     let cors = CorsLayer::new()
@@ -121,6 +122,7 @@ pub fn create_router() -> Router {
         .merge(web_search::create_web_search_router())
         .merge(weather::create_weather_router())
         .merge(orch_intents::create_orch_intents_router())
+        .merge(intent_catalog::create_intent_catalog_router())
         .layer(cors)
 }
 

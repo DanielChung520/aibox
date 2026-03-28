@@ -8,7 +8,7 @@ keeping separate Qdrant collections.
 ArangoDB source: unified `intent_catalog` collection, filtered by `agent_scope`.
 Qdrant target: per-scope collection (see SCOPE_QDRANT_MAP).
 
-# Last Update: 2026-03-28 12:03:42
+# Last Update: 2026-03-29 00:15:16
 # Author: Daniel Chung
 # Version: 3.0.0
 """
@@ -117,7 +117,7 @@ async def fetch_intents_from_arango(scope: str) -> list[dict[str, object]]:
             json={"query": aql, "bindVars": bind_vars},
             auth=(ARANGO_USER, ARANGO_PASSWORD),
         )
-        if response.status_code == 200:
+        if response.status_code in (200, 201):
             data = response.json()
             result: list[dict[str, object]] = data.get("result", [])
             if result:
@@ -137,7 +137,7 @@ async def fetch_intents_from_arango(scope: str) -> list[dict[str, object]]:
                 json={"query": fallback_aql},
                 auth=(ARANGO_USER, ARANGO_PASSWORD),
             )
-            if response.status_code == 200:
+            if response.status_code in (200, 201):
                 data = response.json()
                 fallback_result: list[dict[str, object]] = data.get("result", [])
                 if fallback_result:

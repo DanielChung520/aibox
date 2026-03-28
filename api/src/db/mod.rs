@@ -605,6 +605,12 @@ pub struct CreateRoleRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRoleRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFunctionRequest {
     pub code: String,
     pub name: String,
@@ -615,6 +621,20 @@ pub struct CreateFunctionRequest {
     pub icon: Option<String>,
     pub status: String,
     pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateUserRequest {
+    pub username: String,
+    pub password_hash: String,
+    pub name: String,
+    pub role_keys: Vec<String>,
+    #[serde(default = "default_status")]
+    pub status: String,
+}
+
+fn default_status() -> String {
+    "enabled".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

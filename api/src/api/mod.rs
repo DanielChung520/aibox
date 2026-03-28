@@ -11,7 +11,7 @@ use reqwest;
 use crate::auth::verify_jwt;
 use crate::middleware::auth::jwt_auth_middleware;
 use crate::db::{
-    get_db, CreateAgentRequest, CreateRoleRequest, CreateToolRequest, Function, FunctionRoleAuth, Role, RoleFunction, SystemParam, UpdateParamRequest, User, Agent, Tool, ToolLog, ModelProvider, LLMModel,
+    get_db, CreateAgentRequest, CreateRoleRequest, CreateToolRequest, CreateUserRequest, Function, FunctionRoleAuth, Role, RoleFunction, SystemParam, UpdateParamRequest, UpdateRoleRequest, User, Agent, Tool, ToolLog, ModelProvider, LLMModel,
 };
 use crate::models::*;
 use axum::{
@@ -338,7 +338,7 @@ async fn list_users() -> Result<impl IntoResponse, StatusCode> {
     Ok(Json(ApiResponse::success(users)))
 }
 
-async fn create_user(Json(payload): Json<User>) -> Result<impl IntoResponse, StatusCode> {
+async fn create_user(Json(payload): Json<CreateUserRequest>) -> Result<impl IntoResponse, StatusCode> {
     let db = get_db();
 
     let existing: Vec<User> = db
@@ -540,13 +540,21 @@ async fn get_role(Path(key): Path<String>) -> Result<impl IntoResponse, StatusCo
     Ok(Json(ApiResponse::success(role)))
 }
 
-async fn update_role(Path(key): Path<String>, Json(payload): Json<Role>) -> Result<impl IntoResponse, StatusCode> {
+async fn update_role(Path(key): Path<String>, Json(payload): Json<UpdateRoleRequest>) -> Result<impl IntoResponse, StatusCode> {
     let db = get_db();
     let col = db.collection("roles").await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let mut patch = serde_json::Map::new();
+    if let Some(name) = payload.name {
+        patch.insert("name".to_string(), serde_json::json!(name));
+    }
+    if let Some(description) = payload.description {
+        patch.insert("description".to_string(), serde_json::json!(description));
+    }
+
     col.update_document(
         &key,
-        serde_json::json!({ "name": payload.name, "description": payload.description }),
+        serde_json::Value::Object(patch),
         Default::default(),
     )
     .await

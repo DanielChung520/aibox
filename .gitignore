@@ -27,6 +27,10 @@ dist-ssr
 .env
 !.env.production
 
+# Tauri signing keys (NEVER commit these!)
+.local/share/tauri/
+.tauri/
+
 # Rust build artifacts
 target/
 

@@ -158,31 +158,65 @@ jobs:
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           REPO="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
 
+          # Find files and compute signatures + checksums
+          MAC_ARM_TAR=$(ls artifacts/tauri-macOS-ARM/*.app.tar.gz 2>/dev/null | head -1)
+          MAC_INTEL_TAR=$(ls artifacts/tauri-macOS-Intel/*.app.tar.gz 2>/dev/null | head -1)
+          WIN_NSIS_ZIP=$(ls artifacts/tauri-Windows-x64/*.nsis.zip 2>/dev/null | head -1)
+          WIN_MSI_ZIP=$(ls artifacts/tauri-Windows-x64/*.msi.zip 2>/dev/null | head -1)
+
           # Read signatures
-          MAC_ARM_SIG=""
-          MAC_INTEL_SIG=""
-          WIN_NSIS_SIG=""
-          WIN_MSI_SIG=""
+          MAC_ARM_SIG=$(cat "artifacts/tauri-macOS-ARM/$(basename $MAC_ARM_TAR).sig" 2>/dev/null || echo "")
+          MAC_INTEL_SIG=$(cat "artifacts/tauri-macOS-Intel/$(basename $MAC_INTEL_TAR).sig" 2>/dev/null || echo "")
+          WIN_NSIS_SIG=$(cat "${WIN_NSIS_ZIP}.sig" 2>/dev/null || echo "")
+          WIN_MSI_SIG=$(cat "${WIN_MSI_ZIP}.sig" 2>/dev/null || echo "")
 
-          for f in artifacts/tauri-macOS-ARM/*.sig; do
-            [ -f "$f" ] && MAC_ARM_SIG=$(cat "$f")
-          done
-          for f in artifacts/tauri-macOS-Intel/*.sig; do
-            [ -f "$f" ] && MAC_INTEL_SIG=$(cat "$f")
-          done
-          for f in artifacts/tauri-Windows-x64/*.nsis.zip.sig; do
-            [ -f "$f" ] && WIN_NSIS_SIG=$(cat "$f")
-          done
-          for f in artifacts/tauri-Windows-x64/*.msi.zip.sig; do
-            [ -f "$f" ] && WIN_MSI_SIG=$(cat "$f")
-          done
+          # Helper: compute size (bytes) and sha256 (hex, lowercase) for Tauri 2.x
+          get_size_checksum() {
+            local file="$1"
+            if [ -f "$file" ]; then
+              stat -f%z "$file"  # macOS: file size in bytes
+            fi
+          }
+          get_checksum() {
+            local file="$1"
+            if [ -f "$file" ]; then
+              shasum -a 256 "$file" | cut -d' ' -f1
+            fi
+          }
 
-          # Find filenames
-          MAC_ARM_TAR=$(basename artifacts/tauri-macOS-ARM/*.app.tar.gz 2>/dev/null || echo "")
-          MAC_INTEL_TAR=$(basename artifacts/tauri-macOS-Intel/*.app.tar.gz 2>/dev/null || echo "")
-          WIN_NSIS_ZIP=$(basename artifacts/tauri-Windows-x64/*.nsis.zip 2>/dev/null | head -1 || echo "")
-          WIN_MSI_ZIP=$(basename artifacts/tauri-Windows-x64/*.msi.zip 2>/dev/null | head -1 || echo "")
+          # macOS ARM
+          if [ -f "$MAC_ARM_TAR" ]; then
+            MAC_ARM_SIZE=$(stat -f%z "$MAC_ARM_TAR")
+            MAC_ARM_SHA256=$(shasum -a 256 "$MAC_ARM_TAR" | cut -d' ' -f1)
+            MAC_ARM_NAME=$(basename "$MAC_ARM_TAR")
+            MAC_ARM_URL="${REPO}/${MAC_ARM_NAME}"
+          fi
 
+          # macOS Intel
+          if [ -f "$MAC_INTEL_TAR" ]; then
+            MAC_INTEL_SIZE=$(stat -f%z "$MAC_INTEL_TAR")
+            MAC_INTEL_SHA256=$(shasum -a 256 "$MAC_INTEL_TAR" | cut -d' ' -f1)
+            MAC_INTEL_NAME=$(basename "$MAC_INTEL_TAR")
+            MAC_INTEL_URL="${REPO}/${MAC_INTEL_NAME}"
+          fi
+
+          # Windows NSIS (primary updater target)
+          if [ -f "$WIN_NSIS_ZIP" ]; then
+            WIN_NSIS_SIZE=$(stat -f%z "$WIN_NSIS_ZIP")
+            WIN_NSIS_SHA256=$(shasum -a 256 "$WIN_NSIS_ZIP" | cut -d' ' -f1)
+            WIN_NSIS_NAME=$(basename "$WIN_NSIS_ZIP")
+            WIN_NSIS_URL="${REPO}/${WIN_NSIS_NAME}"
+          fi
+
+          # Windows MSI (optional secondary target)
+          if [ -f "$WIN_MSI_ZIP" ]; then
+            WIN_MSI_SIZE=$(stat -f%z "$WIN_MSI_ZIP")
+            WIN_MSI_SHA256=$(shasum -a 256 "$WIN_MSI_ZIP" | cut -d' ' -f1)
+            WIN_MSI_NAME=$(basename "$WIN_MSI_ZIP")
+            WIN_MSI_URL="${REPO}/${WIN_MSI_NAME}"
+          fi
+
+          # Build latest.json (Tauri 2.x format)
           cat > latest.json << EOF
           {
             "version": "${VERSION#v}",
@@ -191,20 +225,27 @@ jobs:
             "platforms": {
               "darwin-aarch64": {
                 "signature": "${MAC_ARM_SIG}",
-                "url": "${REPO}/${MAC_ARM_TAR}"
+                "url": "${MAC_ARM_URL}",
+                "size": ${MAC_ARM_SIZE:-0},
+                "checksum": "${MAC_ARM_SHA256}"
               },
               "darwin-x86_64": {
                 "signature": "${MAC_INTEL_SIG}",
-                "url": "${REPO}/${MAC_INTEL_TAR}"
+                "url": "${MAC_INTEL_URL}",
+                "size": ${MAC_INTEL_SIZE:-0},
+                "checksum": "${MAC_INTEL_SHA256}"
               },
               "windows-x86_64": {
                 "signature": "${WIN_NSIS_SIG}",
-                "url": "${REPO}/${WIN_NSIS_ZIP}"
+                "url": "${WIN_NSIS_URL}",
+                "size": ${WIN_NSIS_SIZE:-0},
+                "checksum": "${WIN_NSIS_SHA256}"
               }
             }
           }
           EOF
 
+          echo "=== latest.json ==="
           cat latest.json
 
       - name: Collect release files

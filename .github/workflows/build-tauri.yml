@@ -120,9 +120,8 @@ jobs:
           $keyPath = "$env:GITHUB_WORKSPACE\.ci-private-key"
           $cleanKey = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\s',''
           $decodedBytes = [System.Convert]::FromBase64String($cleanKey)
-          $content = [System.Text.Encoding]::ASCII.GetString($decodedBytes)
-          if ($content.EndsWith("`n")) { $content = $content.Substring(0, $content.Length - 1) }
-          [System.IO.File]::WriteAllText($keyPath, $content)
+          [System.IO.File]::WriteAllBytes($keyPath, $decodedBytes)
+          echo "KEY_SIZE=$($decodedBytes.Length)"
           $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $keyPath
           npx tauri build
 

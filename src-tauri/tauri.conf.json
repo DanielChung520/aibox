@@ -38,7 +38,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis"],
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -56,14 +60,17 @@
       "timestampUrl": "",
       "nsis": {
         "displayLanguageSelector": true,
-        "languages": ["SimpChinese", "English"],
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
         "installMode": "both"
       }
     }
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXkgODE1QTM4ODM3NDgzNTlEQQpSV1RhV1lOMGd6aGFnVGlwY01KV3A1WUVqd3pRdEluZkgvSXc3RjdHUEFxOUlzS3B4alhaeHJXdgo=",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXkgODE1QTM4ODM3NDgzNTlEQQpSV1RhV1lOMGd6aGFnVElwY01KV3A1WUVqd3pRdEluZkgvSXc3RjdHUEFxOUlzS3B4alphWHhyV0FBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE9Cg==",
       "endpoints": [
         "https://github.com/DanielChung520/aibox/releases/latest/download/latest.json"
       ],

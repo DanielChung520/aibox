@@ -66,10 +66,19 @@ jobs:
         run: npm run build
 
       - name: Build Tauri app
+        shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npx tauri build --target ${{ matrix.target }}
+        run: |
+          KEY_PATH="${{ github.workspace }}/.ci-private-key"
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d > "$KEY_PATH"
+          python3 -c "
+data=open('$KEY_PATH','rb').read()
+if data.endswith(b'\n'): data=data[:-1]
+open('$KEY_PATH','wb').write(data)
+"
+          echo "KEY_SIZE=$(wc -c < "$KEY_PATH")"
+          TAURI_SIGNING_PRIVATE_KEY_PATH="$KEY_PATH" npx tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -112,8 +121,15 @@ jobs:
       - name: Build Tauri app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npx tauri build
+        run: |
+          $keyPath = "$env:GITHUB_WORKSPACE\.ci-private-key"
+          $cleanKey = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\s',''
+          $decodedBytes = [System.Convert]::FromBase64String($cleanKey)
+          $content = [System.Text.Encoding]::ASCII.GetString($decodedBytes)
+          if ($content.EndsWith("`n")) { $content = $content.Substring(0, $content.Length - 1) }
+          [System.IO.File]::WriteAllText($keyPath, $content)
+          $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $keyPath
+          npx tauri build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

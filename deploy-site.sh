@@ -17,8 +17,8 @@ set -e
 SERVER="${1:?用法: ./deploy-site.sh user@your-server}"
 REMOTE_DIR="abc-site"
 
-ARM_DMG="target/aarch64-apple-darwin/release/bundle/dmg/ABC管理系统_1.0.2_aarch64.dmg"
-INTEL_DMG="target/x86_64-apple-darwin/release/bundle/dmg/ABC管理系统_1.0.2_x64.dmg"
+ARM_DMG="target/aarch64-apple-darwin/release/bundle/dmg/ABC管理系统_1.0.0_aarch64.dmg"
+INTEL_DMG="target/x86_64-apple-darwin/release/bundle/dmg/ABC管理系统_1.0.0_x64.dmg"
 
 echo "=== 部署 ABC Desktop 下載頁 ==="
 echo "目標伺服器: $SERVER"
@@ -55,5 +55,5 @@ ssh "$SERVER" "
 echo ""
 echo "=== 部署完成 ==="
 echo "下載頁: https://abc.k84.org"
-echo "ARM DMG: https://abc.k84.org/downloads/ABC管理系统_1.0.2_aarch64.dmg"
-echo "Intel DMG: https://abc.k84.org/downloads/ABC管理系统_1.0.2_x64.dmg"
+echo "ARM DMG: https://abc.k84.org/downloads/ABC管理系统_1.0.0_aarch64.dmg"
+echo "Intel DMG: https://abc.k84.org/downloads/ABC管理系统_1.0.0_x64.dmg"

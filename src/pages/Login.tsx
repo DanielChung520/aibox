@@ -1,15 +1,14 @@
 /**
  * @file        登錄頁面
- * @description 用戶登錄頁面，支援記住帳號與 Enter 跳轉密碼欄
- * @lastUpdate  2026-03-29 22:18:41
+ * @description 用戶登錄頁面
+ * @lastUpdate  2026-03-22 19:56:42
  * @author      Daniel Chung
- * @version     1.1.0
+ * @version     1.0.0
  */
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Checkbox, Typography, App } from 'antd';
-import type { InputRef } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authApi } from '../services/api';
 import { authStore } from '../stores/auth';
@@ -19,15 +18,10 @@ import logoDark from '../assets/logo.png';
 
 const { Title, Text } = Typography;
 
-const REMEMBERED_USERNAME_KEY = 'remembered_username';
-
 export default function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const { message } = App.useApp();
-  const passwordRef = useRef<InputRef>(null);
-
-  const savedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY) || '';
 
   const effectiveTheme = useEffectiveTheme();
   const isDark = effectiveTheme === 'dark';
@@ -44,11 +38,6 @@ export default function Login() {
       const response = await authApi.login(values);
       if (response.data.code === 200) {
         const { user, token } = response.data.data;
-        if (values.remember) {
-          localStorage.setItem(REMEMBERED_USERNAME_KEY, values.username);
-        } else {
-          localStorage.removeItem(REMEMBERED_USERNAME_KEY);
-        }
         authStore.login(user, token);
         message.success('登录成功');
         navigate('/app');
@@ -100,7 +89,6 @@ export default function Login() {
           onFinish={onFinish}
           autoComplete="off"
           size="large"
-          initialValues={{ username: savedUsername, remember: !!savedUsername }}
         >
           <Form.Item
             name="username"
@@ -108,8 +96,7 @@ export default function Login() {
           >
             <Input 
               prefix={<UserOutlined />} 
-              placeholder="用户名"
-              onPressEnter={() => passwordRef.current?.focus()}
+              placeholder="用户名" 
             />
           </Form.Item>
 
@@ -121,14 +108,13 @@ export default function Login() {
             ]}
           >
             <Input.Password 
-              ref={passwordRef}
               prefix={<LockOutlined />} 
               placeholder="密码" 
             />
           </Form.Item>
 
           <Form.Item name="remember" valuePropName="checked">
-            <Checkbox>记住账号</Checkbox>
+            <Checkbox>记住密码</Checkbox>
           </Form.Item>
 
           <Form.Item>

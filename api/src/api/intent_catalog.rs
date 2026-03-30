@@ -5,7 +5,7 @@
 //! 以 agent_scope 欄位區分不同 Agent 的意圖（orchestrator / data_agent / …）
 //! sync-qdrant / models 路由依 scope 代理轉發到對應 Python 服務
 //!
-//! # Last Update: 2026-03-29 20:29:56
+//! # Last Update: 2026-03-29 02:31:29
 //! # Author: Daniel Chung
 //! # Version: 1.2.0
 
@@ -469,14 +469,9 @@ async fn proxy_sync_qdrant(
     let body: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
 
     if status.is_success() {
-        // Wrap Python response into unified { code, data } envelope
-        Ok(Json(serde_json::json!({ "code": 0, "data": body })))
+        Ok(Json(body))
     } else {
-        let detail = body
-            .get("detail")
-            .and_then(|v| v.as_str())
-            .unwrap_or("sync failed");
-        Ok(Json(serde_json::json!({ "code": 1, "message": detail })))
+        Err(StatusCode::BAD_GATEWAY)
     }
 }
 

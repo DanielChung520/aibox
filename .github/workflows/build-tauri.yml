@@ -72,8 +72,6 @@ jobs:
         run: |
           KEY_PATH="${{ github.workspace }}/.ci-private-key"
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d > "$KEY_PATH"
-          # Strip trailing newline added by GitHub Secrets
-          head -c -1 "$KEY_PATH" > "${KEY_PATH}.tmp" && mv "${KEY_PATH}.tmp" "$KEY_PATH"
           echo "KEY_SIZE=$(wc -c < "$KEY_PATH")"
           TAURI_SIGNING_PRIVATE_KEY_PATH="$KEY_PATH" npx tauri build --target ${{ matrix.target }}
 

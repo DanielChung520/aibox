@@ -69,20 +69,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          # Decode base64 secret → write key file, stripping trailing newline from line 2
-          KEY_PATH="${{ github.workspace }}/.ci-private-key"
-          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d > "$KEY_PATH"
-          # Strip the trailing newline from the base64 content (line 2)
-          python3 -c "
-            with open('$KEY_PATH', 'rb') as f:
-                content = f.read()
-            # Remove trailing newline from the base64 part (last byte if it's 0x0a)
-            if content.endswith(b'\n'):
-                content = content[:-1]
-            with open('$KEY_PATH', 'wb') as f:
-                f.write(content)
-          "
-          npx tauri build --target ${{ matrix.target }}
+          DECODED=$(printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d)
+          TAURI_SIGNING_PRIVATE_KEY="$DECODED" npx tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -126,15 +114,10 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          $keyPath = "$env:GITHUB_WORKSPACE\.ci-private-key"
           $cleanKey = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\s',''
-          $decodedBytes = [System.Convert]::FromBase64String($cleanKey)
-          $content = [System.Text.Encoding]::ASCII.GetString($decodedBytes)
-          # Strip trailing newline from the base64 part (last byte if it's 0x0a)
-          if ($content.EndsWith("`n")) {
-              $content = $content.Substring(0, $content.Length - 1)
-          }
-          [System.IO.File]::WriteAllText($keyPath, $content)
+          $decoded = [System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($cleanKey))
+          $decoded = $decoded.TrimEnd("`n")
+          $env:TAURI_SIGNING_PRIVATE_KEY = $decoded
           npx tauri build
 
       - name: Upload artifacts

@@ -63,7 +63,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlCRDREN0NDRTdDQzdGMEYKUldRUGY4em56TmZVbTRBT2lvc1p3dVlHbDV3NkE1Vk9wYjU2Z1hnUnRYNTVGdkthclFQME5oOGwK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXkgODE1QTM4ODM3NDgzNTlEQQpSV1RhV1lOMGd6aGFnVGlwY01KV3A1WUVqd3pRdEluZkgvSXc3RjdHUEFxOUlzS3B4alhaeHJXdgo=",
       "endpoints": [
         "https://github.com/DanielChung520/aibox/releases/latest/download/latest.json"
       ],

@@ -64,7 +64,9 @@ jobs:
         run: npm ci
 
       - name: Decode signing key
-        run: echo "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d > ${{ github.workspace }}/.ci-private-key
+        run: |
+          printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d | sed 's/[[:space:]]*$//' > ${{ github.workspace }}/.ci-private-key
+          echo "Key file size: $(wc -c < ${{ github.workspace }}/.ci-private-key)"
 
       - name: Build frontend
         run: npm run build

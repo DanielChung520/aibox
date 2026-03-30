@@ -134,8 +134,18 @@ jobs:
           path: artifacts
           merge-multiple: false
 
-      - name: List artifacts
-        run: find artifacts -type f | sort
+      - name: Verify artifacts downloaded
+        run: |
+          if [ ! -d "artifacts" ]; then
+            echo "ERROR: artifacts directory not found!"
+            echo "This means no artifacts were uploaded by build jobs."
+            echo "Check if build-macos and build-windows jobs succeeded."
+            exit 1
+          fi
+          echo "=== Downloaded artifacts ==="
+          find artifacts -type f | sort
+          echo "=== Artifact count ==="
+          find artifacts -type f | wc -l
 
       - name: Determine version
         id: version

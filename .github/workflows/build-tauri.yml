@@ -75,6 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tauri-${{ matrix.label }}-updater
+          if-no-files-found: error
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
@@ -116,6 +117,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tauri-Windows-x64-updater
+          if-no-files-found: error
           path: |
             src-tauri/target/release/bundle/nsis/*.nsis.zip
             src-tauri/target/release/bundle/nsis/*.nsis.zip.sig

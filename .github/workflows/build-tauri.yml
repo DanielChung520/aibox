@@ -63,11 +63,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Decode signing key
+        run: echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > ${{ github.workspace }}/.ci-private-key
+
       - name: Build frontend
         run: npm run build
 
       - name: Build Tauri app
-        run: npx tauri build --target ${{ matrix.target }}
+        run: TAURI_SIGNING_PRIVATE_KEY_PATH=${{ github.workspace }}/.ci-private-key npx tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -82,6 +85,8 @@ jobs:
   build-windows:
     runs-on: windows-latest
     name: Build (Windows-x64)
+    env:
+      TAURI_SIGNING_PRIVATE_KEY_PATH: ${{ github.workspace }}\.ci-private-key
 
     steps:
       - uses: actions/checkout@v4
@@ -103,6 +108,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Decode signing key
+        run: |
+          $keyPath = "$env:GITHUB_WORKSPACE\.ci-private-key"
+          [System.IO.File]::WriteAllText($keyPath, [System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)))
 
       - name: Build frontend
         run: npm run build

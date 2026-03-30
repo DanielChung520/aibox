@@ -1,9 +1,9 @@
 /**
  * @file        任務會話聊天頁
  * @description 純聊天模式，整合 ChatStore、Provider 選擇與 SSE 串流
- * @lastUpdate  2026-03-27 22:39:59
+ * @lastUpdate  2026-03-29 20:53:38
  * @author      Daniel Chung
- * @version     1.3.0
+ * @version     1.5.0
  */
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
@@ -137,23 +137,26 @@ export default function TaskSessionChat() {
     { icon: <SmileOutlined />, key: 'emoji' },
   ];
 
-  const providerItems: MenuProps['items'] = useMemo(
-    () => {
-      const auto = [{ key: '__auto__', label: '自動' }];
-      const list = storeState.providers.map((provider) => {
-        const isLocal = provider.base_url.includes('localhost') || provider.base_url.includes('127.0.0.1');
-        const hasApiKey = Boolean(provider.api_key?.trim());
-        return { key: provider.code, label: provider.name, disabled: provider.status !== 'enabled' || (!isLocal && !hasApiKey) };
-      });
-      return [...auto, ...list];
-    },
-    [storeState.providers],
-  );
+  const providerItems: MenuProps['items'] = useMemo(() => {
+    const auto: MenuProps['items'] = [{ key: '__auto__', label: '自動' }];
+    const providerList: MenuProps['items'] = storeState.providers
+      .filter((p) => p.status === 'enabled')
+      .filter((p) => {
+        const isLocal = p.base_url.includes('localhost') || p.base_url.includes('127.0.0.1');
+        const hasApiKey = Boolean(p.api_key?.trim());
+        return isLocal || hasApiKey;
+      })
+      .map((provider) => ({
+        key: provider.code,
+        label: provider.name,
+      }));
+    return [...auto, { type: 'divider' as const }, ...providerList];
+  }, [storeState.providers]);
 
   const providerDisplayName = useMemo(() => {
     if (!storeState.selectedProvider) return '自動';
-    const provider = storeState.providers.find((item) => item.code === storeState.selectedProvider);
-    return provider?.name ?? '自動';
+    const provider = storeState.providers.find((p) => p.code === storeState.selectedProvider);
+    return provider?.name ?? storeState.selectedProvider;
   }, [storeState.selectedProvider, storeState.providers]);
 
   const handleProviderSelect: MenuProps['onClick'] = ({ key }) => {
@@ -379,7 +382,7 @@ export default function TaskSessionChat() {
                   fontSize: 11,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  maxWidth: 120,
+                  maxWidth: 160,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   border: `1px solid ${contentTokens.colorPrimary}40`,

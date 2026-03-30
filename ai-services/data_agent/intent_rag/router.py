@@ -8,9 +8,9 @@ keeping separate Qdrant collections.
 ArangoDB source: unified `intent_catalog` collection, filtered by `agent_scope`.
 Qdrant target: per-scope collection (see SCOPE_QDRANT_MAP).
 
-# Last Update: 2026-03-29 00:15:16
+# Last Update: 2026-03-29 20:33:48
 # Author: Daniel Chung
-# Version: 3.0.0
+# Version: 3.1.0
 """
 
 import logging
@@ -200,6 +200,9 @@ async def embed_sync(
 
         embedding_dim = int(await get_param("da.embedding_dimension"))
         async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.delete(
+                f"{QDRANT_URL}/collections/{qdrant_collection}",
+            )
             await client.put(
                 f"{QDRANT_URL}/collections/{qdrant_collection}",
                 json={

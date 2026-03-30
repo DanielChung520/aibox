@@ -3,9 +3,9 @@
 //! # Description
 //! 聊天 Session CRUD、SSE 串流代理、5W1H 非同步標記
 //!
-//! # Last Update: 2026-03-27 15:50:00
+//! # Last Update: 2026-03-29 20:53:38
 //! # Author: Daniel Chung
-//! # Version: 1.1.0
+//! # Version: 1.3.0
 
 use std::collections::VecDeque;
 use std::convert::Infallible;
@@ -27,7 +27,7 @@ use crate::db::{
 use crate::models::ApiResponse;
 use crate::api::sse::broadcast_file_status_event;
 use crate::api::intent::{
-    route_tool_intent, sse_text_to_stream, summarize_text, ToolIntentResult,
+    detect_orch_intent, route_tool_intent, sse_text_to_stream, summarize_text, ToolIntentResult,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -285,21 +285,89 @@ async fn send_message(
         .provider
         .clone()
         .unwrap_or_else(|| session.provider.clone());
-    let model = payload
+    let mut model = payload
         .model
         .clone()
         .unwrap_or_else(|| session.model.clone());
     let temperature = payload.temperature.unwrap_or(defaults.temperature);
     let max_tokens = payload.max_tokens.unwrap_or(defaults.max_tokens);
 
-    let providers: Vec<ModelProvider> = db
-        .aql_bind_vars(
-            "FOR p IN model_providers FILTER p.code == @code LIMIT 1 RETURN p",
-            [("code", serde_json::json!(provider.clone()))].into(),
-        )
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let provider_info = providers.into_iter().next().ok_or(StatusCode::BAD_REQUEST)?;
+    let is_auto = model == "auto";
+
+    let all_providers: Vec<ModelProvider> = if is_auto {
+        db.aql_str("FOR p IN model_providers FILTER p.status == \"enabled\" RETURN p")
+            .await
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    let resolve_provider_for_model = |target_model: &str, providers_list: &[ModelProvider]| -> Option<ModelProvider> {
+        providers_list.iter().find(|p| {
+            p.models.iter().any(|m| m.model_id == target_model && m.status == "enabled")
+        }).cloned()
+    };
+
+    let mut resolved_provider_info: Option<ModelProvider> = None;
+
+    if is_auto {
+        let intent_rag_url =
+            std::env::var("INTENT_RAG_URL").unwrap_or_else(|_| "http://localhost:8003".into());
+        let client = reqwest::Client::new();
+
+        if let Ok(Some(intent_match)) =
+            detect_orch_intent(&client, &intent_rag_url, &payload.content).await
+        {
+            let intent_type = intent_match.intent_data.intent_type.as_str();
+
+            let intent_params: Vec<SystemParam> = db
+                .aql_str("FOR p IN system_params FILTER p.category == \"intent\" RETURN p")
+                .await
+                .unwrap_or_default();
+            let get_intent_param = |key: &str| {
+                intent_params.iter().find(|p| p.param_key == key).map(|p| p.param_value.clone())
+            };
+
+            let selected_model = match intent_type {
+                "tool" => None,
+                "chat" => get_intent_param("intent.model.chat"),
+                _ => get_intent_param("intent.model.task"),
+            };
+
+            if let Some(sel) = selected_model {
+                model = sel;
+            }
+        }
+
+        if let Some(p) = resolve_provider_for_model(&model, &all_providers) {
+            resolved_provider_info = Some(p);
+        }
+    }
+
+    let provider_info = if let Some(p) = resolved_provider_info {
+        p
+    } else {
+        let lookup_code = if is_auto { &defaults.default_provider } else { &provider };
+        let providers: Vec<ModelProvider> = db
+            .aql_bind_vars(
+                "FOR p IN model_providers FILTER p.code == @code LIMIT 1 RETURN p",
+                [("code", serde_json::json!(lookup_code))].into(),
+            )
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        providers.into_iter().next().ok_or(StatusCode::BAD_REQUEST)?
+    };
+
+    if !is_auto {
+        let model_in_provider = provider_info.models.iter().any(|m| m.model_id == model && m.status == "enabled");
+        if !model_in_provider {
+            if let Some(first_enabled) = provider_info.models.iter().find(|m| m.status == "enabled") {
+                model = first_enabled.model_id.clone();
+            } else {
+                model = defaults.default_model.clone();
+            }
+        }
+    }
 
     let user_msg = ChatMessage {
         _key: Some(uuid::Uuid::new_v4().to_string()),
@@ -370,6 +438,7 @@ async fn send_message(
         "max_tokens": max_tokens,
         "provider": provider,
         "provider_base_url": provider_info.base_url,
+        "api_key": provider_info.api_key,
     });
 
     let response = client

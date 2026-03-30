@@ -3,9 +3,9 @@
 //! # Description
 //! ArangoDB 數據庫連接與操作
 //!
-//! # Last Update: 2026-03-28 10:22:08
+//! # Last Update: 2026-03-29 20:29:56
 //! # Author: Daniel Chung
-//! # Version: 1.1.0
+//! # Version: 1.3.0
 
 use arangors::client::reqwest::ReqwestClient;
 use arangors::{Connection as ArangoConnection, Database};
@@ -366,6 +366,17 @@ async fn seed_params(db: &Database<ReqwestClient>) -> Result<(), String> {
         ("task_chat.max_history_messages", "20", "number", false, "task_chat"),
         ("task_chat.greeting_message", "你好！我是你的 AI 工作助理，有什麼可以幫你的嗎？", "string", false, "task_chat"),
         ("task_chat.system_prompt", "你是一個綜合工作協作者，可以天南地北無所不談，協助使用者完成各種工作任務。", "string", false, "task_chat"),
+        ("intent.extraction_model", "deepseek-v3.1:671b-cloud", "string", false, "intent"),
+        ("intent.model.chat", "qwen2.5-coder:7b", "string", false, "intent"),
+        ("intent.model.task", "qwen3-coder:30b", "string", false, "intent"),
+        ("intent.model.tool_summary", "llama3.2:latest", "string", false, "intent"),
+        ("da.embedding_model", "nomic-embed-text:latest", "string", false, "da"),
+        ("da.embedding_dimension", "768", "number", false, "da"),
+        ("da.small_llm_model", "mistral-nemo:12b", "string", false, "da"),
+        ("da.large_llm_model", "qwen3-coder:30b", "string", false, "da"),
+        ("orch.embedding_model", "nomic-embed-text:latest", "string", false, "orch"),
+        ("orch.embedding_dimension", "768", "number", false, "orch"),
+        ("orch.match_threshold", "0.55", "number", false, "orch"),
     ];
 
     let now = Utc::now().to_rfc3339();

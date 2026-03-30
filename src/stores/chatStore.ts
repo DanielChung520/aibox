@@ -1,9 +1,9 @@
 /**
  * @file        任務聊天狀態管理
  * @description 管理聊天工作階段、訊息列表、模型供應商與 SSE 串流狀態
- * @lastUpdate  2026-03-27 12:12:03
+ * @lastUpdate  2026-03-29 20:53:38
  * @author      Daniel Chung
- * @version     1.0.0
+ * @version     1.2.0
  */
 
 import {
@@ -336,13 +336,13 @@ class ChatStore {
     this.addUserMessage(trimmed);
     this.startStreaming();
 
-    const selectedProvider = this.state.selectedProvider ?? this.getDefaultProviderCode() ?? undefined;
-    const providerConfig = this.getProviderByCode(selectedProvider ?? null);
+    const resolvedProvider = this.state.selectedProvider ?? this.getDefaultProviderCode() ?? undefined;
+    const isAuto = !this.state.selectedProvider;
 
     const request: SendMessageRequest = {
       content: trimmed,
-      provider: selectedProvider,
-      model: this.getDefaultModel() ?? providerConfig?.models?.[0]?.model_id,
+      provider: resolvedProvider,
+      model: isAuto ? 'auto' : undefined,
       temperature: this.getDefaultTemperature(),
       max_tokens: this.getDefaultMaxTokens(),
     };

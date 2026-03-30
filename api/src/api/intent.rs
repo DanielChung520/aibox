@@ -1,8 +1,8 @@
 //! Intent Router - 意圖檢測 + 工具路由
 //!
-//! # Last Update: 2026-03-28 12:03:42
+//! # Last Update: 2026-03-29 20:08:20
 //! # Author: Daniel Chung
-//! # Version: 1.0.0
+//! # Version: 1.1.0
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -34,25 +34,25 @@ impl From<serde_json::Error> for IntentError {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct IntentMatchResult {
-    intent_id: String,
-    score: f64,
+pub struct IntentMatchResult {
+    pub intent_id: String,
+    pub score: f64,
     #[serde(rename = "intent_data")]
-    intent_data: IntentData,
+    pub intent_data: IntentData,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct IntentData {
+pub struct IntentData {
     #[serde(rename = "intent_type", default)]
-    intent_type: String,
+    pub intent_type: String,
     #[serde(rename = "tool_name", default)]
-    tool_name: String,
+    pub tool_name: String,
     #[serde(rename = "generation_strategy", default)]
-    generation_strategy: String,
+    pub generation_strategy: String,
     #[serde(rename = "nl_examples", default)]
-    nl_examples: Vec<String>,
+    pub nl_examples: Vec<String>,
     #[serde(rename = "description", default)]
-    description: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -107,6 +107,35 @@ pub async fn detect_intent(
     }
 
     Ok(Some((best, tool_name)))
+}
+
+pub async fn detect_orch_intent(
+    client: &reqwest::Client,
+    intent_rag_url: &str,
+    query: &str,
+) -> Result<Option<IntentMatchResult>, IntentError> {
+    let url = format!("{}/intent-rag/orchestrator/intent/match", intent_rag_url);
+    let body = serde_json::json!({"query": query, "top_k": 3});
+
+    let resp = client
+        .post(&url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+
+    let data: IntentMatchResponse = resp.json().await?;
+
+    let best = match data.best_match {
+        Some(m) if m.score >= INTENT_RAG_THRESHOLD => m,
+        _ => return Ok(None),
+    };
+
+    Ok(Some(best))
 }
 
 pub async fn extract_parameters(

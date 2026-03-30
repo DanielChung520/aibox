@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 @file        seed_intent_catalog.py
-@description 種子腳本：將 35 條 Data Agent 意圖（Groups A-F）與 7 條
-             Top Orchestrator 意圖寫入 ArangoDB intent_catalog 集合。
+@description 種子腳本：將 35 條 Data Agent 意圖（Groups A-F）與 10 條
+             Top Orchestrator 意圖（含 3 條 tool 類型）寫入 ArangoDB intent_catalog 集合。
              agent_scope="data_agent"  → Qdrant: data_agent_intents
              agent_scope="orchestrator" → Qdrant: orchestrator_intents
 
-             Orchestrator schema (v2) — BPA 路由模型：
-               intent_type         : "chat" | "task"
+              Orchestrator schema (v2) — BPA 路由模型：
+                intent_type         : "chat" | "task" | "tool"
                domain              : "general" | "order" | "material" | "finance" | "data_query" | ...
                bpa_id              : 目標 BPA ID（"order-bpa", "material-bpa", "finance-bpa",
                                      "data-agent", null for chat）
@@ -19,10 +19,11 @@
                                      "handoff_bpa"         - 直接 handoff BPA，不需確認
                                      "confirm_then_execute" - 展示計劃給用戶確認後再執行
                                      "clarify_first"        - 先反問用戶釐清意圖
-@lastUpdate  2026-03-29 02:42:47
+@lastUpdate  2026-03-29 19:39:42
 @author      Daniel Chung
-@version     1.2.0
+@version     1.3.0
 @history
+- 2026-03-29 19:39:42 | Daniel Chung | 1.3.0 | 新增 tool 類型 orchestrator intents（weather, forecast, web_search），擴展 make_orch_doc 支援 tool_name
 - 2026-03-29 02:42:47 | Daniel Chung | 1.2.0 | 新增 response_strategy 欄位（感知/判斷/行動三階段）
 - 2026-03-29 02:24:57 | Daniel Chung | 1.1.0 | Orchestrator 改為 BPA 路由模型（intent_type=chat/task）
 """
@@ -105,23 +106,30 @@ def make_orch_doc(
     intent_id: str,
     name: str,
     description: str,
-    intent_type: str,  # "chat" | "task"
-    domain: str,       # "general" | "order" | "material" | "finance" | "data_query"
+    intent_type: str,  # "chat" | "task" | "tool"
+    domain: str,       # "general" | "order" | "material" | "finance" | "data_query" | "tool"
     bpa_id: str | None,
     capabilities: list[str],
     nl_examples: list[str],
     task_type: str = "",          # "query" | "action" | "workflow"（task 才填）
+    tool_name: str = "",          # intent_type="tool" 時必填，對應 tools collection 的 _key
     confidence_threshold: float = 0.7,
     priority: int = 0,
-    response_strategy: str = "",  # "direct_llm" | "handoff_bpa" | "confirm_then_execute" | "clarify_first"
+    response_strategy: str = "",  # "direct_llm" | "handoff_bpa" | "confirm_then_execute" | "clarify_first" | "tool_execute"
 ) -> dict:
     """Build an orchestrator intent document (BPA routing model v2).
+
+    intent_type 語義：
+      chat - 一般對話，直接由 LLM 回覆
+      task - 業務任務，路由至對應 BPA
+      tool - 工具調用，路由至 MCP Tools 服務執行外部工具
 
     response_strategy 語義：
       direct_llm           - 直接由 LLM 回覆，不路由到任何 BPA（用於 chat）
       handoff_bpa          - 直接 handoff 給 BPA 執行，不需用戶確認（純查詢）
       confirm_then_execute - 展示計劃給用戶確認後再執行（寫入/操作類）
       clarify_first        - 先反問用戶釐清意圖（信心度低、意圖模糊時）
+      tool_execute         - 提取參數後直接執行工具（用於 tool 類型）
     """
     doc: dict = {
         "_key": intent_id,
@@ -144,6 +152,8 @@ def make_orch_doc(
         doc["bpa_id"] = bpa_id
     if task_type:
         doc["task_type"] = task_type
+    if tool_name:
+        doc["tool_name"] = tool_name
     if response_strategy:
         doc["response_strategy"] = response_strategy
     return doc
@@ -956,13 +966,10 @@ GROUP_F = [
 ]
 
 # ===========================================================================
-# Orchestrator Intents (7 intents)
-# ===========================================================================
-
-# ===========================================================================
-# Orchestrator Intents (7 intents) — BPA Routing Model v2
-# intent_type: "chat" | "task"
+# Orchestrator Intents (10 intents) — BPA Routing Model v2 + Tool Intents
+# intent_type: "chat" | "task" | "tool"
 # bpa_id: target BPA ("order-bpa", "material-bpa", "finance-bpa", "data-agent")
+# tool_name: target tool ("weather", "forecast", "web_search")
 # ===========================================================================
 
 ORCHESTRATOR_INTENTS = [
@@ -980,7 +987,6 @@ ORCHESTRATOR_INTENTS = [
         nl_examples=[
             "你好",
             "謝謝你的幫助",
-            "今天天氣怎麼樣",
             "系統功能有哪些",
             "你是誰",
         ],
@@ -1100,6 +1106,75 @@ ORCHESTRATOR_INTENTS = [
             "庫存月報",
             "供應商績效報告",
             "產生財務摘要報表",
+        ],
+    ),
+
+    # ── Tool Intents ──────────────────────────────────────────────────────────
+    make_orch_doc(
+        "orch_weather",
+        name="即時天氣查詢（工具調用）",
+        description="使用者詢問即時天氣狀況時，路由至 MCP Tools 執行 weather 工具取得即時氣象資料。",
+        intent_type="tool",
+        domain="tool",
+        bpa_id=None,
+        capabilities=["weather_query"],
+        tool_name="weather",
+        confidence_threshold=0.65,
+        priority=12,
+        response_strategy="tool_execute",
+        nl_examples=[
+            "台北天氣",
+            "今天天氣怎麼樣",
+            "天氣如何",
+            "現在外面幾度",
+            "台中天氣",
+            "高雄現在的天氣",
+            "東京天氣如何",
+            "上海今天幾度",
+        ],
+    ),
+    make_orch_doc(
+        "orch_forecast",
+        name="天氣預報查詢（工具調用）",
+        description="使用者詢問未來天氣預報時，路由至 MCP Tools 執行 forecast 工具取得多日天氣預報。",
+        intent_type="tool",
+        domain="tool",
+        bpa_id=None,
+        capabilities=["forecast_query"],
+        tool_name="forecast",
+        confidence_threshold=0.65,
+        priority=11,
+        response_strategy="tool_execute",
+        nl_examples=[
+            "明天天氣",
+            "未來三天天氣預報",
+            "這週天氣",
+            "一週天氣預報",
+            "下禮拜天氣",
+            "台北明天會下雨嗎",
+            "後天天氣怎麼樣",
+        ],
+    ),
+    make_orch_doc(
+        "orch_web_search",
+        name="網路搜尋（工具調用）",
+        description="使用者要求搜尋網路資訊時，路由至 MCP Tools 執行 web_search 工具查詢網路。",
+        intent_type="tool",
+        domain="tool",
+        bpa_id=None,
+        capabilities=["web_search"],
+        tool_name="web_search",
+        confidence_threshold=0.65,
+        priority=11,
+        response_strategy="tool_execute",
+        nl_examples=[
+            "幫我搜尋 AI 最新新聞",
+            "上網查一下台積電股價",
+            "搜尋 Python 教學",
+            "Google 一下 React 18 新功能",
+            "查一下最新的 iPhone 價格",
+            "幫我找關於量子電腦的資料",
+            "search for machine learning tutorials",
         ],
     ),
 ]

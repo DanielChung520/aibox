@@ -1,15 +1,15 @@
 /**
  * @file        統一意圖目錄管理頁面
  * @description 支援 TopOrchestrator / DataAgent 分頁切換的意圖 CRUD 管理
- * @lastUpdate  2026-03-29 02:42:47
+ * @lastUpdate  2026-03-29 02:57:24
  * @author      Daniel Chung
- * @version     2.3.0
+ * @version     2.4.0
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card, Table, Button, Tag, Space, Typography, Descriptions, Select, Input,
-  Drawer, Tabs, App, Statistic, Row, Col, theme, Modal, Form, InputNumber, Divider, Alert
+  Drawer, Tabs, App, Statistic, Row, Col, theme, Modal, Form, InputNumber, Divider, Alert, Pagination
 } from 'antd';
 import {
   EyeOutlined, DeleteOutlined, ReloadOutlined, EditOutlined, PlusOutlined,
@@ -47,6 +47,8 @@ function OrchestratorPanel() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settings, setSettings] = useState({ embeddingModel: '', embeddingDimension: 1536, matchThreshold: 0.75 });
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const STRATEGY_COLORS: Record<string, string> = {
     direct_llm: 'blue',
@@ -195,9 +197,9 @@ function OrchestratorPanel() {
   const handleSave = async () => {
     try {
       const formValues = await form.validateFields();
-      const { 
-        intent_id, name, description, priority, status, nl_examples, 
-        intent_type, domain, bpa_id, task_type, response_strategy, capabilities, confidence_threshold 
+      const {
+        intent_id, name, description, priority, status, nl_examples,
+        intent_type, domain, bpa_id, task_type, response_strategy, capabilities, confidence_threshold
       } = formValues;
 
       const payload: Partial<IntentCatalogEntry> = {
@@ -234,22 +236,22 @@ function OrchestratorPanel() {
   const columns = [
     { title: 'Intent ID', dataIndex: 'intent_id', key: 'intent_id', render: (text: string) => <Text code>{text}</Text> },
     { title: '名稱', dataIndex: 'name', key: 'name' },
-    { 
+    {
       title: '類型', dataIndex: 'intent_type', key: 'intent_type',
       render: (type: string) => {
         const color = type === 'chat' ? 'blue' : type === 'task' ? 'green' : 'default';
         return <Tag color={color}>{type || '-'}</Tag>;
       }
     },
-    { 
+    {
       title: 'Domain', dataIndex: 'domain', key: 'domain',
       render: (domain: string) => domain ? <Tag>{domain}</Tag> : '-'
     },
-    { 
+    {
       title: 'BPA', dataIndex: 'bpa_id', key: 'bpa_id',
       render: (bpa: string) => bpa ? <Tag color="geekblue">{bpa}</Tag> : '-'
     },
-    { 
+    {
       title: 'Task Type', dataIndex: 'task_type', key: 'task_type',
       render: (task: string) => task ? <Tag color="purple">{task}</Tag> : '-'
     },
@@ -280,8 +282,8 @@ function OrchestratorPanel() {
   ];
 
   return (
-    <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
-      <Row gutter={16}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12, overflow: 'hidden' }}>
+      <Row gutter={16} style={{ flexShrink: 0 }}>
         <Col span={6}>
           <Card size="small">
             <Statistic title="總意圖數" value={total} prefix={<AimOutlined />} />
@@ -304,8 +306,8 @@ function OrchestratorPanel() {
         </Col>
       </Row>
 
-      <Card size="small">
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <Card size="small" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }} styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px', minHeight: 0 } }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
           <Space>
             <Input.Search placeholder="搜尋描述或ID" onSearch={(v) => { setSearch(v); setPage(1); }} style={{ width: 200 }} allowClear />
             <Select value={intentType} onChange={(v) => { setIntentType(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部類型', value: '' }, { label: 'chat', value: 'chat' }, { label: 'task', value: 'task' }]} />
@@ -319,19 +321,26 @@ function OrchestratorPanel() {
           </Space>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={intents}
-          rowKey="intent_id"
-          loading={loading}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            onChange: (p, ps) => { setPage(p); setPageSize(ps); }
-          }}
-        />
+        <div ref={tableContainerRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          <Table
+            columns={columns}
+            dataSource={intents}
+            rowKey="intent_id"
+            loading={loading}
+            sticky
+            scroll={{ x: 'max-content' }}
+            pagination={false}
+          />
+        </div>
+        <div style={{ padding: '12px 0 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+          />
+        </div>
       </Card>
 
       <Drawer title="意圖詳細資訊" size="large" open={detailVisible} onClose={() => setDetailVisible(false)}>
@@ -502,7 +511,7 @@ function OrchestratorPanel() {
           <Descriptions.Item label="目前閾值">{settings.matchThreshold}</Descriptions.Item>
         </Descriptions>
       </Drawer>
-    </Space>
+    </div>
   );
 }
 
@@ -533,6 +542,8 @@ function DataAgentPanel() {
   const [settings, setSettings] = useState({ embeddingModel: '', embeddingDimension: 1536, smallLlmModel: '', largeLlmModel: '' });
   const [models, setModels] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const loadIntents = useCallback(async () => {
     setLoading(true);
@@ -761,8 +772,8 @@ function DataAgentPanel() {
   ];
 
   return (
-    <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
-      <Row gutter={16}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12, overflow: 'hidden' }}>
+      <Row gutter={16} style={{ flexShrink: 0 }}>
         <Col span={6}>
           <Card size="small">
             <Statistic title="總意圖數" value={total} prefix={<DatabaseOutlined />} />
@@ -785,8 +796,8 @@ function DataAgentPanel() {
         </Col>
       </Row>
 
-      <Card size="small">
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <Card size="small" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }} styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px', minHeight: 0 } }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
           <Space>
             <Input.Search placeholder="搜尋" onSearch={(v) => { setSearch(v); setPage(1); }} style={{ width: 160 }} allowClear />
             <Select value={intentType} onChange={(v) => { setIntentType(v); setPage(1); }} style={{ width: 120 }} options={[{ label: '全部類型', value: '' }, ...['aggregate', 'filter', 'join', 'time_series', 'ranking', 'comparison'].map(x => ({ label: x, value: x }))]} />
@@ -801,19 +812,26 @@ function DataAgentPanel() {
           </Space>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={intents}
-          rowKey="intent_id"
-          loading={loading}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            onChange: (p, ps) => { setPage(p); setPageSize(ps); }
-          }}
-        />
+        <div ref={tableContainerRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          <Table
+            columns={columns}
+            dataSource={intents}
+            rowKey="intent_id"
+            loading={loading}
+            sticky
+            scroll={{ x: 'max-content' }}
+            pagination={false}
+          />
+        </div>
+        <div style={{ padding: '12px 0 0', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+          />
+        </div>
       </Card>
 
       <Drawer title="DataAgent 意圖詳細資訊" size="large" open={detailVisible} onClose={() => setDetailVisible(false)}>
@@ -825,18 +843,18 @@ function DataAgentPanel() {
               children: (
                 <Descriptions bordered column={1} size="small">
                   <Descriptions.Item label="Intent ID"><Text code>{currentIntent.intent_id}</Text></Descriptions.Item>
-                   <Descriptions.Item label="Domain Intent">{currentIntent.bpa_domain_intent || '-'}</Descriptions.Item>
-                   <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
-                   <Descriptions.Item label="查詢類型"><Tag>{currentIntent.intent_type || '-'}</Tag></Descriptions.Item>
-                   <Descriptions.Item label="群組"><Tag>{currentIntent.group || '-'}</Tag></Descriptions.Item>
-                   <Descriptions.Item label="生成策略"><Tag>{currentIntent.generation_strategy || '-'}</Tag></Descriptions.Item>
-                   <Descriptions.Item label="Is Template">{currentIntent.generation_strategy === 'template' ? 'Yes' : 'No'}</Descriptions.Item>
-                   <Descriptions.Item label="關聯表">
-                     {Array.isArray(currentIntent.tables) ? currentIntent.tables.map((t: string) => <Tag key={t}>{t}</Tag>) : '-'}
-                   </Descriptions.Item>
-                   <Descriptions.Item label="核心欄位">
-                     {Array.isArray(currentIntent.core_fields) ? currentIntent.core_fields.map((f: string) => <Tag key={f}>{f}</Tag>) : '-'}
-                   </Descriptions.Item>
+                  <Descriptions.Item label="Domain Intent">{currentIntent.bpa_domain_intent || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="說明">{currentIntent.description}</Descriptions.Item>
+                  <Descriptions.Item label="查詢類型"><Tag>{currentIntent.intent_type || '-'}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="群組"><Tag>{currentIntent.group || '-'}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="生成策略"><Tag>{currentIntent.generation_strategy || '-'}</Tag></Descriptions.Item>
+                  <Descriptions.Item label="Is Template">{currentIntent.generation_strategy === 'template' ? 'Yes' : 'No'}</Descriptions.Item>
+                  <Descriptions.Item label="關聯表">
+                    {Array.isArray(currentIntent.tables) ? currentIntent.tables.map((t: string) => <Tag key={t}>{t}</Tag>) : '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="核心欄位">
+                    {Array.isArray(currentIntent.core_fields) ? currentIntent.core_fields.map((f: string) => <Tag key={f}>{f}</Tag>) : '-'}
+                  </Descriptions.Item>
                 </Descriptions>
               )
             },
@@ -873,7 +891,7 @@ function DataAgentPanel() {
                     message.success('已複製 SQL Template');
                   }}>複製</Button>
                 }>
-                   <pre style={{ margin: 0 }}>{currentIntent.sql_template || '無'}</pre>
+                  <pre style={{ margin: 0 }}>{currentIntent.sql_template || '無'}</pre>
                 </Card>
               )
             }
@@ -966,7 +984,7 @@ function DataAgentPanel() {
           <Form.Item name="embeddingDimension" label="Embedding 維度" rules={[{ required: true }]}>
             <InputNumber style={{ width: '100%' }} />
           </Form.Item>
-          
+
           <Divider >SQL 生成 LLM</Divider>
           <Alert message="變更提醒" description="修改 LLM 模型將影響 DataAgent 生成 SQL 的結果與品質。" type="info" showIcon style={{ marginBottom: 16 }} />
           <Form.Item name="smallLlmModel" label="小型 LLM 模型 (small_llm)" rules={[{ required: true }]}>
@@ -984,15 +1002,36 @@ function DataAgentPanel() {
           <Descriptions.Item label="目前 Large LLM">{settings.largeLlmModel}</Descriptions.Item>
         </Descriptions>
       </Drawer>
-    </Space>
+    </div>
   );
 }
 
 export default function IntentCatalog() {
   return (
-    <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 10 }}>
+      <style>{`
+        .intent-catalog-tabs > .ant-tabs-content-holder {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          min-height: 0;
+        }
+        .intent-catalog-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+          flex: 1;
+          height: 100%;
+          overflow: hidden;
+        }
+        .intent-catalog-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+          height: 100%;
+          overflow: hidden;
+        }
+      `}</style>
       <Tabs
+        className="intent-catalog-tabs"
         defaultActiveKey="orchestrator"
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}
+        tabBarStyle={{ marginBottom: 8, flexShrink: 0 }}
         items={[
           { key: 'orchestrator', label: 'TopOrchestrator', children: <OrchestratorPanel /> },
           { key: 'data_agent', label: 'DataAgent', children: <DataAgentPanel /> }

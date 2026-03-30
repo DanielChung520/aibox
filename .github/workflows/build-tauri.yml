@@ -33,7 +33,7 @@ jobs:
             runner: macos-latest
             label: macOS-ARM
           - target: x86_64-apple-darwin
-            runner: macos-13
+            runner: macos-latest
             label: macOS-Intel
 
     runs-on: ${{ matrix.runner }}

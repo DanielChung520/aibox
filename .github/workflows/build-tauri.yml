@@ -1,8 +1,3 @@
-# Build & Release Tauri Desktop App
-# Triggers on version tags (v*) or manual dispatch
-# Builds for: macOS ARM (M1/M2/M3/M4), macOS Intel, Windows x64
-# Produces: DMG, NSIS (exe), MSI + updater artifacts (latest.json)
-
 name: Build & Release Tauri App
 
 on:
@@ -33,9 +28,11 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-latest
             label: macOS-ARM
+            arch: aarch64
           - target: x86_64-apple-darwin
             runner: macos-latest
             label: macOS-Intel
+            arch: x64
 
     runs-on: ${{ matrix.runner }}
     name: Build (${{ matrix.label }})
@@ -74,12 +71,11 @@ jobs:
       - name: Debug bundle output
         run: find src-tauri/target/${{ matrix.target }}/release/bundle -type f 2>/dev/null || echo "No bundle files found"
 
-      - name: Upload artifacts
+      - name: Upload updater artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-${{ matrix.label }}
+          name: tauri-${{ matrix.label }}-updater
           path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
 
@@ -116,12 +112,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npx tauri build
 
-      - name: Upload artifacts
+      - name: Upload updater artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-Windows-x64
+          name: tauri-Windows-x64-updater
           path: |
-            src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.nsis.zip
             src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
 
@@ -160,15 +155,15 @@ jobs:
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           REPO="https://github.com/${{ github.repository }}/releases/download/${VERSION}"
 
-          # Find files and compute signatures + checksums
-          MAC_ARM_TAR=$(ls artifacts/tauri-macOS-ARM/*.app.tar.gz 2>/dev/null | head -1)
-          MAC_INTEL_TAR=$(ls artifacts/tauri-macOS-Intel/*.app.tar.gz 2>/dev/null | head -1)
-          WIN_NSIS_ZIP=$(ls artifacts/tauri-Windows-x64/*.nsis.zip 2>/dev/null | head -1)
+          # Find files
+          MAC_ARM_TAR=$(ls artifacts/tauri-macOS-ARM-updater/*.app.tar.gz 2>/dev/null | head -1)
+          MAC_INTEL_TAR=$(ls artifacts/tauri-macOS-Intel-updater/*.app.tar.gz 2>/dev/null | head -1)
+          WIN_NSIS_ZIP=$(ls artifacts/tauri-Windows-x64-updater/*.nsis.zip 2>/dev/null | head -1)
 
           # Read signatures
-          MAC_ARM_SIG=$(cat "artifacts/tauri-macOS-ARM/$(basename $MAC_ARM_TAR).sig" 2>/dev/null || echo "")
-          MAC_INTEL_SIG=$(cat "artifacts/tauri-macOS-Intel/$(basename $MAC_INTEL_TAR).sig" 2>/dev/null || echo "")
-          WIN_NSIS_SIG=$(cat "${WIN_NSIS_ZIP}.sig" 2>/dev/null || echo "")
+          MAC_ARM_SIG=$(cat "artifacts/tauri-macOS-ARM-updater/$(basename $MAC_ARM_TAR).sig" 2>/dev/null || echo "")
+          MAC_INTEL_SIG=$(cat "artifacts/tauri-macOS-Intel-updater/$(basename $MAC_INTEL_TAR).sig" 2>/dev/null || echo "")
+          WIN_NSIS_SIG=$(cat "artifacts/tauri-Windows-x64-updater/$(basename $WIN_NSIS_ZIP).sig" 2>/dev/null || echo "")
 
           # macOS ARM
           if [ -f "$MAC_ARM_TAR" ]; then
@@ -195,7 +190,7 @@ jobs:
           fi
 
           # Build latest.json (Tauri 2.x format)
-          cat > latest.json << EOF
+          cat > latest.json << 'EOF'
           {
             "version": "${VERSION#v}",
             "notes": "${NOTES}",
@@ -229,7 +224,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" \) -exec cp {} release-files/ \;
           cp latest.json release-files/
           ls -la release-files/
 

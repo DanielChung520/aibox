@@ -64,7 +64,7 @@ jobs:
         run: npm ci
 
       - name: Decode signing key
-        run: echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > ${{ github.workspace }}/.ci-private-key
+        run: echo "$TAURI_SIGNING_PRIVATE_KEY" | tr -d '[:space:]' | base64 -d > ${{ github.workspace }}/.ci-private-key
 
       - name: Build frontend
         run: npm run build
@@ -112,7 +112,8 @@ jobs:
       - name: Decode signing key
         run: |
           $keyPath = "$env:GITHUB_WORKSPACE\.ci-private-key"
-          [System.IO.File]::WriteAllText($keyPath, [System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)))
+          $cleanKey = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\s',''
+          [System.IO.File]::WriteAllText($keyPath, [System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($cleanKey)))
 
       - name: Build frontend
         run: npm run build

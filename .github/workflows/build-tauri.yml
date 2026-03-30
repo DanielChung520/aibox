@@ -69,9 +69,12 @@ jobs:
         run: npx tauri build --target ${{ matrix.target }}
 
       - name: Debug bundle output
-        run: find src-tauri/target/${{ matrix.target }}/release/bundle -type f 2>/dev/null || echo "No bundle files found"
+        run: |
+          echo "=== Bundle files for ${{ matrix.label }} ==="
+          find src-tauri/target/${{ matrix.target }}/release/bundle -type f 2>/dev/null || echo "No bundle files found"
 
       - name: Upload updater artifacts
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: tauri-${{ matrix.label }}-updater
@@ -79,6 +82,13 @@ jobs:
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+
+      - name: Confirm upload
+        run: |
+          echo "Artifact uploaded: ${{ steps.upload.outputs.artifact-name }}"
+          echo "Artifact ID: ${{ steps.upload.outputs.artifact-id }}"
+          echo "Files uploaded: ${{ steps.upload.outputs.artifact-mounted }}"
+
 
   build-windows:
     runs-on: windows-latest
@@ -130,11 +140,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: List available artifacts from build jobs
+        run: |
+          echo "=== Checking for artifacts from build jobs ==="
+          # Use GitHub REST API to list artifacts
+          RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts")
+          echo "Artifacts response:"
+          echo "$RESPONSE" | head -100
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          merge-multiple: false
 
       - name: Verify artifacts downloaded
         run: |
@@ -148,6 +166,9 @@ jobs:
           find artifacts -type f | sort
           echo "=== Artifact count ==="
           find artifacts -type f | wc -l
+
+          echo "=== Directories in artifacts ==="
+          ls -la artifacts/ 2>/dev/null || echo "artifacts/ is empty or not a directory"
 
       - name: Determine version
         id: version
